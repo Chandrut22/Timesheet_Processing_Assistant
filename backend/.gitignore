@@ -15,11 +15,14 @@ __pycache__/
 *$py.class
 
 # C extensions
+keys/
+*.pem
 *.so
 
 # Distribution / packaging
 .Python
 build/
+secret/
 develop-eggs/
 dist/
 downloads/
@@ -229,3 +232,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+.env
+**/.env
+**/keys/
+*.pem
+**/.venv/
+__pycache__/

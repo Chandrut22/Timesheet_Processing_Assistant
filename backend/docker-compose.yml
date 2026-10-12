@@ -1,0 +1,91 @@
+# One Postgres (database timesheet_db) and one Redis (db 0), shared by all services.
+#   Postgres: each service owns a schema   -> auth.*, core.*
+#   Redis:    each service prefixes keys   -> auth:*, core:*
+#
+#   cd backend
+#   docker compose up -d --build
+
+name: timesheet
+
+x-db-url: &db-url postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in backend/.env}@postgres:5432/${POSTGRES_DB:-timesheet_db}
+
+x-auth-env: &auth-env
+  # Overrides the 127.0.0.1 values in auth-service/.env (those are for running locally).
+  DATABASE_URL: *db-url
+  REDIS_URL: redis://redis:6379/0
+  JWT_PRIVATE_KEY_PATH: /app/keys/jwt_private.pem
+  JWT_PUBLIC_KEY_PATH: /app/keys/jwt_public.pem
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in backend/.env}
+      POSTGRES_DB: ${POSTGRES_DB:-timesheet_db}
+    ports:
+      - "5433:5432"  # 5432 is taken by the Windows PostgreSQL service
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6380:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # --- auth-service ---------------------------------------------------------
+
+  auth-migrate:
+    build: ./auth-service
+    command: ["alembic", "upgrade", "head"]
+    env_file: ./auth-service/.env
+    environment: *auth-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  auth-service:
+    build: ./auth-service
+    env_file: ./auth-service/.env
+    environment: *auth-env
+    volumes:
+      - ./auth-service/keys:/app/keys:ro
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # --- core-service (added when we build it) --------------------------------
+  # Same DATABASE_URL and REDIS_URL, schema "core", key prefix "core:",
+  # and ONLY the public key: ./auth-service/keys/jwt_public.pem:/app/keys/jwt_public.pem:ro
+
+volumes:
+  pgdata:
+  redisdata:
