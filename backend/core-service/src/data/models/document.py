@@ -1,0 +1,34 @@
+import uuid
+from typing import TYPE_CHECKING
+
+from sqlalchemy import ForeignKey, Integer, String, Text, Uuid
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from src.constants.timesheet_status import DocumentStatus
+from src.data.models.base import SCHEMA, Base, TimestampMixin, UUIDPrimaryKeyMixin, enum_check
+
+if TYPE_CHECKING:
+    from src.data.models.submission import Submission
+
+
+class Document(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """One attached file. The file itself is never stored: only its hash and,
+    once read, its text."""
+
+    __tablename__ = "documents"
+    __table_args__ = (enum_check("status", DocumentStatus),)
+
+    submission_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey(f"{SCHEMA}.submissions.id", ondelete="CASCADE"), index=True
+    )
+    filename: Mapped[str] = mapped_column(String(255))
+    content_type: Mapped[str] = mapped_column(String(100))
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    sha256: Mapped[str] = mapped_column(String(64), index=True)  # same file twice -> duplicate
+    status: Mapped[str] = mapped_column(
+        String(20), default=DocumentStatus.PENDING, server_default="pending"
+    )
+    extracted_text: Mapped[str | None] = mapped_column(Text)
+    error: Mapped[str | None] = mapped_column(Text)
+
+    submission: Mapped["Submission"] = relationship(back_populates="documents", lazy="raise")
