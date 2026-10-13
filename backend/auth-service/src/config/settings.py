@@ -13,7 +13,9 @@ class Settings(BaseSettings):
     environment: str = "local"
 
     # postgresql+asyncpg://USER:PASSWORD@HOST:PORT/DB_NAME
-    database_url: str = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5433/timesheet_db"
+    database_url: str = (
+        "postgresql+asyncpg://postgres:postgres@127.0.0.1:5433/timesheet_db"
+    )
     db_pool_size: int = 10
     db_max_overflow: int = 10
     db_echo: bool = False

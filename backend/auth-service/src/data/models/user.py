@@ -14,7 +14,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.data.models.base import Base, SCHEMA
+from src.data.models.base import SCHEMA, Base
 
 if TYPE_CHECKING:
     from src.data.models.role import Role

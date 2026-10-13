@@ -1,22 +1,35 @@
-# One Postgres (database timesheet_db) and one Redis (db 0), shared by all services.
-#   Postgres: each service owns a schema   -> auth.*, core.*
-#   Redis:    each service prefixes keys   -> auth:*, core:*
+# Timesheet Processing Assistant: local / dev stack.
+#
+#   One Postgres (database timesheet_db) and one Redis (db 0), shared by all services:
+#     Postgres: each service owns a schema   -> auth.*, core.*
+#     Redis:    each service prefixes keys   -> auth:*, core:*
 #
 #   cd backend
 #   docker compose up -d --build
+#
+# Needs backend/.env with POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB,
+# auth-service/.env and core-service/.env, and auth-service/keys/ (JWT key pair).
 
 name: timesheet
 
 x-db-url: &db-url postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in backend/.env}@postgres:5432/${POSTGRES_DB:-timesheet_db}
 
+# Inside Docker, services reach each other by name (postgres, redis), not 127.0.0.1.
+# These override the 127.0.0.1 values in each service's .env (those are for local runs).
 x-auth-env: &auth-env
-  # Overrides the 127.0.0.1 values in auth-service/.env (those are for running locally).
   DATABASE_URL: *db-url
   REDIS_URL: redis://redis:6379/0
   JWT_PRIVATE_KEY_PATH: /app/keys/jwt_private.pem
   JWT_PUBLIC_KEY_PATH: /app/keys/jwt_public.pem
 
+x-core-env: &core-env
+  DATABASE_URL: *db-url
+  REDIS_URL: redis://redis:6379/0
+  JWT_PUBLIC_KEY_PATH: /app/keys/jwt_public.pem
+
 services:
+  # --- shared infrastructure ------------------------------------------------
+
   postgres:
     image: postgres:16-alpine
     environment:
@@ -65,7 +78,7 @@ services:
     env_file: ./auth-service/.env
     environment: *auth-env
     volumes:
-      - ./auth-service/keys:/app/keys:ro
+      - ./auth-service/keys:/app/keys:ro  # private + public key (only auth signs tokens)
     ports:
       - "8001:8001"
     depends_on:
@@ -82,10 +95,65 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # --- core-service (added when we build it) --------------------------------
-  # Same DATABASE_URL and REDIS_URL, schema "core", key prefix "core:",
-  # and ONLY the public key: ./auth-service/keys/jwt_public.pem:/app/keys/jwt_public.pem:ro
+  # --- core-service ---------------------------------------------------------
+
+  core-migrate:
+    build: ./core-service
+    command: ["alembic", "upgrade", "head"]
+    env_file: ./core-service/.env
+    environment: *core-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  core-service:
+    build: ./core-service
+    env_file: ./core-service/.env
+    environment: *core-env
+    volumes:
+      # ONLY the public key: core verifies tokens, it can never create them
+      - ./auth-service/keys/jwt_public.pem:/app/keys/jwt_public.pem:ro
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      core-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  core-worker:
+    build: ./core-service
+    # Each worker process loads Docling's models (~1 GB RAM): 2 processes need ~2-3 GB.
+    command:
+      [
+        "celery", "-A", "src.control.workers.celery_app", "worker",
+        "--loglevel=INFO", "--concurrency=${WORKER_CONCURRENCY:-2}", "-Q", "timesheets",
+      ]
+    env_file: ./core-service/.env
+    environment:
+      <<: *core-env
+      HF_HOME: /models/hf  # Docling / Hugging Face model cache
+    volumes:
+      - models:/models  # models download once, survive rebuilds
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      core-migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
 
 volumes:
   pgdata:
   redisdata:
+  models:
