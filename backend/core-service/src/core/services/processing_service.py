@@ -14,12 +14,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants.timesheet_status import DocumentStatus, SubmissionStatus
 from src.control.agents.extraction_agent import extract_timesheets
+from src.core.services.employee_matcher import (
+    MatchResult,
+    apply_match,
+    match_employee,
+    to_record,
+)
 from src.core.services.pay_rules import recalculate, rules_from_company
 from src.core.services.timesheet_builder import BuildContext, build_timesheet
 from src.data.clients import upload_buffer
 from src.data.clients.document_reader import DocumentReadError, read_document
 from src.data.clients.postgres import SessionLocal
 from src.data.models import Company, Document, Submission, Timesheet
+from src.data.repositories.employee_repository import EmployeeRepository
 from src.data.repositories.holiday_repository import HolidayRepository
 
 logger = logging.getLogger(__name__)
@@ -129,10 +136,24 @@ class ProcessingService:
             received_on=submission.received_at.date(),
             week_start_day=company.week_start if company else 0,
         )
+
         rules = rules_from_company(company)
         holidays = await HolidayRepository(self.session).dates_for(submission.company_id)
+        employees = (
+            [to_record(e) for e in await EmployeeRepository(self.session).list_active(company.id)]
+            if company
+            else []
+        )
+
         for extracted in result.timesheets:
             timesheet = build_timesheet(extracted, ctx)
+            if company:
+                match = match_employee(
+                    timesheet.extracted_name, timesheet.extracted_code, employees
+                )
+                apply_match(timesheet, match)
+            else:
+                apply_match(timesheet, MatchResult(None, None), company_known=False)
             recalculate(timesheet, rules, holidays, default_rules_used=company is None)
             self.session.add(timesheet)
         logger.info("Extracted %d timesheet(s) from %s", len(result.timesheets), document.filename)

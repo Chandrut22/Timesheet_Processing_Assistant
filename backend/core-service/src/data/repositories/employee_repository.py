@@ -52,3 +52,10 @@ class EmployeeRepository(BaseRepository[Employee]):
         return await self.paginate(
             query.order_by(Employee.full_name, Employee.id), page=page, size=size
         )
+
+    async def list_active(self, company_id: uuid.UUID) -> Sequence[Employee]:
+        """Everyone matching may pick from: the company's active employees."""
+        rows = await self.session.scalars(
+            select(Employee).where(Employee.company_id == company_id, Employee.is_active.is_(True))
+        )
+        return rows.all()
