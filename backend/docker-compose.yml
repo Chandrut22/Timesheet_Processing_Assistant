@@ -4,6 +4,9 @@
 #     Postgres: each service owns a schema   -> auth.*, core.*
 #     Redis:    each service prefixes keys   -> auth:*, core:*
 #
+#   Each API container runs its own migrations (alembic upgrade head) before it starts.
+#   The core worker waits until core-service is healthy, i.e. migrations are done.
+#
 #   cd backend
 #   docker compose up -d --build
 #
@@ -63,18 +66,10 @@ services:
 
   # --- auth-service ---------------------------------------------------------
 
-  auth-migrate:
-    build: ./auth-service
-    command: ["alembic", "upgrade", "head"]
-    env_file: ./auth-service/.env
-    environment: *auth-env
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: "no"
-
   auth-service:
     build: ./auth-service
+    # Migrate, then start. If the migration fails, the container stops (and restarts).
+    command: ["sh", "-c", "alembic upgrade head && exec uvicorn src.main:app --host 0.0.0.0 --port 8001"]
     env_file: ./auth-service/.env
     environment: *auth-env
     volumes:
@@ -86,29 +81,20 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      auth-migrate:
-        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')"]
       interval: 10s
       timeout: 3s
       retries: 5
+      start_period: 30s  # time for the migration before health checks count
     restart: unless-stopped
 
   # --- core-service ---------------------------------------------------------
 
-  core-migrate:
-    build: ./core-service
-    command: ["alembic", "upgrade", "head"]
-    env_file: ./core-service/.env
-    environment: *core-env
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: "no"
-
   core-service:
     build: ./core-service
+    image: timesheet-core:latest
+    command: ["sh", "-c", "alembic upgrade head && exec uvicorn src.main:app --host 0.0.0.0 --port 8002"]
     env_file: ./core-service/.env
     environment: *core-env
     volumes:
@@ -121,17 +107,17 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      core-migrate:
-        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health')"]
       interval: 10s
       timeout: 3s
       retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   core-worker:
-    build: ./core-service
+    image: timesheet-core:latest  # same image as core-service (built once)
+    pull_policy: never            # local image only: never try Docker Hub
     # Each worker process loads Docling's models (~1 GB RAM): 2 processes need ~2-3 GB.
     command:
       [
@@ -145,12 +131,10 @@ services:
     volumes:
       - models:/models  # models download once, survive rebuilds
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
-      core-migrate:
-        condition: service_completed_successfully
+      core-service:
+        condition: service_healthy  # healthy = core migrations already ran
     restart: unless-stopped
 
 volumes:
