@@ -1,5 +1,6 @@
 """Import every model here. Alembic only sees tables whose model was imported."""
 
+from src.data.models.audit_event import AuditEvent
 from src.data.models.base import Base
 from src.data.models.company import Company
 from src.data.models.document import Document
@@ -20,4 +21,5 @@ __all__ = [
     "Timesheet",
     "TimesheetEntry",
     "WhitelistSender",
+    "AuditEvent",
 ]

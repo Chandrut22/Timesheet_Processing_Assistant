@@ -1,8 +1,9 @@
-"""The worker's side: claim a submission, read each file, extract timesheets, save them.
+"""The worker's side: claim a submission, read each file, extract timesheets, then
+match the employee, apply the pay rules, check for duplicates and decide.
 
 Each document is committed on its own, so a failure halfway keeps the work already
-done. A reprocess skips files that were already read (their text is saved) and
-only re-runs extraction where no timesheets exist yet."""
+done. A reprocess skips files that were already read (their text is saved) and only
+re-runs extraction where no timesheets exist yet."""
 
 import asyncio
 import logging
@@ -12,8 +13,9 @@ from datetime import UTC, datetime
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.constants.timesheet_status import DocumentStatus, SubmissionStatus
+from src.constants.timesheet_status import DocumentStatus, SubmissionStatus, TimesheetStatus
 from src.control.agents.extraction_agent import extract_timesheets
+from src.core.services.audit import record_event
 from src.core.services.employee_matcher import (
     MatchResult,
     apply_match,
@@ -22,6 +24,7 @@ from src.core.services.employee_matcher import (
 )
 from src.core.services.pay_rules import recalculate, rules_from_company
 from src.core.services.timesheet_builder import BuildContext, build_timesheet
+from src.core.services.timesheet_validation import can_auto_approve, validate_duplicates
 from src.data.clients import upload_buffer
 from src.data.clients.document_reader import DocumentReadError, read_document
 from src.data.clients.postgres import SessionLocal
@@ -103,6 +106,7 @@ class ProcessingService:
         except DocumentReadError as exc:
             document.status = DocumentStatus.FAILED
             document.error = str(exc)[:2000]
+            logger.warning("Could not read %s: %s", document.filename, exc)
             return
         document.extracted_text = text
         document.status = DocumentStatus.PARSED
@@ -136,7 +140,6 @@ class ProcessingService:
             received_on=submission.received_at.date(),
             week_start_day=company.week_start if company else 0,
         )
-
         rules = rules_from_company(company)
         holidays = await HolidayRepository(self.session).dates_for(submission.company_id)
         employees = (
@@ -147,6 +150,8 @@ class ProcessingService:
 
         for extracted in result.timesheets:
             timesheet = build_timesheet(extracted, ctx)
+
+            # 1. Who is it for?
             if company:
                 match = match_employee(
                     timesheet.extracted_name, timesheet.extracted_code, employees
@@ -154,8 +159,43 @@ class ProcessingService:
                 apply_match(timesheet, match)
             else:
                 apply_match(timesheet, MatchResult(None, None), company_known=False)
+
+            # 2. Regular / overtime / double time
             recalculate(timesheet, rules, holidays, default_rules_used=company is None)
+
+            # 3. Duplicates (needs an id: flush first)
             self.session.add(timesheet)
+            await self.session.flush()
+            await validate_duplicates(self.session, timesheet, document)
+
+            # 4. Decide
+            if can_auto_approve(timesheet):
+                timesheet.status = TimesheetStatus.APPROVED
+                timesheet.reviewed_at = datetime.now(UTC)
+                action = "auto_approved"
+            else:
+                timesheet.status = TimesheetStatus.NEEDS_REVIEW
+                action = "sent_to_review"
+
+            record_event(
+                self.session,
+                entity_type="timesheet",
+                entity_id=timesheet.id,
+                action=action,
+                details={
+                    "match_method": timesheet.match_method,
+                    "confidence": float(timesheet.confidence or 0),
+                    "flags": [f.get("code") for f in timesheet.flags or []],
+                },
+            )
+            logger.info(
+                "Timesheet %s for %s: %s (flags: %s)",
+                timesheet.id,
+                timesheet.extracted_name or "?",
+                timesheet.status,
+                ", ".join(f.get("code", "?") for f in timesheet.flags or []) or "none",
+            )
+
         logger.info("Extracted %d timesheet(s) from %s", len(result.timesheets), document.filename)
 
 

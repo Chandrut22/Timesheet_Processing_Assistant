@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     llm_max_input_chars: int = 30_000
     # long documents are cut to this before the LLM
 
+    # --- review ---
+    auto_approve_enabled: bool = True
+    auto_approve_min_confidence: float = 0.85
+
 
 @lru_cache
 def get_settings() -> Settings:
