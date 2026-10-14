@@ -2,7 +2,7 @@ import uuid
 from collections.abc import Sequence
 from datetime import date
 
-from sqlalchemy import extract, or_, select
+from sqlalchemy import ColumnElement, extract, or_, select
 
 from src.data.models import Holiday
 from src.data.repositories.base import BaseRepository
@@ -29,3 +29,12 @@ class HolidayRepository(BaseRepository[Holiday]):
             query = query.where(extract("year", Holiday.holiday_date) == year)
         rows = await self.session.scalars(query.order_by(Holiday.holiday_date, Holiday.name))
         return rows.all()
+
+    async def dates_for(self, company_id: uuid.UUID | None) -> set[date]:
+        """Holiday dates that apply to a company: global ones + its own.
+        Without a company: global holidays only."""
+        condition: ColumnElement[bool] = Holiday.company_id.is_(None)
+        if company_id is not None:
+            condition = or_(condition, Holiday.company_id == company_id)
+        rows = await self.session.scalars(select(Holiday.holiday_date).where(condition))
+        return set(rows.all())
