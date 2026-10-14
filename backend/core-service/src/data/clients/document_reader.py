@@ -1,4 +1,3 @@
-
 """Extract Markdown text and tables from uploaded documents using Docling.
 
 Supported formats:
@@ -55,10 +54,7 @@ def _converter() -> DocumentConverter:
     )
 
     # Use the same OCR backend as the working Windows environment.
-    pipeline_options.ocr_options = RapidOcrOptions(
-        lang=["en"],
-        backend="onnxruntime"
-    )
+    pipeline_options.ocr_options = RapidOcrOptions(lang=["en"], backend="onnxruntime")
 
     return DocumentConverter(
         allowed_formats=[
@@ -97,9 +93,7 @@ def read_document(filename: str, data: bytes) -> str:
         raise DocumentReadError("A filename is required.")
 
     if not data:
-        raise DocumentReadError(
-            f"The uploaded file '{filename}' is empty."
-        )
+        raise DocumentReadError(f"The uploaded file '{filename}' is empty.")
 
     extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     extension = f".{extension}" if extension else ""
@@ -107,8 +101,7 @@ def read_document(filename: str, data: bytes) -> str:
     if extension not in SUPPORTED_EXTENSIONS:
         supported = ", ".join(sorted(SUPPORTED_EXTENSIONS))
         raise DocumentReadError(
-            f"Unsupported file type '{extension}'. "
-            f"Supported extensions: {supported}"
+            f"Unsupported file type '{extension}'. Supported extensions: {supported}"
         )
 
     try:
@@ -125,9 +118,7 @@ def read_document(filename: str, data: bytes) -> str:
         markdown = result.document.export_to_markdown().strip()
 
         if not markdown:
-            raise DocumentReadError(
-                f"No readable text found in '{filename}'."
-            )
+            raise DocumentReadError(f"No readable text found in '{filename}'.")
 
         logger.info(
             "Document extracted successfully: %s (%d characters)",
@@ -145,6 +136,4 @@ def read_document(filename: str, data: bytes) -> str:
             "Document extraction failed for '%s'",
             filename,
         )
-        raise DocumentReadError(
-            f"Could not read '{filename}': {exc}"
-        ) from exc
+        raise DocumentReadError(f"Could not read '{filename}': {exc}") from exc

@@ -27,7 +27,7 @@ def get_chat_model() -> BaseChatModel:
 
     options: dict[str, Any] = {
         "api_key": settings.llm_api_key.get_secret_value(),
-        "temperature": 0,  
+        "temperature": 0,
         "timeout": settings.llm_timeout_s,
         "max_retries": 5,
     }
