@@ -6,8 +6,10 @@ from fastapi import FastAPI
 
 from src.api.middleware.error_handlers import register_exception_handlers
 from src.api.rest.routes import (
+    audit,
     companies,
     employees,
+    exports,
     health,
     holidays,
     me,
@@ -64,3 +66,5 @@ app.include_router(holidays.router)
 app.include_router(uploads.router)
 app.include_router(submissions.router)
 app.include_router(timesheets.router)
+app.include_router(audit.router)
+app.include_router(exports.router)

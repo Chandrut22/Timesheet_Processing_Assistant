@@ -33,6 +33,7 @@ class TimesheetRead(BaseModel):
     regular_hours: HoursOut
     overtime_hours: HoursOut
     double_time_hours: HoursOut
+    holiday_hours: HoursOut
     stated_total: HoursOut | None
     confidence: HoursOut | None
     match_method: str | None

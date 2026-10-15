@@ -46,9 +46,11 @@ def test_weekly_cap_takes_partial_day() -> None:
     assert result.days[-1].overtime == D(4)
 
 
-def test_holiday_hours_are_overtime() -> None:
+def test_holiday_hours_are_their_own_bucket() -> None:
     days = [DayInput(MON, D(8), is_holiday=True), DayInput(MON + timedelta(1), D(8))]
-    assert totals(apply_pay_rules(days)) == (D(8), D(8), D(0))
+    result = apply_pay_rules(days)
+    assert totals(result) == (D(8), D(0), D(0))
+    assert result.holiday == D(8)
 
 
 def test_marked_double_time() -> None:

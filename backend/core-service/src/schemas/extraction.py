@@ -14,6 +14,9 @@ class ExtractedDay(BaseModel):
         default=False,
         description="True only if the sheet explicitly marks these hours as double time",
     )
+    is_public_holiday: bool = Field(
+        default=False, description="True only if the sheet marks this day as a public holiday"
+    )
     note: str | None = Field(default=None, description="Short note for the day, e.g. 'holiday'")
 
 

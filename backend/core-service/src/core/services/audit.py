@@ -1,5 +1,5 @@
 import uuid
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +10,7 @@ from src.data.models import AuditEvent
 def record_event(
     session: AsyncSession,
     *,
-    entity_type: str,
+    entity_type: Literal["timesheet", "submission", "export"],
     entity_id: uuid.UUID,
     action: str,
     actor: Principal | None = None,

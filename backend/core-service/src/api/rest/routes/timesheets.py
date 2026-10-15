@@ -2,11 +2,13 @@ import uuid
 
 from fastapi import APIRouter
 
-from src.api.rest.dependencies import CurrentPrincipal, PaginationDep, SessionDep
+from src.api.rest.dependencies import CurrentPrincipal, PaginationDep, Reviewer, SessionDep
 from src.constants.timesheet_status import TimesheetStatus
 from src.core.exceptions import NotFoundError
+from src.core.services.review_service import ReviewService
 from src.data.repositories.timesheet_repository import TimesheetRepository
 from src.schemas.common import Page
+from src.schemas.review import ApproveRequest, EntriesUpdate, MatchRequest, RejectRequest
 from src.schemas.timesheet import TimesheetRead
 
 router = APIRouter(prefix="/timesheets", tags=["timesheets"])
@@ -45,4 +47,36 @@ async def get_timesheet(
     timesheet = await TimesheetRepository(session).get(timesheet_id)
     if timesheet is None:
         raise NotFoundError("Timesheet not found.")
+    return TimesheetRead.model_validate(timesheet)
+
+
+@router.patch("/{timesheet_id}/entries")
+async def update_entries(
+    timesheet_id: uuid.UUID, body: EntriesUpdate, session: SessionDep, actor: Reviewer
+) -> TimesheetRead:
+    timesheet = await ReviewService(session).update_entries(timesheet_id, body, actor)
+    return TimesheetRead.model_validate(timesheet)
+
+
+@router.post("/{timesheet_id}/match")
+async def match_employee(
+    timesheet_id: uuid.UUID, body: MatchRequest, session: SessionDep, actor: Reviewer
+) -> TimesheetRead:
+    timesheet = await ReviewService(session).match_employee(timesheet_id, body.employee_id, actor)
+    return TimesheetRead.model_validate(timesheet)
+
+
+@router.post("/{timesheet_id}/approve")
+async def approve(
+    timesheet_id: uuid.UUID, body: ApproveRequest, session: SessionDep, actor: Reviewer
+) -> TimesheetRead:
+    timesheet = await ReviewService(session).approve(timesheet_id, body.notes, actor)
+    return TimesheetRead.model_validate(timesheet)
+
+
+@router.post("/{timesheet_id}/reject")
+async def reject(
+    timesheet_id: uuid.UUID, body: RejectRequest, session: SessionDep, actor: Reviewer
+) -> TimesheetRead:
+    timesheet = await ReviewService(session).reject(timesheet_id, body.reason, actor)
     return TimesheetRead.model_validate(timesheet)

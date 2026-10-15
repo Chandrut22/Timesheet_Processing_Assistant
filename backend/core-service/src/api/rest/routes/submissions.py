@@ -1,10 +1,12 @@
 import uuid
 
 from fastapi import APIRouter
+from fastapi import status as http_status
 
-from src.api.rest.dependencies import CurrentPrincipal, PaginationDep, SessionDep
+from src.api.rest.dependencies import Admin, CurrentPrincipal, PaginationDep, SessionDep
 from src.constants.timesheet_status import SubmissionSource, SubmissionStatus
 from src.core.exceptions import NotFoundError
+from src.core.services.submission_service import SubmissionService
 from src.data.repositories.submission_repository import SubmissionRepository
 from src.schemas.common import Page
 from src.schemas.submission import SubmissionRead
@@ -39,4 +41,12 @@ async def get_submission(
     submission = await SubmissionRepository(session).get(submission_id)
     if submission is None:
         raise NotFoundError("Submission not found.")
+    return SubmissionRead.model_validate(submission)
+
+
+@router.post("/{submission_id}/reprocess", status_code=http_status.HTTP_202_ACCEPTED)
+async def reprocess_submission(
+    submission_id: uuid.UUID, session: SessionDep, actor: Admin
+) -> SubmissionRead:
+    submission = await SubmissionService(session).reprocess(submission_id, actor)
     return SubmissionRead.model_validate(submission)

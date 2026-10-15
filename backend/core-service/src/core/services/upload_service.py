@@ -7,7 +7,7 @@ from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config.settings import settings
-from src.constants.file_types import SUPPORTED_EXTENSIONS
+from src.constants.file_types import SUPPORTED_EXTENSIONS, skip_reason
 from src.constants.timesheet_status import DocumentStatus, SubmissionSource, SubmissionStatus
 from src.control.workers.dispatch import enqueue_submission
 from src.core.exceptions import ValidationFailedError
@@ -61,7 +61,7 @@ class UploadService:
                 raise ValidationFailedError(f"'{filename}' is empty.")
 
             extension = PurePath(filename).suffix.lower()
-            supported = extension in SUPPORTED_EXTENSIONS
+            reason = skip_reason(extension, len(data))
             document = Document(
                 filename=filename,
                 content_type=SUPPORTED_EXTENSIONS.get(
@@ -69,11 +69,11 @@ class UploadService:
                 )[:100],
                 size_bytes=len(data),
                 sha256=hashlib.sha256(data).hexdigest(),
-                status=DocumentStatus.PENDING if supported else DocumentStatus.UNSUPPORTED,
-                error=None if supported else f"Unsupported file type '{extension or 'none'}'.",
+                status=DocumentStatus.UNSUPPORTED if reason else DocumentStatus.PENDING,
+                error=reason,
             )
             submission.documents.append(document)
-            if supported:
+            if reason is None:
                 to_buffer.append((document, data))
 
         self.session.add(submission)

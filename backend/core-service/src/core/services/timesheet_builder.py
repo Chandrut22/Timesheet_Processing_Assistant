@@ -1,7 +1,7 @@
 """Turn one ExtractedTimesheet into a Timesheet + entries, adding flags for anything odd.
 
-Pure function: no database, no LLM. Pay rules (overtime) come later; for now every
-hour is 'regular'."""
+Pure function: no database, no LLM. The pay rules (regular / overtime / double time /
+holiday) run afterwards in pay_rules.recalculate(); here every hour starts as 'regular'."""
 
 import uuid
 from dataclasses import dataclass
@@ -15,6 +15,7 @@ from src.schemas.extraction import ExtractedTimesheet
 from src.utils.dates import date_in_week, start_of_week, weekday_index
 
 MAX_DAY = Decimal("24")
+LONG_DAY = Decimal("16")
 CENT = Decimal("0.01")
 
 
@@ -67,7 +68,9 @@ def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timeshe
 
         hours = _hours(day.hours)
         if work_date in entries:  # the same day listed twice: add up, but say so
-            entries[work_date].hours += hours
+            existing = entries[work_date]
+            existing.hours += hours
+            existing.is_holiday = bool(existing.is_holiday) or day.is_public_holiday
             flags.append(
                 _flag("duplicate_day", f"{work_date} appears more than once; hours added.")
             )
@@ -76,6 +79,7 @@ def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timeshe
                 work_date=work_date,
                 hours=hours,
                 double_time_marked=day.double_time_marked,
+                is_holiday=day.is_public_holiday,  # as marked on the sheet
                 note=day.note[:255] if day.note else None,
             )
 
@@ -83,6 +87,10 @@ def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timeshe
         if entry.hours > MAX_DAY:
             flags.append(_flag("day_over_24", f"{entry.work_date}: {entry.hours} h, capped at 24."))
             entry.hours = MAX_DAY
+        elif entry.hours > LONG_DAY:
+            flags.append(
+                _flag("long_day", f"{entry.work_date}: {entry.hours} h in one day. Please confirm.")
+            )
 
     if assumed and entries:
         flags.append(_flag("dates_assumed", f"No dates on the sheet; used the week of {base}."))
@@ -113,9 +121,10 @@ def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timeshe
         extracted_code=(extracted.employee_code or None) and extracted.employee_code[:50],
         week_start=week_start,
         status=TimesheetStatus.NEEDS_REVIEW,  # the auto-approve decision comes later
-        regular_hours=total,  # split into OT / DT by the rules engine later
+        regular_hours=total,  # split into OT / DT / holiday by pay_rules.recalculate()
         overtime_hours=Decimal("0"),
         double_time_hours=Decimal("0"),
+        holiday_hours=Decimal("0"),
         stated_total=stated,
         confidence=Decimal(str(round(extracted.confidence, 2))),
         flags=flags,

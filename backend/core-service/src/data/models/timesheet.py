@@ -66,6 +66,7 @@ class Timesheet(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     double_time_hours: Mapped[Decimal] = mapped_column(
         Numeric(6, 2), default=0, server_default=ZERO
     )
+    holiday_hours: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=0, server_default=ZERO)
     stated_total: Mapped[Decimal | None] = mapped_column(
         Numeric(6, 2)
     )  # total written on the sheet
@@ -89,4 +90,9 @@ class Timesheet(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
         order_by="TimesheetEntry.work_date",
+    )
+
+    # Which payroll sheet it went into. Set once; a timesheet is never exported twice.
+    export_batch_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey(f"{SCHEMA}.export_batches.id", ondelete="RESTRICT"), index=True
     )

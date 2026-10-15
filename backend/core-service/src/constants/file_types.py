@@ -12,3 +12,15 @@ SUPPORTED_EXTENSIONS: dict[str, str] = {
     ".bmp": "image/bmp",
     ".webp": "image/webp",
 }
+
+IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"})
+MIN_TIMESHEET_IMAGE_BYTES = 20_000  # smaller images are logos / email signatures
+
+
+def skip_reason(extension: str, size_bytes: int) -> str | None:
+    """Why a file should not be read at all, or None to read it."""
+    if extension not in SUPPORTED_EXTENSIONS:
+        return f"Unsupported file type '{extension or 'none'}'."
+    if extension in IMAGE_EXTENSIONS and size_bytes < MIN_TIMESHEET_IMAGE_BYTES:
+        return "Small image skipped (looks like a logo or email signature)."
+    return None
