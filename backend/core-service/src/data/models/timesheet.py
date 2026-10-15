@@ -16,8 +16,9 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
+from src.constants.flags import Severity, highest_severity, with_severity
 from src.constants.timesheet_status import TimesheetStatus
 from src.data.models.base import SCHEMA, Base, TimestampMixin, UUIDPrimaryKeyMixin, enum_check
 
@@ -37,6 +38,7 @@ class Timesheet(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "confidence IS NULL OR (confidence >= 0 AND confidence <= 1)", name="confidence_range"
         ),
         Index("ix_timesheets_employee_week", "employee_id", "week_start"),  # duplicate check
+        enum_check("severity", Severity),
     )
 
     # Same service -> real foreign keys
@@ -96,3 +98,14 @@ class Timesheet(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     export_batch_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey(f"{SCHEMA}.export_batches.id", ondelete="RESTRICT"), index=True
     )
+
+    # Worst flag severity (high / medium / low), None = no flags. Kept in step with
+    # `flags` by _set_severity, so lists can filter and sort on it.
+    severity: Mapped[str | None] = mapped_column(String(10), index=True)
+
+    @validates("flags")
+    def _set_severity(self, _key: str, flags: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+        """Every time the flags are set: add each flag's severity and keep the worst one."""
+        enriched = with_severity(flags or [])
+        self.severity = highest_severity(enriched)
+        return enriched

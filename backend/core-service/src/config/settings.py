@@ -1,9 +1,9 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Literal
 
 
 class Settings(BaseSettings):
@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     auto_approve_enabled: bool = True
     auto_approve_min_confidence: float = 0.85
 
-        # --- email listener (IMAP): only the core-email container uses these ---
+    # --- email listener (IMAP): only the core-email container uses these ---
     email_enabled: bool = False
     imap_host: str | None = None  # imap.gmail.com
     imap_port: int = 993

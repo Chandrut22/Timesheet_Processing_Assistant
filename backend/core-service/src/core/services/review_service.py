@@ -30,7 +30,7 @@ ENTRY_FLAG_CODES = frozenset(
         "undated_days",
         "no_entries",
         "total_mismatch",
-        "long_day"
+        "long_day",
     }
 )
 
