@@ -1,6 +1,5 @@
 import uuid
 from datetime import date, datetime
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
@@ -16,6 +15,17 @@ class TimesheetEntryRead(BaseModel):
     is_holiday: bool
     double_time_marked: bool
     note: str | None
+
+
+class FlagRead(BaseModel):
+    """One problem found on a timesheet. Extra keys (candidates, other_timesheet_id)
+    are passed through as they are."""
+
+    model_config = ConfigDict(extra="allow")
+
+    code: str
+    message: str
+    severity: str  # high | medium | low
 
 
 class TimesheetRead(BaseModel):
@@ -37,7 +47,8 @@ class TimesheetRead(BaseModel):
     stated_total: HoursOut | None
     confidence: HoursOut | None
     match_method: str | None
-    flags: list[dict[str, Any]]
+    flags: list[FlagRead]
+    severity: str | None  # worst flag severity, None = no flags
     notes: str | None
     reviewed_by_name: str | None
     reviewed_at: datetime | None
