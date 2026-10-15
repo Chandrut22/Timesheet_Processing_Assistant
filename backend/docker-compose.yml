@@ -137,6 +137,22 @@ services:
         condition: service_healthy  # healthy = core migrations already ran
     restart: unless-stopped
 
+  core-email:
+    image: timesheet-core:latest
+    pull_policy: never
+    command: ["python", "-m", "src.control.workers.email_listener"]
+    environment:
+      <<: *core-env
+      EMAIL_ENABLED: "true"
+      IMAP_HOST: ${IMAP_HOST:-imap.gmail.com}
+      IMAP_USER: ${IMAP_USER}
+      IMAP_PASSWORD: ${IMAP_PASSWORD}
+      EMAIL_START_FROM: new
+    depends_on:
+      core-service:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   pgdata:
   redisdata:
