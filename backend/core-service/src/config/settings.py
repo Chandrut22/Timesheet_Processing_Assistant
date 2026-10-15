@@ -3,6 +3,7 @@ from pathlib import Path
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Literal
 
 
 class Settings(BaseSettings):
@@ -51,6 +52,19 @@ class Settings(BaseSettings):
     # --- review ---
     auto_approve_enabled: bool = True
     auto_approve_min_confidence: float = 0.85
+
+        # --- email listener (IMAP): only the core-email container uses these ---
+    email_enabled: bool = False
+    imap_host: str | None = None  # imap.gmail.com
+    imap_port: int = 993
+    imap_user: str | None = None
+    imap_password: SecretStr | None = None  # Gmail: an App Password, never the real one
+    imap_folder: str = "INBOX"
+    email_idle_timeout: int = 300  # seconds in IDLE before a safety re-check
+    email_start_from: Literal["new", "backfill"] = "new"  # first run: only new mail, or recent too
+    email_backfill_days: int = 2
+    email_require_sender_auth: bool = True  # our mail server must have verified SPF/DKIM/DMARC
+    email_max_attachments: int = 20
 
 
 @lru_cache
