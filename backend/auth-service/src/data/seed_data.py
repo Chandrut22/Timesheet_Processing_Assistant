@@ -4,8 +4,8 @@ Runs every time the server starts (see lifespan in main.py). Safe to repeat:
 existing rows are left alone, and two servers starting together cannot
 create duplicates (the database's unique constraints decide).
 
-    - the four roles
-    - the first super admin, from BOOTSTRAP_ADMIN_* (only if no super admin exists)
+    - the two roles (admin, reviewer)
+    - the first admin, from BOOTSTRAP_ADMIN_* (only if no admin exists)
 """
 
 import logging
@@ -38,7 +38,7 @@ async def seed_roles(session: AsyncSession) -> int:
     return added
 
 
-async def seed_super_admin(session: AsyncSession) -> bool:
+async def seed_admin(session: AsyncSession) -> bool:
     """Create the first super admin from settings when none exists yet.
     Returns True if one was created."""
     email = settings.bootstrap_admin_email
@@ -46,7 +46,7 @@ async def seed_super_admin(session: AsyncSession) -> bool:
     if not email or password is None:
         return False  # not configured: nothing to do
 
-    role = await session.scalar(select(Role).where(Role.name == RoleName.SUPER_ADMIN))
+    role = await session.scalar(select(Role).where(Role.name == RoleName.ADMIN))
     if role is None:
         return False
 
@@ -87,7 +87,7 @@ async def run_seed() -> None:
             added = await seed_roles(session)
             if added:
                 logger.info("Seed: added %d role(s)", added)
-            if await seed_super_admin(session):
+            if await seed_admin(session):
                 logger.info(
                     "Seed: created super admin %s", settings.bootstrap_admin_email
                 )

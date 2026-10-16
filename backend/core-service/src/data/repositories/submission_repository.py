@@ -14,6 +14,7 @@ class SubmissionRepository(BaseRepository[Submission]):
         self,
         *,
         status: str | None,
+        state: str | None = None,
         source: str | None,
         company_id: uuid.UUID | None,
         page: int,
@@ -22,6 +23,8 @@ class SubmissionRepository(BaseRepository[Submission]):
         query = select(Submission)
         if status:
             query = query.where(Submission.status == status)
+        if state:
+            query = query.where(Submission.state == state)
         if source:
             query = query.where(Submission.source == source)
         if company_id is not None:

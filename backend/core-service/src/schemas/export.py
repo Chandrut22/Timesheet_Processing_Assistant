@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict
 
 from src.core.services.export_service import ExportPreviewResult
 from src.core.services.payroll_csv import ExportRow, ExportTotals, week_end
-from src.schemas.common import HoursOut
+from src.schemas.common import HoursOut, MoneyOut
 
 
 class ExportCreate(BaseModel):
@@ -24,6 +24,16 @@ class ExportRowRead(BaseModel):
     double_time_hours: HoursOut
     holiday_hours: HoursOut
     total_hours: HoursOut
+    currency: str | None
+    hourly_rate: MoneyOut | None
+    overtime_rate: MoneyOut | None
+    double_time_rate: MoneyOut | None
+    holiday_rate: MoneyOut | None
+    regular_amount: MoneyOut | None
+    overtime_amount: MoneyOut | None
+    double_time_amount: MoneyOut | None
+    holiday_amount: MoneyOut | None
+    gross_amount: MoneyOut | None  # None = not priced (blocks the export)
     approved_by: str | None
     approved_at: datetime | None
 
@@ -39,6 +49,16 @@ class ExportRowRead(BaseModel):
             double_time_hours=row.double_time,
             holiday_hours=row.holiday,
             total_hours=row.total,
+            currency=row.currency,
+            hourly_rate=row.hourly_rate,
+            overtime_rate=row.overtime_rate,
+            double_time_rate=row.double_time_rate,
+            holiday_rate=row.holiday_rate,
+            regular_amount=row.regular_amount,
+            overtime_amount=row.overtime_amount,
+            double_time_amount=row.double_time_amount,
+            holiday_amount=row.holiday_amount,
+            gross_amount=row.gross,
             approved_by=row.approved_by,
             approved_at=row.approved_at,
         )
@@ -51,6 +71,12 @@ class ExportTotalsRead(BaseModel):
     double_time_hours: HoursOut
     holiday_hours: HoursOut
     total_hours: HoursOut
+    regular_amount: MoneyOut
+    overtime_amount: MoneyOut
+    double_time_amount: MoneyOut
+    holiday_amount: MoneyOut
+    gross_amount: MoneyOut
+    unpriced: int  # rows without a pay amount; the export is refused while this is > 0
 
     @classmethod
     def from_totals(cls, t: ExportTotals) -> "ExportTotalsRead":
@@ -61,6 +87,12 @@ class ExportTotalsRead(BaseModel):
             double_time_hours=t.double_time,
             holiday_hours=t.holiday,
             total_hours=t.total,
+            regular_amount=t.regular_amount,
+            overtime_amount=t.overtime_amount,
+            double_time_amount=t.double_time_amount,
+            holiday_amount=t.holiday_amount,
+            gross_amount=t.gross,
+            unpriced=t.unpriced,
         )
 
 
@@ -69,6 +101,7 @@ class ExportPreview(BaseModel):
     company_name: str
     week_start: date
     week_end: date
+    currency: str
     rows: list[ExportRowRead]
     totals: ExportTotalsRead
     pending_review: int  # still waiting for a reviewer (blocks the export by default)
@@ -82,6 +115,7 @@ class ExportPreview(BaseModel):
             company_name=r.company.name,
             week_start=r.week_start,
             week_end=week_end(r.week_start),
+            currency=r.company.currency,
             rows=[ExportRowRead.from_row(row) for row in r.rows],
             totals=ExportTotalsRead.from_totals(r.totals),
             pending_review=r.pending_review,
@@ -103,6 +137,12 @@ class ExportBatchRead(BaseModel):
     overtime_hours: HoursOut
     double_time_hours: HoursOut
     holiday_hours: HoursOut
+    currency: str
+    regular_amount: MoneyOut
+    overtime_amount: MoneyOut
+    double_time_amount: MoneyOut
+    holiday_amount: MoneyOut
+    gross_amount: MoneyOut
     filename: str
     created_by_name: str | None
     created_at: datetime

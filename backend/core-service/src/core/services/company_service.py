@@ -14,9 +14,11 @@ from src.utils.senders import normalize_sender
 DUPLICATE_NAME = "A company with this name already exists."
 
 
-def _check_double_time(daily: Decimal, double: Decimal | None) -> None:
+def _check_double_time(daily: Decimal, double: Decimal | None, rate: Decimal | None) -> None:
     if double is not None and double <= daily:
         raise ValidationFailedError("double_time_after must be greater than daily_ot_after.")
+    if double is not None and rate is None:
+        raise ValidationFailedError("double_time_rate is required when double_time_after is set.")
 
 
 class CompanyService:
@@ -58,13 +60,29 @@ class CompanyService:
                 raise ConflictError(DUPLICATE_NAME)
             company.name = new_name
 
-        for field in ("daily_ot_after", "weekly_ot_after", "week_start", "is_active"):
+        # Required fields: null is ignored. New rates apply to timesheets calculated from
+        # now on; every timesheet keeps the rates it was calculated with.
+        for field in (
+            "aliases",
+            "hourly_rate",
+            "overtime_rate",
+            "holiday_rate",
+            "currency",
+            "daily_ot_after",
+            "weekly_ot_after",
+            "week_start",
+            "is_active",
+        ):
             if changes.get(field) is not None:
                 setattr(company, field, changes[field])
-        if "double_time_after" in changes:  # null is allowed: removes the rule
-            company.double_time_after = changes["double_time_after"]
+        # Optional fields: null is allowed and removes the rule / rate.
+        for field in ("double_time_after", "double_time_rate"):
+            if field in changes:
+                setattr(company, field, changes[field])
 
-        _check_double_time(company.daily_ot_after, company.double_time_after)
+        _check_double_time(
+            company.daily_ot_after, company.double_time_after, company.double_time_rate
+        )
         await commit_or_conflict(self.session, DUPLICATE_NAME)
         await self.session.refresh(company)  # reload updated_at (set by the database)
         return company

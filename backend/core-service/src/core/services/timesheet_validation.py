@@ -1,5 +1,7 @@
 """Checks that need the database (duplicates), and the auto-approve decision."""
 
+from collections.abc import Sequence
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
@@ -14,7 +16,7 @@ from src.data.models import Document, Timesheet
 VALIDATION_FLAG_CODES = frozenset({"duplicate_file", "duplicate_week"})
 
 # Flags that are only information and do not stop auto-approval.
-NON_BLOCKING_FLAGS = frozenset({"holiday_worked"})
+NON_BLOCKING_FLAGS = frozenset({"holiday_worked", "company_from_sheet"})
 
 LIVE_STATUSES = (TimesheetStatus.NEEDS_REVIEW, TimesheetStatus.APPROVED, TimesheetStatus.EXPORTED)
 
@@ -87,3 +89,41 @@ def can_auto_approve(timesheet: Timesheet) -> bool:
         and bool(timesheet.entries)
         and not blocking_flags(timesheet)
     )
+
+
+def _ranges(days: Sequence[date]) -> str:
+    """[1, 2, 3, 5] Oct -> '2026-10-01 to 2026-10-03, 2026-10-05'"""
+    parts: list[str] = []
+    start = prev = None
+    for day in sorted(days):
+        if start is None:
+            start = prev = day
+        elif prev is not None and (day - prev).days == 1:
+            prev = day
+        else:
+            parts.append(f"{start}" if start == prev else f"{start} to {prev}")
+            start = prev = day
+    if start is not None:
+        parts.append(f"{start}" if start == prev else f"{start} to {prev}")
+    return ", ".join(parts)
+
+
+def check_assignment(timesheet: Timesheet, start: date | None, end: date | None) -> None:
+    """Flag hours worked outside the employee's assignment dates (rebuilt every time)."""
+    flags = [f for f in (timesheet.flags or []) if f.get("code") != "outside_assignment"]
+    outside = [
+        e.work_date
+        for e in timesheet.entries
+        if e.hours > 0
+        and ((start is not None and e.work_date < start) or (end is not None and e.work_date > end))
+    ]
+    if outside:
+        period = f"{start or 'open'} to {end or 'open'}"
+        flags.append(
+            {
+                "code": "outside_assignment",
+                "message": f"Hours on {_ranges(outside)} fall outside the assignment ({period}).",
+                "dates": [d.isoformat() for d in sorted(outside)],
+            }
+        )
+    timesheet.flags = flags

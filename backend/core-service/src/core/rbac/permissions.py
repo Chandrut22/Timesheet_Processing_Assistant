@@ -1,8 +1,12 @@
-"""Role groups, so routes say WHO may call them in one word."""
+"""Role groups, so routes say WHO may call them in one word.
+
+admin    - master data (companies, rates, employees, whitelist, holidays) and the
+           payroll export, plus everything a reviewer does
+reviewer - upload, review (edit hours, match, recalculate, approve / reject, bulk),
+           reprocess, read the lists and the audit log
+Any signed-in user is an admin or a reviewer, so read-only routes use CurrentPrincipal."""
 
 from src.constants.roles import RoleName
 
-SUPER_ADMINS = frozenset({RoleName.SUPER_ADMIN})
-ADMINS = SUPER_ADMINS | {RoleName.ADMIN}  # master data, reprocess, export
-REVIEWERS = ADMINS | {RoleName.REVIEWER}  # upload, review, approve
-EVERYONE = frozenset(RoleName)  # read-only views (viewer included)
+ADMINS = frozenset({RoleName.ADMIN})
+REVIEWERS = frozenset({RoleName.ADMIN, RoleName.REVIEWER})

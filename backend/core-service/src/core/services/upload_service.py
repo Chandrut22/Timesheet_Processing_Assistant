@@ -8,10 +8,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config.settings import settings
 from src.constants.file_types import SUPPORTED_EXTENSIONS, skip_reason
-from src.constants.timesheet_status import DocumentStatus, SubmissionSource, SubmissionStatus
+from src.constants.timesheet_status import (
+    DocumentStatus,
+    StepName,
+    StepResult,
+    SubmissionSource,
+    SubmissionState,
+    SubmissionStatus,
+)
 from src.control.workers.dispatch import enqueue_submission
 from src.core.exceptions import ValidationFailedError
 from src.core.rbac.principal import Principal
+from src.core.services.activity_log import record_step, set_state
 from src.data.clients import upload_buffer
 from src.data.models import Document, Submission
 from src.data.repositories.company_repository import CompanyRepository
@@ -78,6 +86,23 @@ class UploadService:
 
         self.session.add(submission)
         await self.session.flush()  # ids are known now
+        set_state(self.session, submission, SubmissionState.RECEIVED, actor=principal, first=True)
+        skipped = [d for d in submission.documents if d.status == DocumentStatus.UNSUPPORTED]
+        record_step(
+            self.session,
+            submission_id=submission.id,
+            step=StepName.COLLECT,
+            result=StepResult.WARNING if skipped else StepResult.SUCCESS,
+            message=f"Uploaded {len(submission.documents)} file(s) by {principal.name}"
+            + (f"; {len(skipped)} will not be read" if skipped else ""),
+            input={"files": len(files), "company_id": str(company_id) if company_id else None},
+            output={
+                "documents": [
+                    {"file": d.filename, "status": d.status, "reason": d.error}
+                    for d in submission.documents
+                ]
+            },
+        )
         for document, data in to_buffer:  # bytes go to Redis BEFORE the commit...
             await upload_buffer.put_file(document.id, data)
         await self.session.commit()  # ...so the worker never sees a row without its file

@@ -40,6 +40,55 @@ class RejectRequest(BaseModel):
     reason: str = Field(min_length=3, max_length=1000)
 
 
+BULK_MAX = 100
+
+
+def _unique_ids(value: list[uuid.UUID]) -> list[uuid.UUID]:
+    """Drop repeated ids, keep the order."""
+    return list(dict.fromkeys(value))
+
+
+class BulkApproveRequest(BaseModel):
+    timesheet_ids: list[uuid.UUID] = Field(min_length=1, max_length=BULK_MAX)
+    notes: str | None = Field(default=None, max_length=1000)
+    include_high_severity: bool = Field(
+        default=False,
+        description="Also approve timesheets with high-severity flags (off by default: "
+        "those should be opened and approved one by one)",
+    )
+
+    @field_validator("timesheet_ids")
+    @classmethod
+    def unique_ids(cls, value: list[uuid.UUID]) -> list[uuid.UUID]:
+        return _unique_ids(value)
+
+
+class BulkRejectRequest(BaseModel):
+    timesheet_ids: list[uuid.UUID] = Field(min_length=1, max_length=BULK_MAX)
+    reason: str = Field(min_length=3, max_length=1000)
+
+    @field_validator("timesheet_ids")
+    @classmethod
+    def unique_ids(cls, value: list[uuid.UUID]) -> list[uuid.UUID]:
+        return _unique_ids(value)
+
+
+class BulkItemResult(BaseModel):
+    timesheet_id: uuid.UUID
+    ok: bool
+    status: str | None = None  # the timesheet's status afterwards (None = not found)
+    error: str | None = None  # why it was skipped
+
+
+class BulkResult(BaseModel):
+    """Each timesheet is handled on its own: one failure never undoes the others."""
+
+    requested: int
+    succeeded: int
+    failed: int
+    results: list[BulkItemResult]
+
+
 class AuditEventRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

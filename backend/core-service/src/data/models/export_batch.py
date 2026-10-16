@@ -2,7 +2,20 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import Date, ForeignKey, Index, Integer, Numeric, String, Text, Uuid, text
+from sqlalchemy import (
+    CHAR,
+    CheckConstraint,
+    Computed,
+    Date,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    Uuid,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.data.models.base import SCHEMA, Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -18,7 +31,21 @@ class ExportBatch(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     after the first export go into a second, smaller batch."""
 
     __tablename__ = "export_batches"
-    __table_args__ = (Index("ix_export_batches_company_week", "company_id", "week_start"),)
+    __table_args__ = (
+        Index("ix_export_batches_company_week", "company_id", "week_start"),
+        CheckConstraint("week_end >= week_start", name="week_range"),
+        CheckConstraint("row_count >= 0", name="row_count_non_negative"),
+        CheckConstraint(
+            "regular_hours >= 0 AND overtime_hours >= 0 AND double_time_hours >= 0 "
+            "AND holiday_hours >= 0",
+            name="hours_non_negative",
+        ),
+        CheckConstraint(
+            "regular_amount >= 0 AND overtime_amount >= 0 AND double_time_amount >= 0 "
+            "AND holiday_amount >= 0 AND gross_amount >= 0",
+            name="amounts_non_negative",
+        ),
+    )
 
     company_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey(f"{SCHEMA}.companies.id", ondelete="RESTRICT")
@@ -32,6 +59,17 @@ class ExportBatch(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     overtime_hours: Mapped[Decimal] = mapped_column(Numeric(8, 2), server_default=ZERO)
     double_time_hours: Mapped[Decimal] = mapped_column(Numeric(8, 2), server_default=ZERO)
     holiday_hours: Mapped[Decimal] = mapped_column(Numeric(8, 2), server_default=ZERO)
+
+    # Gross pay totals of the sheet (no taxes or deductions)
+    currency: Mapped[str] = mapped_column(CHAR(3), default="INR", server_default="INR")
+    regular_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), server_default=ZERO)
+    overtime_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), server_default=ZERO)
+    double_time_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), server_default=ZERO)
+    holiday_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), server_default=ZERO)
+    gross_amount: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2),
+        Computed("regular_amount + overtime_amount + double_time_amount + holiday_amount"),
+    )
 
     filename: Mapped[str] = mapped_column(String(255))
     csv_content: Mapped[str] = mapped_column(Text)

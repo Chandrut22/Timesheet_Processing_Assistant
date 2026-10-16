@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, Index, String, Uuid, func, text
+from sqlalchemy import CheckConstraint, DateTime, Index, String, Uuid, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -13,7 +13,10 @@ class AuditEvent(UUIDPrimaryKeyMixin, Base):
     """Who did what, to which record, when. Never updated or deleted."""
 
     __tablename__ = "audit_events"
-    __table_args__ = (Index("ix_audit_events_entity", "entity_type", "entity_id"),)
+    __table_args__ = (
+        Index("ix_audit_events_entity", "entity_type", "entity_id"),
+        CheckConstraint("length(btrim(action)) > 0", name="action_not_blank"),
+    )
 
     entity_type: Mapped[str] = mapped_column(String(30))  # "timesheet", "submission", ...
     entity_id: Mapped[uuid.UUID] = mapped_column(Uuid)

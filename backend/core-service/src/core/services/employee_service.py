@@ -55,6 +55,8 @@ class EmployeeService:
                 full_name=data.full_name,
                 email=email,
                 aliases=data.aliases,
+                assignment_start=data.assignment_start,
+                assignment_end=data.assignment_end,
             )
         )
         await commit_or_conflict(self.session, DUPLICATE)
@@ -81,6 +83,15 @@ class EmployeeService:
             employee.aliases = changes["aliases"]
         if changes.get("is_active") is not None:
             employee.is_active = changes["is_active"]
+        for field in ("assignment_start", "assignment_end"):  # null clears the date
+            if field in changes:
+                setattr(employee, field, changes[field])
+        if (
+            employee.assignment_start is not None
+            and employee.assignment_end is not None
+            and employee.assignment_end < employee.assignment_start
+        ):
+            raise ValidationFailedError("assignment_end cannot be before assignment_start.")
 
         await commit_or_conflict(self.session, DUPLICATE)
         await self.session.refresh(employee)

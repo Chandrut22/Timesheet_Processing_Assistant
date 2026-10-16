@@ -4,12 +4,15 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
+    CHAR,
     CheckConstraint,
+    Computed,
     Date,
     DateTime,
     ForeignKey,
     Index,
     Numeric,
+    SmallInteger,
     String,
     Text,
     Uuid,
@@ -39,6 +42,50 @@ class Timesheet(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ),
         Index("ix_timesheets_employee_week", "employee_id", "week_start"),  # duplicate check
         enum_check("severity", Severity),
+        CheckConstraint(
+            "(regular_amount IS NULL OR regular_amount >= 0) "
+            "AND (overtime_amount IS NULL OR overtime_amount >= 0) "
+            "AND (double_time_amount IS NULL OR double_time_amount >= 0) "
+            "AND (holiday_amount IS NULL OR holiday_amount >= 0)",
+            name="amounts_non_negative",
+        ),
+        CheckConstraint("currency IS NULL OR currency ~ '^[A-Z]{3}$'", name="currency_format"),
+        CheckConstraint("version >= 1", name="version_positive"),
+        CheckConstraint(
+            "superseded_by_id IS NULL OR superseded_by_id <> id", name="not_superseded_by_self"
+        ),
+        CheckConstraint(
+            "email_stated_total IS NULL OR email_stated_total >= 0",
+            name="email_stated_total_non_negative",
+        ),
+        CheckConstraint(
+            "read_confidence IS NULL OR (read_confidence >= 0 AND read_confidence <= 1)",
+            name="read_confidence_range",
+        ),
+        CheckConstraint(
+            "regular_hours >= 0 AND overtime_hours >= 0 AND double_time_hours >= 0 "
+            "AND holiday_hours >= 0 AND (stated_total IS NULL OR stated_total >= 0)",
+            name="hours_non_negative",
+        ),
+        # A decision (approve / reject / export) always has a time.
+        CheckConstraint(
+            "status NOT IN ('approved', 'rejected', 'exported') OR reviewed_at IS NOT NULL",
+            name="decided_has_time",
+        ),
+        # An exported timesheet always points to its export batch.
+        CheckConstraint(
+            "status <> 'exported' OR (export_batch_id IS NOT NULL AND exported_at IS NOT NULL)",
+            name="exported_has_batch",
+        ),
+        Index("ix_timesheets_employee_week", "employee_id", "week_start"),  # duplicate check
+        Index("ix_timesheets_week_start", "week_start"),  # date filter / sort in review list
+        # flag=... filter in the review list (jsonb containment, @>)
+        Index(
+            "ix_timesheets_flags",
+            "flags",
+            postgresql_using="gin",
+            postgresql_ops={"flags": "jsonb_path_ops"},
+        ),
     )
 
     # Same service -> real foreign keys
@@ -54,10 +101,20 @@ class Timesheet(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     employee_id: Mapped[uuid.UUID | None] = mapped_column(  # None until matched
         Uuid, ForeignKey(f"{SCHEMA}.employees.id", ondelete="RESTRICT"), index=True
     )
+    # Reprocessing: a reprocess never overwrites a timesheet. The old one is kept with
+    # status "superseded" and points to the version that replaced it.
+    version: Mapped[int] = mapped_column(SmallInteger, default=1, server_default=text("1"))
+    reprocess_run_id: Mapped[uuid.UUID | None] = mapped_column(  # run that created this one
+        Uuid, ForeignKey(f"{SCHEMA}.reprocess_runs.id", ondelete="SET NULL"), index=True
+    )
+    superseded_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey(f"{SCHEMA}.timesheets.id", ondelete="SET NULL"), index=True
+    )
 
     # What the document said (kept even after matching, for the reviewer)
     extracted_name: Mapped[str | None] = mapped_column(String(200))
     extracted_code: Mapped[str | None] = mapped_column(String(50))
+    extracted_company_name: Mapped[str | None] = mapped_column(String(200))  # as written
     week_start: Mapped[date | None] = mapped_column(Date)
 
     status: Mapped[str] = mapped_column(
@@ -69,11 +126,37 @@ class Timesheet(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Numeric(6, 2), default=0, server_default=ZERO
     )
     holiday_hours: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=0, server_default=ZERO)
+    # Calculated by PostgreSQL, so it can never differ from its parts (read-only here).
+    total_hours: Mapped[Decimal] = mapped_column(
+        Numeric(7, 2),
+        Computed("regular_hours + overtime_hours + double_time_hours + holiday_hours"),
+    )
     stated_total: Mapped[Decimal | None] = mapped_column(
         Numeric(6, 2)
     )  # total written on the sheet
+    # Total hours the EMAIL BODY gives for this person (compared with the attachment).
+    email_stated_total: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    read_confidence: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))  # how well it was read
+    # Overall: the lower of read_confidence and the match method's confidence.
     confidence: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))  # 0.00 - 1.00
+    # Pay: the company's rates are COPIED here when the hours are calculated, so a later
+    # rate change never alters this timesheet. None = not priced (no company / no rate).
+    currency: Mapped[str | None] = mapped_column(CHAR(3))
+    hourly_rate: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    overtime_rate: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    double_time_rate: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    holiday_rate: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    regular_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    overtime_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    double_time_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    holiday_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    # Gross pay (no taxes or deductions). Calculated by PostgreSQL; NULL if any part is NULL.
+    gross_amount: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 2),
+        Computed("regular_amount + overtime_amount + double_time_amount + holiday_amount"),
+    )
     match_method: Mapped[str | None] = mapped_column(String(30))  # code / email / name / alias ...
+    match_reason: Mapped[str | None] = mapped_column(Text)  # plain sentence for the reviewer
     # [{"code": "total_mismatch", "message": "Sheet says 42, entries add up to 40"}]
     flags: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, default=list, server_default=text("'[]'::jsonb")

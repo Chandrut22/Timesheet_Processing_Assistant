@@ -2,9 +2,14 @@ from enum import StrEnum
 
 
 class RoleName(StrEnum):
-    """The four roles. The values are what is stored in roles.name."""
+    """The two roles. The values are what is stored in roles.name (a CHECK on the
+    table allows only these) and what the access token carries to core-service.
 
-    SUPER_ADMIN = "super_admin"
+    admin    - everything: users, companies, employees, whitelist, holidays,
+               payroll export, plus every reviewer action
+    reviewer - reviews timesheets: upload, edit hours, match, approve / reject,
+               reprocess
+    """
+
     ADMIN = "admin"
     REVIEWER = "reviewer"
-    VIEWER = "viewer"

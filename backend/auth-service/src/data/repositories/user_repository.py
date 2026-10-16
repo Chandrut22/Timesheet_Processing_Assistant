@@ -63,11 +63,11 @@ class UserRepository:
         )
         return rows.all(), total or 0
 
-    async def count_active_super_admins(self) -> int:
+    async def count_active_admins(self) -> int:
         count = await self.session.scalar(
             select(func.count())
             .select_from(User)
             .join(User.role)
-            .where(Role.name == RoleName.SUPER_ADMIN, User.is_active.is_(True))
+            .where(Role.name == RoleName.ADMIN, User.is_active.is_(True))
         )
         return count or 0

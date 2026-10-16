@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.constants.timesheet_status import TimesheetStatus
 from src.core.exceptions import ConflictError, NotFoundError, ValidationFailedError
 from src.core.rbac.principal import Principal
+from src.core.services.activity_log import refresh_state
 from src.core.services.audit import record_event
 from src.core.services.payroll_csv import (
     ExportRow,
@@ -40,6 +41,15 @@ def to_row(timesheet: Timesheet, employee: Employee) -> ExportRow:
         holiday=timesheet.holiday_hours,
         approved_by=timesheet.reviewed_by_name,
         approved_at=timesheet.reviewed_at,
+        currency=timesheet.currency,
+        hourly_rate=timesheet.hourly_rate,
+        overtime_rate=timesheet.overtime_rate,
+        double_time_rate=timesheet.double_time_rate,
+        holiday_rate=timesheet.holiday_rate,
+        regular_amount=timesheet.regular_amount,
+        overtime_amount=timesheet.overtime_amount,
+        double_time_amount=timesheet.double_time_amount,
+        holiday_amount=timesheet.holiday_amount,
     )
 
 
@@ -121,6 +131,14 @@ class ExportService:
             raise ConflictError("No approved timesheets left to export for this company and week.")
 
         rows = [to_row(t, e) for t, e in pairs]
+        unpriced = [r for r in rows if not r.is_priced]
+        if unpriced:
+            names = ", ".join(sorted(r.employee_name for r in unpriced)[:5])
+            raise ConflictError(
+                f"{len(unpriced)} approved timesheet(s) have no pay amount ({names}): a company "
+                "rate is missing. Add the rate to the company, recalculate those timesheets, "
+                "then export again."
+            )
         sums = totals(rows)
         batch_id = uuid.uuid4()
         batch = ExportBatch(
@@ -134,6 +152,11 @@ class ExportService:
             overtime_hours=sums.overtime,
             double_time_hours=sums.double_time,
             holiday_hours=sums.holiday,
+            currency=company.currency,
+            regular_amount=sums.regular_amount,
+            overtime_amount=sums.overtime_amount,
+            double_time_amount=sums.double_time_amount,
+            holiday_amount=sums.holiday_amount,
             filename=export_filename(company.name, week_start, batch_id),
             csv_content=build_csv(company.name, week_start, rows),
             created_by_id=actor.id,
@@ -164,9 +187,13 @@ class ExportService:
                 "company_id": str(company.id),
                 "week_start": week_start.isoformat(),
                 "rows": sums.rows,
+                "gross_amount": str(sums.gross),
+                "currency": company.currency,
                 "pending_review_left_out": pending,
             },
         )
+        for submission_id in {t.submission_id for t, _ in pairs}:
+            await refresh_state(self.session, submission_id, actor=actor)
         await self.session.commit()
         await self.session.refresh(batch)
         return batch

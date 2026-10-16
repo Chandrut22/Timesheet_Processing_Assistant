@@ -26,6 +26,7 @@ class BuildContext:
     company_id: uuid.UUID | None
     received_on: date
     week_start_day: int = 0  # from the company; 0 = Monday
+    is_email_body: bool = False  # the "document" is the email text itself (no attachment)
 
 
 def _flag(code: str, message: str) -> dict[str, Any]:
@@ -34,6 +35,21 @@ def _flag(code: str, message: str) -> dict[str, Any]:
 
 def _hours(value: float) -> Decimal:
     return Decimal(str(value)).quantize(CENT, rounding=ROUND_HALF_UP)
+
+
+def conflicting_hours_flag(
+    email_total: Decimal | None, attachment_total: Decimal
+) -> dict[str, Any] | None:
+    """Pure: the email says one total, the attachment another -> flag with BOTH values."""
+    if email_total is None or email_total == attachment_total:
+        return None
+    return {
+        "code": "conflicting_hours",
+        "message": f"The email says {float(email_total):g} h but the attachment says "
+        f"{float(attachment_total):g} h. Check which is right.",
+        "email_hours": float(email_total),
+        "attachment_hours": float(attachment_total),
+    }
 
 
 def _base_week(extracted: ExtractedTimesheet, ctx: BuildContext) -> tuple[date | None, bool]:
@@ -109,9 +125,20 @@ def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timeshe
             _flag("total_mismatch", f"Sheet says {stated} h; the days add up to {total} h.")
         )
 
+    email_total = (
+        _hours(extracted.email_stated_total)
+        if extracted.email_stated_total is not None and not ctx.is_email_body
+        else None
+    )
+    if ordered:
+        conflict = conflicting_hours_flag(email_total, stated if stated is not None else total)
+        if conflict:
+            flags.append(conflict)
+
     week_start = (
         start_of_week(ordered[0].work_date, ctx.week_start_day) if ordered else extracted.week_start
     )
+    read_confidence = Decimal(str(round(extracted.confidence, 2)))
 
     return Timesheet(
         submission_id=ctx.submission_id,
@@ -119,6 +146,8 @@ def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timeshe
         company_id=ctx.company_id,
         extracted_name=(extracted.employee_name or None) and extracted.employee_name[:200],
         extracted_code=(extracted.employee_code or None) and extracted.employee_code[:50],
+        extracted_company_name=(extracted.company_name or None) and extracted.company_name[:200],
+        email_stated_total=email_total,
         week_start=week_start,
         status=TimesheetStatus.NEEDS_REVIEW,  # the auto-approve decision comes later
         regular_hours=total,  # split into OT / DT / holiday by pay_rules.recalculate()
@@ -126,7 +155,8 @@ def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timeshe
         double_time_hours=Decimal("0"),
         holiday_hours=Decimal("0"),
         stated_total=stated,
-        confidence=Decimal(str(round(extracted.confidence, 2))),
+        read_confidence=read_confidence,
+        confidence=read_confidence,  # lowered by the match (employee_matcher.apply_match)
         flags=flags,
         entries=ordered,
     )

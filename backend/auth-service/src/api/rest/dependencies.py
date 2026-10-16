@@ -50,7 +50,7 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
 def require_roles(*allowed: RoleName) -> Callable[[User], Awaitable[User]]:
-    """Dependency factory: `Depends(require_roles(RoleName.SUPER_ADMIN))`.
+    """Dependency factory: `Depends(require_roles(RoleName.ADMIN))`.
 
     The role comes from the database (loaded with the user), not from the
     token, so a role change applies on the very next request.
@@ -67,12 +67,5 @@ def require_roles(*allowed: RoleName) -> Callable[[User], Awaitable[User]]:
     return checker
 
 
-# Ready-made guards, so routes read like a sentence.
-SuperAdmin = Annotated[User, Depends(require_roles(RoleName.SUPER_ADMIN))]
-UserDirectoryReader = Annotated[
-    User, Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN))
-]
-# May create users. WHICH roles they may give is checked in UserService.create.
-UserCreator = Annotated[
-    User, Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN))
-]
+# Ready-made guard, so routes read like a sentence. Only admins manage users.
+Admin = Annotated[User, Depends(require_roles(RoleName.ADMIN))]

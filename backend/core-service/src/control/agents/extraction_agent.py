@@ -23,8 +23,12 @@ Rules:
 4. Keep every daily entry separate.
 5. Use dates written on the sheet. If only weekday names are given, leave work_date null
    and fill weekday.
-6. Preserve the reported total exactly as written (stated_total).
+6. Preserve the reported total exactly as written (stated_total). If the EMAIL BODY states
+   a total for a person (e.g. "Rahul worked 40 hours"), put it in email_stated_total,
+   even if it differs from the attachment. Never copy stated_total into it.
 7. Do not calculate overtime and do not infer public holidays.
+7b. Put the client / company name written on the timesheet in company_name, exactly as
+   written (e.g. "ABC Staff."). Leave it null if the sheet names no company.
 8. Record missing fields, unclear values, and conflicts between the email and the
    attachment in "issues".
 9. Set confidence below 0.6 for handwriting, poor scans, or anything you are unsure about.
