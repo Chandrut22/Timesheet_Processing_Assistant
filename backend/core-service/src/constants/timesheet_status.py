@@ -13,6 +13,7 @@ class SubmissionStatus(StrEnum):
     PROCESSING = "processing"  # the worker is on it
     PROCESSED = "processed"  # every document handled (timesheets have their own status)
     FAILED = "failed"  # the pipeline crashed; can be reprocessed
+    IGNORED = "ignored"  # an email we keep a record of but never process
 
 
 class TimesheetStatus(StrEnum):
@@ -22,6 +23,7 @@ class TimesheetStatus(StrEnum):
     APPROVED = "approved"
     REJECTED = "rejected"
     EXPORTED = "exported"
+    SUPERSEDED = "superseded"
 
 
 class DocumentStatus(StrEnum):
@@ -31,3 +33,46 @@ class DocumentStatus(StrEnum):
     PARSED = "parsed"  # text extracted
     UNSUPPORTED = "unsupported"  # .zip, .xls, .doc, ... (recorded, never read)
     FAILED = "failed"  # could not be read (locked, corrupt, expired from the buffer)
+
+
+class SubmissionState(StrEnum):
+    """Where an email or upload is, as the people using the app see it.
+    Every change is stored in submission_state_changes with its time."""
+
+    RECEIVED = "received"
+    READING = "reading"
+    MATCHING = "matching"
+    RULE_CHECKS = "rule_checks"
+    AWAITING_REVIEW = "awaiting_review"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    EXPORTED = "exported"
+    IGNORED = "ignored"
+    FAILED = "failed"
+    REPROCESSING = "reprocessing"
+
+
+class StepName(StrEnum):
+    """One row in the step-by-step log."""
+
+    COLLECT = "collect"
+    READ = "read"
+    EXTRACT = "extract"
+    MATCH = "match"
+    RULES = "rules"
+    DECIDE = "decide"
+    PIPELINE = "pipeline"  # an unexpected error outside one step
+
+
+class StepResult(StrEnum):
+    SUCCESS = "success"
+    WARNING = "warning"
+    ERROR = "error"
+
+
+class ReprocessStatus(StrEnum):
+    """One reprocess request (see reprocess_runs)."""
+
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"

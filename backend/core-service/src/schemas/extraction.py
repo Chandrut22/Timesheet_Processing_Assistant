@@ -14,15 +14,19 @@ class ExtractedDay(BaseModel):
         default=False,
         description="True only if the sheet explicitly marks these hours as double time",
     )
+    note: str | None = Field(default=None, description="Short note for the day, e.g. 'holiday'")
     is_public_holiday: bool = Field(
         default=False, description="True only if the sheet marks this day as a public holiday"
     )
-    note: str | None = Field(default=None, description="Short note for the day, e.g. 'holiday'")
 
 
 class ExtractedTimesheet(BaseModel):
     employee_name: str | None = Field(default=None, description="Employee name exactly as written")
     employee_code: str | None = Field(default=None, description="Employee ID or code, if present")
+    company_name: str | None = Field(
+        default=None,
+        description="Client / company name written on the timesheet itself, exactly as written",
+    )
     week_start: date | None = Field(
         default=None, description="First day of the period (YYYY-MM-DD) if written; otherwise null"
     )
@@ -31,6 +35,11 @@ class ExtractedTimesheet(BaseModel):
     )
     stated_total: float | None = Field(
         default=None, description="Total hours written on the sheet, if any"
+    )
+    email_stated_total: float | None = Field(
+        default=None,
+        description="Total hours for THIS person stated in the email body text (not the "
+        "attachment), if the email gives one; otherwise null",
     )
     confidence: float = Field(ge=0, le=1, description="How sure you are the reading is correct")
     issues: list[str] = Field(

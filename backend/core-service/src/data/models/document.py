@@ -1,7 +1,7 @@
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Integer, String, Text, Uuid
+from sqlalchemy import CheckConstraint, ForeignKey, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.constants.timesheet_status import DocumentStatus
@@ -16,7 +16,11 @@ class Document(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     once read, its text."""
 
     __tablename__ = "documents"
-    __table_args__ = (enum_check("status", DocumentStatus),)
+    __table_args__ = (
+        enum_check("status", DocumentStatus),
+        CheckConstraint("size_bytes >= 0", name="size_non_negative"),
+        CheckConstraint("sha256 ~ '^[0-9a-f]{64}$'", name="sha256_format"),
+    )
 
     submission_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey(f"{SCHEMA}.submissions.id", ondelete="CASCADE"), index=True

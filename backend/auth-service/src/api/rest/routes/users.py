@@ -3,12 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Query, status
 
-from src.api.rest.dependencies import (
-    SessionDep,
-    SuperAdmin,
-    UserCreator,
-    UserDirectoryReader,
-)
+from src.api.rest.dependencies import Admin, SessionDep
 from src.constants.roles import RoleName
 from src.core.services.user_notifications import send_welcome_email
 from src.core.services.user_service import UserService
@@ -20,7 +15,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 @router.get("", response_model=UserPage)
 async def list_users(
     session: SessionDep,
-    _: UserDirectoryReader,  # super admin or admin
+    _: Admin,
     role: RoleName | None = None,
     is_active: bool | None = None,
     q: Annotated[str | None, Query(max_length=100)] = None,
@@ -39,10 +34,10 @@ async def list_users(
 async def create_user(
     body: UserCreate,
     session: SessionDep,
-    actor: UserCreator,  # super admin or admin (admins: reviewer/viewer only)
+    _: Admin,
     background_tasks: BackgroundTasks,
 ) -> UserRead:
-    user = await UserService(session).create(body, actor)
+    user = await UserService(session).create(body)
     # Runs after the response is sent; the user is already saved either way.
     background_tasks.add_task(
         send_welcome_email,
@@ -55,21 +50,19 @@ async def create_user(
 
 
 @router.get("/{user_id}", response_model=UserRead)
-async def get_user(
-    user_id: uuid.UUID, session: SessionDep, _: UserDirectoryReader
-) -> UserRead:
+async def get_user(user_id: uuid.UUID, session: SessionDep, _: Admin) -> UserRead:
     return UserRead.from_user(await UserService(session).get(user_id))
 
 
 @router.patch("/{user_id}", response_model=UserRead)
 async def update_user(
-    user_id: uuid.UUID, body: UserUpdate, session: SessionDep, actor: SuperAdmin
+    user_id: uuid.UUID, body: UserUpdate, session: SessionDep, actor: Admin
 ) -> UserRead:
     return UserRead.from_user(await UserService(session).update(user_id, body, actor))
 
 
 @router.put("/{user_id}/password", status_code=status.HTTP_204_NO_CONTENT)
 async def reset_password(
-    user_id: uuid.UUID, body: PasswordReset, session: SessionDep, _: SuperAdmin
+    user_id: uuid.UUID, body: PasswordReset, session: SessionDep, _: Admin
 ) -> None:
     await UserService(session).reset_password(user_id, body.new_password)

@@ -1,4 +1,5 @@
-"""User management rules. Routes check *who* may call; this checks *what* is allowed."""
+"""User management rules. Routes check *who* may call (admins only); this checks
+*what* is allowed."""
 
 import uuid
 from collections.abc import Sequence
@@ -6,24 +7,11 @@ from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants.roles import RoleName
-from src.core.exceptions import (
-    ConflictError,
-    ForbiddenError,
-    NotFoundError,
-    ValidationFailedError,
-)
+from src.core.exceptions import ConflictError, NotFoundError, ValidationFailedError
 from src.core.security import hash_password, verify_password
 from src.data.models import User
 from src.data.repositories.user_repository import UserRepository
 from src.schemas.user import UserCreate, UserUpdate
-
-# Which roles each role may give to a NEW user.
-# An admin must not be able to create admins or super admins (or they could
-# give themselves more power through a second account).
-CREATABLE_ROLES: dict[str, frozenset[RoleName]] = {
-    RoleName.SUPER_ADMIN: frozenset(RoleName),
-    RoleName.ADMIN: frozenset({RoleName.REVIEWER, RoleName.VIEWER}),
-}
 
 
 class UserService:
@@ -50,13 +38,8 @@ class UserService:
             role=role, is_active=is_active, q=q, page=page, size=size
         )
 
-    async def create(self, data: UserCreate, actor: User) -> User:
-        allowed = CREATABLE_ROLES.get(actor.role.name, frozenset())
-        if data.role not in allowed:
-            raise ForbiddenError(
-                f"You cannot create a user with the role '{data.role}'."
-            )
-
+    async def create(self, data: UserCreate) -> User:
+        """Only admins get here (route guard); they may create admins or reviewers."""
         email = data.email.strip().lower()
         if await self.users.get_by_email(email) is not None:
             raise ConflictError("A user with this email already exists.")
@@ -87,7 +70,7 @@ class UserService:
         if new_role is not None and new_role != user.role.name:
             if user.id == actor.id:
                 raise ConflictError("You cannot change your own role.")
-            await self._keep_one_super_admin(user)
+            await self._keep_one_admin(user)
             role = await self.users.get_role(new_role)
             if role is None:
                 raise ValidationFailedError(f"Unknown role '{new_role}'.")
@@ -96,7 +79,7 @@ class UserService:
         if changes.get("is_active") is False and user.is_active:
             if user.id == actor.id:
                 raise ConflictError("You cannot deactivate your own account.")
-            await self._keep_one_super_admin(user)
+            await self._keep_one_admin(user)
             user.is_active = False
         elif changes.get("is_active") is True:
             user.is_active = True
@@ -118,13 +101,14 @@ class UserService:
         user.password_hash = hash_password(new)
         await self.session.commit()
 
-    async def _keep_one_super_admin(self, user: User) -> None:
-        """Refuse to demote or deactivate the only active super admin."""
+    async def _keep_one_admin(self, user: User) -> None:
+        """Refuse to demote or deactivate the only active admin (nobody could manage
+        users any more)."""
         if (
             user.is_active
-            and user.role.name == RoleName.SUPER_ADMIN
-            and await self.users.count_active_super_admins() <= 1
+            and user.role.name == RoleName.ADMIN
+            and await self.users.count_active_admins() <= 1
         ):
             raise ConflictError(
-                "The last active super admin cannot be demoted or deactivated."
+                "The last active admin cannot be demoted or deactivated."
             )

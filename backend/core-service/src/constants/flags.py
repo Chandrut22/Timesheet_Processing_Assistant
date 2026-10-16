@@ -31,10 +31,12 @@ FLAG_SEVERITY: dict[str, Severity] = {
     "duplicate_file": Severity.HIGH,
     "employee_unmatched": Severity.HIGH,
     "no_company": Severity.HIGH,
+    "missing_rate": Severity.HIGH,  # hours found but the company has no rate for them
     # pay codes and master data
     "holiday_worked": Severity.MEDIUM,
     "holiday_not_in_calendar": Severity.MEDIUM,
     "outside_assignment": Severity.MEDIUM,
+    "company_mismatch": Severity.MEDIUM,  # the sheet names another / unknown company
     "name_mismatch": Severity.MEDIUM,
     "unknown_code": Severity.MEDIUM,
     "undated_days": Severity.MEDIUM,
@@ -42,6 +44,8 @@ FLAG_SEVERITY: dict[str, Severity] = {
     "default_rules": Severity.MEDIUM,
     # assumptions
     "dates_assumed": Severity.LOW,
+    "company_from_sheet": Severity.LOW,
+    # no company on the upload: taken from the sheet
 }
 
 DEFAULT_SEVERITY = Severity.MEDIUM  # a new flag code nobody mapped yet

@@ -10,6 +10,11 @@ Order:
   3. Alias                     "Bob"  (aliases are set on the employee)
   4. Same words, other order   "Kumar, Robert"
   5. Initial + surname         "R. Kumar" / "Kumar R"  (only if exactly one fits)
+  6. First name only           "John"  (only if exactly one John; never auto-approved)
+
+Each method has a confidence, and every result has a short reason a reviewer can read,
+e.g. "Matched Rahul Kumar (SYN-EMP-001) by initial + surname 'R. Kumar'" or
+"3 employees named 'John': John Abraham (E7), John Mathew (E9), John Paul (E12)".
 """
 
 import re
@@ -17,6 +22,7 @@ import unicodedata
 import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from decimal import Decimal
 from difflib import SequenceMatcher
 from typing import Any
 
@@ -24,6 +30,27 @@ from src.data.models import Employee, Timesheet
 
 CANDIDATE_MIN_SCORE = 0.6
 NAME_MISMATCH_BELOW = 0.6
+
+# How sure each method is. The timesheet's confidence is the lower of this and the
+# reading confidence, so a first-name-only match (0.70) always goes to a reviewer.
+METHOD_CONFIDENCE: dict[str, float] = {
+    "code": 1.0,
+    "manual": 1.0,
+    "name": 1.0,
+    "alias": 0.95,
+    "name_reordered": 0.9,
+    "initial_surname": 0.85,
+    "first_name": 0.7,
+}
+METHOD_LABEL: dict[str, str] = {
+    "code": "employee code",
+    "manual": "a reviewer",
+    "name": "full name",
+    "alias": "alias",
+    "name_reordered": "name in another order",
+    "initial_surname": "initial + surname",
+    "first_name": "first name only",
+}
 
 # Flags this module owns: removed and recomputed on every (re)match.
 MATCH_FLAG_CODES = frozenset({"employee_unmatched", "name_mismatch", "unknown_code", "no_company"})
@@ -52,6 +79,11 @@ class MatchResult:
     candidates: tuple[Candidate, ...] = ()
     name_mismatch: bool = False  # matched by code, but the name looks like someone else
     code_not_found: bool = False  # a code was written but no employee has it
+    ambiguous: tuple[Candidate, ...] = ()  # several employees fit equally (e.g. three Johns)
+
+    @property
+    def confidence(self) -> float:
+        return METHOD_CONFIDENCE.get(self.method or "", 0.0) if self.employee_id else 0.0
 
 
 # --- text helpers ----------------------------------------------------------------
@@ -158,13 +190,46 @@ def match_employee(
             hit = _only_one([e for e in employees if fits(e)])
             if hit:
                 return MatchResult(hit.id, method, code_not_found=code_not_found)
-        hit = _only_one(_initial_surname(tokens, employees))
+        initial = _initial_surname(tokens, employees)
+        hit = _only_one(initial)
         if hit:
             return MatchResult(hit.id, "initial_surname", code_not_found=code_not_found)
+        if len(initial) > 1:
+            return _ambiguous(initial, code_not_found)
+
+        if len(tokens) == 1:  # "John": a first name only
+            same_first = [e for e in employees if _tokens(e.full_name)[:1] == tokens]
+            hit = _only_one(same_first)
+            if hit:
+                return MatchResult(hit.id, "first_name", code_not_found=code_not_found)
+            if len(same_first) > 1:
+                return _ambiguous(same_first, code_not_found)
 
     return MatchResult(
         None, None, candidates=_candidates(norm, employees), code_not_found=code_not_found
     )
+
+
+def _ambiguous(found: list[EmployeeRecord], code_not_found: bool) -> MatchResult:
+    tied = tuple(Candidate(e.id, e.code, e.full_name, 1.0) for e in found)
+    return MatchResult(None, None, candidates=tied, code_not_found=code_not_found, ambiguous=tied)
+
+
+def match_reason(result: MatchResult, who: str, matched: EmployeeRecord | None) -> str:
+    """One plain sentence: why this employee, or why nobody."""
+    if result.employee_id is not None and matched is not None:
+        how = METHOD_LABEL.get(result.method or "", result.method or "?")
+        return (
+            f"Matched {matched.full_name} ({matched.code}) by {how} '{who}' "
+            f"(match confidence {result.confidence:.2f})."
+        )
+    if result.ambiguous:
+        names = ", ".join(f"{c.full_name} ({c.code})" for c in result.ambiguous)
+        return f"{len(result.ambiguous)} employees fit '{who}': {names}. A reviewer must choose."
+    if result.candidates:
+        names = ", ".join(f"{c.full_name} ({c.code})" for c in result.candidates)
+        return f"No exact match for '{who}'. Closest: {names}."
+    return f"No employee found for '{who}'."
 
 
 # --- glue to the models (still no database access) ---------------------------------
@@ -179,15 +244,34 @@ def to_record(employee: Employee) -> EmployeeRecord:
     )
 
 
-def apply_match(timesheet: Timesheet, result: MatchResult, *, company_known: bool = True) -> None:
-    """Store the match on the timesheet and rebuild the matching flags."""
+def apply_match(
+    timesheet: Timesheet,
+    result: MatchResult,
+    *,
+    company_known: bool = True,
+    matched: EmployeeRecord | None = None,
+) -> None:
+    """Store the match (employee, method, confidence, reason) and rebuild the matching
+    flags. `matched` is the matched employee's record, used for the reason text."""
     timesheet.employee_id = result.employee_id
     timesheet.match_method = result.method
+    # Confidence = the lower of "how well it was read" and "how sure the match is".
+    read = float(timesheet.read_confidence) if timesheet.read_confidence is not None else 1.0
+    timesheet.confidence = Decimal(str(round(min(read, result.confidence), 2)))
 
     flags: list[dict[str, Any]] = [
         f for f in (timesheet.flags or []) if f.get("code") not in MATCH_FLAG_CODES
     ]
     who = timesheet.extracted_name or timesheet.extracted_code or "this timesheet"
+    # Matched by code: quote the code that was written, not the name.
+    shown = (
+        timesheet.extracted_code if result.method == "code" and timesheet.extracted_code else who
+    )
+    timesheet.match_reason = (
+        match_reason(result, shown, matched)
+        if company_known
+        else "No company known, so no employee list to match against."
+    )
 
     if not company_known:
         flags.append(
@@ -197,7 +281,10 @@ def apply_match(timesheet: Timesheet, result: MatchResult, *, company_known: boo
             }
         )
     elif result.employee_id is None:
-        if result.candidates:
+        if result.ambiguous:
+            options = ", ".join(f"{c.full_name} ({c.code})" for c in result.ambiguous)
+            message = f"{len(result.ambiguous)} employees fit '{who}': {options}. Choose one."
+        elif result.candidates:
             options = ", ".join(f"{c.full_name} ({c.code})" for c in result.candidates)
             message = f"No unique employee for '{who}'. Possible: {options}."
         else:

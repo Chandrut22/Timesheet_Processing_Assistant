@@ -10,7 +10,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants.roles import RoleName
-from src.core.rbac.permissions import ADMINS, REVIEWERS, SUPER_ADMINS
+from src.core.rbac.permissions import ADMINS, REVIEWERS
 from src.core.rbac.principal import Principal
 from src.core.rbac.tokens import InvalidTokenError, decode_access_token
 from src.data.clients.postgres import get_session
@@ -60,10 +60,9 @@ def require_roles(allowed: Iterable[RoleName]) -> Callable[[Principal], Awaitabl
     return checker
 
 
-# Ready-made guards. Any signed-in user (viewer included): use CurrentPrincipal.
+# Ready-made guards. Any signed-in user (admin or reviewer): use CurrentPrincipal.
 Reviewer = Annotated[Principal, Depends(require_roles(REVIEWERS))]
 Admin = Annotated[Principal, Depends(require_roles(ADMINS))]
-SuperAdmin = Annotated[Principal, Depends(require_roles(SUPER_ADMINS))]
 
 # --- paging (?page=1&size=20) ---------------------------------------------------
 

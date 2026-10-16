@@ -66,6 +66,10 @@ class Settings(BaseSettings):
     email_require_sender_auth: bool = True  # our mail server must have verified SPF/DKIM/DMARC
     email_max_attachments: int = 20
 
+    # --- worker retries (temporary failures: AI model down, database / Redis unreachable) ---
+    worker_max_attempts: int = 3  # runs per job, including the first
+    worker_retry_delay_seconds: int = 60  # wait before the 2nd run; x4 for each run after
+
 
 @lru_cache
 def get_settings() -> Settings:

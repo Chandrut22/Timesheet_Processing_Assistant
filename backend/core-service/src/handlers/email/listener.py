@@ -38,13 +38,13 @@ class Cursor:
         self.redis = redis
 
     async def get(self) -> tuple[int | None, int]:
-        data = await self.redis.hgetall(CURSOR_KEY)  
+        data = await self.redis.hgetall(CURSOR_KEY)
         if not data:
             return None, 0
         return int(data["uidvalidity"]), int(data["last_uid"])
 
     async def set(self, uidvalidity: int, last_uid: int) -> None:
-        await self.redis.hset(  
+        await self.redis.hset(
             CURSOR_KEY, mapping={"uidvalidity": uidvalidity, "last_uid": last_uid}
         )
 

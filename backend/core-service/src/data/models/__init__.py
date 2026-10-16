@@ -1,5 +1,6 @@
 """Import every model here. Alembic only sees tables whose model was imported."""
 
+from src.data.models.activity import ProcessingStep, SubmissionStateChange
 from src.data.models.audit_event import AuditEvent
 from src.data.models.base import Base
 from src.data.models.company import Company
@@ -7,6 +8,7 @@ from src.data.models.document import Document
 from src.data.models.employee import Employee
 from src.data.models.export_batch import ExportBatch
 from src.data.models.holiday import Holiday
+from src.data.models.reprocess_run import ReprocessRun
 from src.data.models.submission import Submission
 from src.data.models.timesheet import Timesheet
 from src.data.models.timesheet_entry import TimesheetEntry
@@ -24,4 +26,7 @@ __all__ = [
     "TimesheetEntry",
     "WhitelistSender",
     "AuditEvent",
+    "ProcessingStep",
+    "ReprocessRun",
+    "SubmissionStateChange",
 ]

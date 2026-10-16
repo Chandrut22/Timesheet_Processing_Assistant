@@ -1,15 +1,16 @@
 """One incoming email -> one submission, processed exactly like an upload.
 
-  1. Unknown sender (not on any company's whitelist)      -> ignored, nothing saved
-  2. Sender not verified by our mail server (SPF/DKIM)    -> ignored, nothing saved
-  3. Same Message-ID seen before                          -> skipped (no double processing)
+  1. Same Message-ID seen before                          -> skipped (no double processing)
+  2. Unknown sender (not on any company's whitelist)      -> saved as Ignored, never read
+  3. Sender not verified by our mail server (SPF/DKIM)    -> saved as Ignored, never read
   4. Attachments -> documents; their bytes go to the Redis upload buffer
      (logos, invoices-as-images and unsupported files are recorded but never read)
   5. No readable attachment but text in the body          -> the body becomes the document
   6. Commit, then queue the submission for the worker
 
-Unknown senders are not saved on purpose: anyone can send us email, and the
-database should not fill up with spam."""
+Every email gets a record (sender, subject, received time, attachments) and a state,
+as the use case requires. For ignored emails only that metadata is kept: no body text
+and no file bytes."""
 
 import hashlib
 import logging
@@ -22,8 +23,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config.settings import settings
 from src.constants.file_types import IMAGE_EXTENSIONS, SUPPORTED_EXTENSIONS, skip_reason
-from src.constants.timesheet_status import DocumentStatus, SubmissionSource, SubmissionStatus
+from src.constants.timesheet_status import (
+    DocumentStatus,
+    StepName,
+    StepResult,
+    SubmissionSource,
+    SubmissionState,
+    SubmissionStatus,
+)
 from src.control.workers.dispatch import enqueue_submission
+from src.core.services.activity_log import record_step, set_state
 from src.data.clients import upload_buffer
 from src.data.clients.postgres import SessionLocal
 from src.data.models import Document, Submission
@@ -100,61 +109,171 @@ class EmailIntakeService:
         )
         return found is not None
 
+    
     async def accept(self, email: ParsedEmail) -> IntakeOutcome:
-        company_id = (
-            await WhitelistRepository(self.session).find_company_id_for_sender(email.from_email)
-            if email.from_email
-            else None
-        )
-        if company_id is None:
-            logger.warning("Ignored email from %s: not on any whitelist", email.from_email or "?")
-            return IntakeOutcome.UNKNOWN_SENDER
-        if settings.email_require_sender_auth and not email.sender_auth_passed:
-            logger.warning("Ignored email from %s: SPF/DKIM/DMARC did not pass", email.from_email)
-            return IntakeOutcome.UNVERIFIED_SENDER
         if await self._already_received(email.message_id):
             return IntakeOutcome.DUPLICATE
 
+        company_id = (
+            await WhitelistRepository(self.session).find_company_id_for_sender(
+                email.from_email
+            )
+            if email.from_email
+            else None
+        )
+
+        outcome = IntakeOutcome.QUEUED
+        ignore_reason = None
+
+        if company_id is None:
+            outcome = IntakeOutcome.UNKNOWN_SENDER
+            ignore_reason = "The sender is not on any company's whitelist."
+        elif (
+            settings.email_require_sender_auth
+            and not email.sender_auth_passed
+        ):
+            outcome = IntakeOutcome.UNVERIFIED_SENDER
+            ignore_reason = (
+                "The sender could not be verified "
+                "(SPF/DKIM/DMARC did not pass)."
+            )
+
         submission = Submission(
             source=SubmissionSource.EMAIL,
-            status=SubmissionStatus.RECEIVED,
+            status=(
+                SubmissionStatus.IGNORED
+                if ignore_reason
+                else SubmissionStatus.RECEIVED
+            ),
             company_id=company_id,
-            sender_email=email.from_email[:255],
+            sender_email=(email.from_email or "")[:255] or None,
             subject=email.subject or None,
-            body_text=email.body_text or None,
+            body_text=(
+                None if ignore_reason else (email.body_text or None)
+            ),
             message_id=email.message_id,
             received_at=email.received_at,
         )
+
+        documents: list[Document] = []
         to_buffer: list[tuple[Document, bytes]] = []
-        for attachment in email.attachments[: settings.email_max_attachments]:
+
+        for attachment in email.attachments[
+            : settings.email_max_attachments
+        ]:
             document, readable = _document_for(attachment)
-            submission.documents.append(document)
-            if readable:
+
+            if ignore_reason:
+                document.status = DocumentStatus.UNSUPPORTED
+                document.error = "Not read: the email was ignored."
+            elif readable:
                 to_buffer.append((document, attachment.data))
 
-        # Hours typed in the email itself (no timesheet file attached)
-        if not to_buffer and len(email.body_text.strip()) >= MIN_BODY_CHARS:
-            submission.documents.append(_body_document(email.body_text.strip()))
+            submission.documents.append(document)
+            documents.append(document)
 
-        if not submission.documents:
-            return IntakeOutcome.EMPTY
+        # Use the email body only when no readable attachment exists.
+        if not ignore_reason and not to_buffer:
+            body = (email.body_text or "").strip()
+
+            if len(body) >= MIN_BODY_CHARS:
+                body_document = _body_document(body)
+                submission.documents.append(body_document)
+                documents.append(body_document)
+            else:
+                outcome = IntakeOutcome.EMPTY
+                ignore_reason = (
+                    "No timesheet attachment and no timesheet text in the email."
+                )
+                submission.status = SubmissionStatus.IGNORED
 
         self.session.add(submission)
+
         try:
-            await self.session.flush()  # ids are known now
+            await self.session.flush()
         except IntegrityError:
-            await self.session.rollback()  # another listener saved the same Message-ID first
+            await self.session.rollback()
             return IntakeOutcome.DUPLICATE
-        for document, data in to_buffer:  # bytes go to Redis BEFORE the commit...
-            await upload_buffer.put_file(document.id, data)
-        await self.session.commit()  # ...so the worker never sees a row without its file
-        await enqueue_submission(submission.id)
+
+        # Capture scalar values before any commit.
+        submission_id = submission.id
+        document_count = len(documents)
+
+        set_state(
+            self.session,
+            submission,
+            SubmissionState.RECEIVED,
+            first=True,
+        )
+
+        if ignore_reason:
+            set_state(
+                self.session,
+                submission,
+                SubmissionState.IGNORED,
+                reason=ignore_reason,
+            )
+
+        record_step(
+            self.session,
+            submission_id=submission_id,
+            step=StepName.COLLECT,
+            result=(
+                StepResult.WARNING if ignore_reason
+                else StepResult.SUCCESS
+            ),
+            message=(
+                ignore_reason
+                or f"Email received with {document_count} document(s)"
+            ),
+            input={
+                "sender": email.from_email,
+                "subject": email.subject,
+                "attachments": len(email.attachments),
+                "sender_verified": email.sender_auth_passed,
+            },
+            output={
+                "company_id": (
+                    str(company_id) if company_id else None
+                ),
+                "documents": [
+                    {
+                        "file": document.filename,
+                        "status": document.status,
+                        "reason": document.error,
+                    }
+                    for document in documents
+                ],
+            },
+        )
+
+        try:
+            for document, data in to_buffer:
+                await upload_buffer.put_file(document.id, data)
+
+            await self.session.commit()
+
+        except Exception:
+            await self.session.rollback()
+            raise
+
+        if ignore_reason:
+            logger.warning(
+                "Ignored email from %s: %s",
+                email.from_email or "?",
+                ignore_reason,
+            )
+            return outcome
+
+        await enqueue_submission(submission_id)
+
         logger.info(
             "Email from %s -> submission %s (%d document(s))",
-            email.from_email,
-            submission.id,
-            len(submission.documents),
+            email.from_email or "?",
+            submission_id,
+            document_count,
         )
+
         return IntakeOutcome.QUEUED
 
 

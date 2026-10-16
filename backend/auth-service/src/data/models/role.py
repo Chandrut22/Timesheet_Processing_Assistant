@@ -1,7 +1,7 @@
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import String, Uuid, text
+from sqlalchemy import CheckConstraint, String, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.data.models.base import Base
@@ -12,6 +12,10 @@ if TYPE_CHECKING:  # only for type hints; avoids a circular import at runtime
 
 class Role(Base):
     __tablename__ = "roles"
+    # Only the two roles the apps know; a typo or an old role name cannot be stored.
+    __table_args__ = (
+        CheckConstraint("name IN ('admin', 'reviewer')", name="name_known"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid,

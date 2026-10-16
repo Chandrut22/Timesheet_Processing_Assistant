@@ -1,7 +1,7 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 
 def _clean_aliases(values: list[str]) -> list[str]:
@@ -16,12 +16,24 @@ def _clean_aliases(values: list[str]) -> list[str]:
     return cleaned
 
 
+def _check_dates(start: date | None, end: date | None) -> None:
+    if start is not None and end is not None and end < start:
+        raise ValueError("assignment_end cannot be before assignment_start")
+
+
 class EmployeeCreate(BaseModel):
     company_id: uuid.UUID
     employee_code: str = Field(min_length=1, max_length=50)
     full_name: str = Field(min_length=1, max_length=200)
     email: EmailStr | None = None
     aliases: list[str] = Field(default_factory=list, max_length=20)
+    assignment_start: date | None = Field(default=None, description="First day at the client")
+    assignment_end: date | None = Field(default=None, description="Last day; null = ongoing")
+
+    @model_validator(mode="after")
+    def check_dates(self) -> "EmployeeCreate":
+        _check_dates(self.assignment_start, self.assignment_end)
+        return self
 
     @field_validator("employee_code", "full_name")
     @classmethod
@@ -44,6 +56,8 @@ class EmployeeUpdate(BaseModel):
     full_name: str | None = Field(default=None, min_length=1, max_length=200)
     email: EmailStr | None = None
     aliases: list[str] | None = Field(default=None, max_length=20)
+    assignment_start: date | None = None  # send null to clear
+    assignment_end: date | None = None  # send null to clear (= ongoing)
     is_active: bool | None = None
 
     @field_validator("aliases")
@@ -61,6 +75,8 @@ class EmployeeRead(BaseModel):
     full_name: str
     email: str | None
     aliases: list[str]
+    assignment_start: date | None
+    assignment_end: date | None
     is_active: bool
     created_at: datetime
     updated_at: datetime
