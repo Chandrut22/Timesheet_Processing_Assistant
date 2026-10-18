@@ -52,6 +52,21 @@ class ExportRepository(BaseRepository[ExportBatch]):
         result = await self.session.execute(query)
         return [(row[0], row[1]) for row in result.all()]
 
+    async def exported_employees(
+        self, employee_ids: Sequence[uuid.UUID], week_start: date
+    ) -> set[uuid.UUID]:
+        """Employees (of the given ones) already in a payroll sheet for this week."""
+        if not employee_ids:
+            return set()
+        rows = await self.session.scalars(
+            select(Timesheet.employee_id).where(
+                Timesheet.employee_id.in_(employee_ids),
+                Timesheet.week_start == week_start,
+                Timesheet.status == TimesheetStatus.EXPORTED,
+            )
+        )
+        return {e for e in rows.all() if e is not None}
+
     async def count_by_status(self, company_id: uuid.UUID, week_start: date) -> dict[str, int]:
         """{"needs_review": 2, "approved": 5, ...} for one company and week."""
         result = await self.session.execute(

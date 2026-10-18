@@ -11,6 +11,11 @@ class Settings(BaseSettings):
 
     # --- app ---
     app_name: str = "core-service"
+
+    # Browser apps allowed to call this API (the frontend). In .env as JSON, e.g.
+    # CORS_ORIGINS=["https://timesheets.example.com"]. Use the same host name the
+    # browser uses (localhost and 127.0.0.1 are different origins).
+    cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     environment: str = "dev"
     log_level: str = "INFO"
     docs_enabled: bool = True
@@ -65,10 +70,20 @@ class Settings(BaseSettings):
     email_backfill_days: int = 2
     email_require_sender_auth: bool = True  # our mail server must have verified SPF/DKIM/DMARC
     email_max_attachments: int = 20
+    # An email that fails to be saved this many times (not because the database or
+    # Redis is down) is recorded as failed and skipped, so it cannot block the inbox.
+    email_max_intake_failures: int = 3
 
     # --- worker retries (temporary failures: AI model down, database / Redis unreachable) ---
     worker_max_attempts: int = 3  # runs per job, including the first
     worker_retry_delay_seconds: int = 60  # wait before the 2nd run; x4 for each run after
+    # A job "processing" with no progress for this long is treated as abandoned (the
+    # worker died): another worker may take it over. Progress = every state / document.
+    worker_stale_after_seconds: int = 1800
+
+    # --- sweeper (Celery beat): re-queue work that was lost ---
+    sweeper_interval_seconds: int = 120  # how often it looks
+    sweeper_grace_seconds: int = 600  # "received" (or a retry overdue) this long = lost
 
 
 @lru_cache

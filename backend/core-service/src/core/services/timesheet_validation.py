@@ -1,11 +1,13 @@
 """Checks that need the database (duplicates), and the auto-approve decision."""
 
-from collections.abc import Sequence
+import hashlib
+import uuid
+from collections.abc import Iterable, Sequence
 from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config.settings import settings
@@ -19,6 +21,44 @@ VALIDATION_FLAG_CODES = frozenset({"duplicate_file", "duplicate_week"})
 NON_BLOCKING_FLAGS = frozenset({"holiday_worked", "company_from_sheet"})
 
 LIVE_STATUSES = (TimesheetStatus.NEEDS_REVIEW, TimesheetStatus.APPROVED, TimesheetStatus.EXPORTED)
+
+
+def _week_lock_key(employee_id: uuid.UUID, week_start: date) -> int:
+    """A stable signed 64-bit number for (employee, week): the advisory lock's key."""
+    digest = hashlib.blake2b(f"{employee_id}:{week_start}".encode(), digest_size=8).digest()
+    return int.from_bytes(digest, "big", signed=True)
+
+
+async def lock_employee_weeks(
+    session: AsyncSession, pairs: Iterable[tuple[uuid.UUID | None, date | None]]
+) -> None:
+    """Take a PostgreSQL advisory lock per (employee, week), held until the transaction
+    ends. Two workers (or reviewers) checking the same person and week then run one
+    after the other, so the second always sees the first one's committed timesheet.
+    Keys are taken in sorted order so two sessions can never deadlock on them.
+    Locks are re-entrant within a session, so taking one twice is harmless."""
+    keys = sorted(
+        {_week_lock_key(emp, week) for emp, week in pairs if emp is not None and week is not None}
+    )
+    for key in keys:
+        await session.execute(select(func.pg_advisory_xact_lock(key)))
+
+
+async def other_paid_timesheet(session: AsyncSession, timesheet: Timesheet) -> Timesheet | None:
+    """Another approved or exported timesheet for the same employee and week, if any."""
+    if timesheet.employee_id is None or timesheet.week_start is None:
+        return None
+    other: Timesheet | None = await session.scalar(
+        select(Timesheet)
+        .where(
+            Timesheet.employee_id == timesheet.employee_id,
+            Timesheet.week_start == timesheet.week_start,
+            Timesheet.id != timesheet.id,
+            Timesheet.status.in_((TimesheetStatus.APPROVED, TimesheetStatus.EXPORTED)),
+        )
+        .limit(1)
+    )
+    return other
 
 
 async def validate_duplicates(
@@ -49,6 +89,7 @@ async def validate_duplicates(
             )
 
     if timesheet.employee_id is not None and timesheet.week_start is not None:
+        await lock_employee_weeks(session, [(timesheet.employee_id, timesheet.week_start)])
         other = await session.scalar(
             select(Timesheet.id)
             .where(

@@ -2,7 +2,13 @@
 
 Where we are in the mailbox is a cursor in Redis: (UIDVALIDITY, last UID handled).
 The database (submissions.message_id is unique) is what really stops an email from
-being processed twice, so re-reading a few emails after a crash is harmless."""
+being processed twice, so re-reading a few emails after a crash is harmless.
+
+When an email cannot be saved, the cursor stays before it and it is tried again on the
+next check. If the cause is temporary (database or Redis down) that repeats until the
+service is back. Any other error (a broken email, data the database refuses) is
+counted: after email_max_intake_failures tries the email is recorded as failed and
+skipped, so one bad email can never block the rest of the inbox."""
 
 import asyncio
 import logging
@@ -14,12 +20,15 @@ from typing import Protocol
 from redis.asyncio import Redis
 
 from src.config.settings import settings
+from src.core.services.failures import explain, technical_details
 from src.data.clients.redis import redis_key
 from src.handlers.email.parser import ParsedEmail, parse_message
 
 logger = logging.getLogger(__name__)
 
 CURSOR_KEY = redis_key("imap", "cursor")  # hash: uidvalidity, last_uid
+FAILURES_KEY = redis_key("imap", "failures")  # hash: "<uidvalidity>:<uid>" -> failed tries
+FAILURES_TTL = 7 * 24 * 3600
 
 
 class MailSource(Protocol):
@@ -31,6 +40,8 @@ class MailSource(Protocol):
 
 
 Intake = Callable[[ParsedEmail], Awaitable[str]]  # returns what happened, for the log
+# Called when an email is skipped after too many failures: (email or None, ref, reason).
+GiveUp = Callable[[ParsedEmail | None, str, str], Awaitable[None]]
 
 
 class Cursor:
@@ -48,9 +59,56 @@ class Cursor:
             CURSOR_KEY, mapping={"uidvalidity": uidvalidity, "last_uid": last_uid}
         )
 
+    async def failed(self, ref: str) -> int:
+        """Count one more failed try for this email; returns the count."""
+        count = int(await self.redis.hincrby(FAILURES_KEY, ref, 1))
+        await self.redis.expire(FAILURES_KEY, FAILURES_TTL)
+        return count
+
+    async def forget(self, ref: str) -> None:
+        await self.redis.hdel(FAILURES_KEY, ref)
+
+
+async def _handle(
+    uid: int, msg: Message, ref: str, cursor: Cursor, intake: Intake, give_up: GiveUp | None
+) -> None:
+    """Parse and save one email. Raises when it should be tried again later; returns
+    when it is done (saved, or skipped for good after too many failures)."""
+    email: ParsedEmail | None = None
+    try:
+        email = parse_message(msg, fallback_id=f"<uid-{ref}@imap.local>")
+        outcome = await intake(email)
+    except Exception as exc:
+        failure = explain(exc)
+        if failure.temporary:  # database / Redis down: wait for it, count nothing
+            raise
+        tries = await cursor.failed(ref)
+        if tries < settings.email_max_intake_failures:
+            logger.warning("UID %s could not be saved (try %d): %s", uid, tries, exc)
+            raise
+        reason = (
+            f"This email could not be saved after {tries} tries and was skipped "
+            f"so the rest of the inbox can be read. Details: {technical_details(exc, 500)}"
+        )
+        logger.error("UID %s skipped: %s", uid, reason)
+        if give_up is not None:
+            try:
+                await give_up(email, ref, reason)
+            except Exception:
+                logger.exception("Could not record the skipped email UID %s", uid)
+        await cursor.forget(ref)
+        return
+    await cursor.forget(ref)
+    logger.info("UID %s from %s: %s", uid, email.from_email or "?", outcome)
+
 
 async def process_new_mail(
-    source: MailSource, cursor: Cursor, intake: Intake, *, batch_limit: int
+    source: MailSource,
+    cursor: Cursor,
+    intake: Intake,
+    *,
+    batch_limit: int,
+    give_up: GiveUp | None = None,
 ) -> int:
     """Hand every email since the cursor to `intake`. Returns how many were fetched
     (== batch_limit means there may be more: call again)."""
@@ -84,9 +142,8 @@ async def process_new_mail(
     for uid, msg in messages:
         if not resync and uid <= last_uid:
             continue  # "n:*" returns the last email even when nothing is newer
-        email = parse_message(msg, fallback_id=f"<uid-{validity}-{uid}@imap.local>")
-        outcome = await intake(email)  # raises on DB/Redis trouble: cursor stays put, retry later
-        logger.info("UID %s from %s: %s", uid, email.from_email or "?", outcome)
+        # Raises when the email must be tried again: the cursor stays before it.
+        await _handle(uid, msg, f"{validity}-{uid}", cursor, intake, give_up)
         highest = max(highest, uid)
         if not resync:
             await cursor.set(validity, highest)  # move forward after each email

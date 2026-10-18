@@ -5,6 +5,8 @@ from celery import Task
 from src.control.workers.celery_app import celery_app
 from src.control.workers.runtime import run_async
 from src.core.services.processing_service import RetryLater, process_submission_by_id
+from src.core.services.sweeper import sweep
+from src.data.clients.postgres import SessionLocal
 
 
 @celery_app.task(name="core.process_submission", bind=True, max_retries=None)
@@ -31,3 +33,14 @@ def process_submission(
             args=(submission_id, reprocess_run_id, str(later.token)),
             countdown=later.delay_seconds,
         ) from later
+
+
+async def _sweep() -> int:
+    async with SessionLocal() as session:
+        return await sweep(session)
+
+
+@celery_app.task(name="core.sweep")
+def sweep_lost_work() -> int:
+    """Queue again the submissions whose job was lost (see sweeper.py). Run by beat."""
+    return run_async(_sweep())

@@ -8,7 +8,8 @@ Per day, in this order:
   2. Marked as double time on the sheet                       -> all hours double time
   3. Otherwise: the first daily_ot_after hours are regular, the rest overtime,
      and hours above double_time_after (if the company has that rule) double time.
-Then for the week:
+Then for each week (the company's week; a sheet is normally one week, but the cap is
+applied per week so a multi-week list can never get one week's limit):
   4. Regular hours above weekly_ot_after become overtime, taken from the LATEST
      days first (the hours that pushed the week over the limit).
 Then the money:
@@ -23,6 +24,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from src.data.models import Company, Timesheet
+from src.utils.dates import start_of_week
 
 ZERO = Decimal("0")
 CENT = Decimal("0.01")
@@ -44,6 +46,7 @@ class PayRules:
     double_time_rate: Decimal | None = None
     holiday_rate: Decimal | None = None
     currency: str | None = None
+    week_start_day: int = 0  # the company's first day of the week; 0 = Monday
 
     @property
     def has_rates(self) -> bool:
@@ -141,15 +144,19 @@ def _split_day(day: DayInput, rules: PayRules) -> DaySplit:
 def apply_pay_rules(days: Sequence[DayInput], rules: PayRules = DEFAULT_RULES) -> PayResult:
     splits = [_split_day(day, rules) for day in sorted(days, key=lambda d: d.work_date)]
 
-    # Weekly cap: move regular hours above the limit to overtime, latest days first.
-    excess = sum((s.regular for s in splits), ZERO) - rules.weekly_ot_after
-    for split in reversed(splits):
-        if excess <= ZERO:
-            break
-        moved = min(split.regular, excess)
-        split.regular -= moved
-        split.overtime += moved
-        excess -= moved
+    # Weekly cap, per week: move regular hours above the limit to overtime, latest days first.
+    weeks: dict[date, list[DaySplit]] = {}
+    for split in splits:
+        weeks.setdefault(start_of_week(split.work_date, rules.week_start_day), []).append(split)
+    for week in weeks.values():
+        excess = sum((s.regular for s in week), ZERO) - rules.weekly_ot_after
+        for split in reversed(week):
+            if excess <= ZERO:
+                break
+            moved = min(split.regular, excess)
+            split.regular -= moved
+            split.overtime += moved
+            excess -= moved
 
     return PayResult(days=splits)
 
@@ -195,6 +202,7 @@ def rules_from_company(company: Company | None) -> PayRules:
         double_time_rate=company.double_time_rate,
         holiday_rate=company.holiday_rate,
         currency=company.currency,
+        week_start_day=company.week_start or 0,  # unset only on an unsaved company
     )
 
 
@@ -220,10 +228,12 @@ def recalculate(
 ) -> PayResult:
     """Mark holidays, split the hours, price them, store the totals and flags.
 
-    A day is a holiday if the sheet marks it OR it is in the holiday calendar.
+    A day is a holiday if the sheet (or a reviewer) marks it OR it is in the holiday
+    calendar. is_holiday is worked out fresh from sheet_holiday every time, so removing
+    a holiday from the calendar and recalculating turns the day back into a normal day.
     Safe to call again after a reviewer edits hours: rule flags are rebuilt."""
     for entry in timesheet.entries:
-        entry.is_holiday = bool(entry.is_holiday) or entry.work_date in holidays
+        entry.is_holiday = bool(entry.sheet_holiday) or entry.work_date in holidays
 
     result = apply_pay_rules(
         [

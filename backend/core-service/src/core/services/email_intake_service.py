@@ -6,7 +6,8 @@
   4. Attachments -> documents; their bytes go to the Redis upload buffer
      (logos, invoices-as-images and unsupported files are recorded but never read)
   5. No readable attachment but text in the body          -> the body becomes the document
-  6. Commit, then queue the submission for the worker
+  6. Commit, then queue the submission for the worker (if the queue is down, the
+     sweeper queues it later: the email is never lost or stuck)
 
 Every email gets a record (sender, subject, received time, attachments) and a state,
 as the use case requires. For ignored emails only that metadata is kept: no body text
@@ -14,6 +15,7 @@ and no file bytes."""
 
 import hashlib
 import logging
+from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import PurePath
 
@@ -31,7 +33,7 @@ from src.constants.timesheet_status import (
     SubmissionState,
     SubmissionStatus,
 )
-from src.control.workers.dispatch import enqueue_submission
+from src.control.workers.dispatch import enqueue_or_leave_for_sweeper
 from src.core.services.activity_log import record_step, set_state
 from src.data.clients import upload_buffer
 from src.data.clients.postgres import SessionLocal
@@ -109,15 +111,12 @@ class EmailIntakeService:
         )
         return found is not None
 
-    
     async def accept(self, email: ParsedEmail) -> IntakeOutcome:
         if await self._already_received(email.message_id):
             return IntakeOutcome.DUPLICATE
 
         company_id = (
-            await WhitelistRepository(self.session).find_company_id_for_sender(
-                email.from_email
-            )
+            await WhitelistRepository(self.session).find_company_id_for_sender(email.from_email)
             if email.from_email
             else None
         )
@@ -128,29 +127,17 @@ class EmailIntakeService:
         if company_id is None:
             outcome = IntakeOutcome.UNKNOWN_SENDER
             ignore_reason = "The sender is not on any company's whitelist."
-        elif (
-            settings.email_require_sender_auth
-            and not email.sender_auth_passed
-        ):
+        elif settings.email_require_sender_auth and not email.sender_auth_passed:
             outcome = IntakeOutcome.UNVERIFIED_SENDER
-            ignore_reason = (
-                "The sender could not be verified "
-                "(SPF/DKIM/DMARC did not pass)."
-            )
+            ignore_reason = "The sender could not be verified (SPF/DKIM/DMARC did not pass)."
 
         submission = Submission(
             source=SubmissionSource.EMAIL,
-            status=(
-                SubmissionStatus.IGNORED
-                if ignore_reason
-                else SubmissionStatus.RECEIVED
-            ),
+            status=(SubmissionStatus.IGNORED if ignore_reason else SubmissionStatus.RECEIVED),
             company_id=company_id,
             sender_email=(email.from_email or "")[:255] or None,
             subject=email.subject or None,
-            body_text=(
-                None if ignore_reason else (email.body_text or None)
-            ),
+            body_text=(None if ignore_reason else (email.body_text or None)),
             message_id=email.message_id,
             received_at=email.received_at,
         )
@@ -158,9 +145,7 @@ class EmailIntakeService:
         documents: list[Document] = []
         to_buffer: list[tuple[Document, bytes]] = []
 
-        for attachment in email.attachments[
-            : settings.email_max_attachments
-        ]:
+        for attachment in email.attachments[: settings.email_max_attachments]:
             document, readable = _document_for(attachment)
 
             if ignore_reason:
@@ -182,9 +167,7 @@ class EmailIntakeService:
                 documents.append(body_document)
             else:
                 outcome = IntakeOutcome.EMPTY
-                ignore_reason = (
-                    "No timesheet attachment and no timesheet text in the email."
-                )
+                ignore_reason = "No timesheet attachment and no timesheet text in the email."
                 submission.status = SubmissionStatus.IGNORED
 
         self.session.add(submission)
@@ -218,14 +201,8 @@ class EmailIntakeService:
             self.session,
             submission_id=submission_id,
             step=StepName.COLLECT,
-            result=(
-                StepResult.WARNING if ignore_reason
-                else StepResult.SUCCESS
-            ),
-            message=(
-                ignore_reason
-                or f"Email received with {document_count} document(s)"
-            ),
+            result=(StepResult.WARNING if ignore_reason else StepResult.SUCCESS),
+            message=(ignore_reason or f"Email received with {document_count} document(s)"),
             input={
                 "sender": email.from_email,
                 "subject": email.subject,
@@ -233,9 +210,7 @@ class EmailIntakeService:
                 "sender_verified": email.sender_auth_passed,
             },
             output={
-                "company_id": (
-                    str(company_id) if company_id else None
-                ),
+                "company_id": (str(company_id) if company_id else None),
                 "documents": [
                     {
                         "file": document.filename,
@@ -265,7 +240,9 @@ class EmailIntakeService:
             )
             return outcome
 
-        await enqueue_submission(submission_id)
+        # Saved already: if the queue is down the sweeper queues it later, and this email
+        # still counts as handled (the listener moves on).
+        await enqueue_or_leave_for_sweeper(submission_id)
 
         logger.info(
             "Email from %s -> submission %s (%d document(s))",
@@ -275,6 +252,37 @@ class EmailIntakeService:
         )
 
         return IntakeOutcome.QUEUED
+
+
+async def record_failed_email(email: ParsedEmail | None, ref: str, reason: str) -> None:
+    """The listener gave up on an email (it kept failing to be saved): keep a record
+    with what is known (sender, subject, time) and state Failed, so a person sees it
+    and can ask the sender to resend. Nothing from the email is read or queued."""
+    async with SessionLocal() as session:
+        submission = Submission(
+            source=SubmissionSource.EMAIL,
+            status=SubmissionStatus.FAILED,
+            sender_email=((email.from_email if email else "") or "")[:255] or None,
+            subject=((email.subject if email else "") or "")[:998] or None,
+            message_id=email.message_id if email else f"<uid-{ref}@imap.local>",
+            received_at=email.received_at if email else datetime.now(UTC),
+            error="This email could not be saved and was skipped. Ask the sender to send "
+            "it again; if that fails too, check the processing log.",
+        )
+        session.add(submission)
+        await session.flush()
+        set_state(session, submission, SubmissionState.RECEIVED, first=True)
+        set_state(session, submission, SubmissionState.FAILED, reason=submission.error)
+        record_step(
+            session,
+            submission_id=submission.id,
+            step=StepName.COLLECT,
+            result=StepResult.ERROR,
+            message="The email could not be saved and was skipped.",
+            input={"mailbox_ref": ref},
+            error_details=reason,
+        )
+        await session.commit()
 
 
 async def accept_email(email: ParsedEmail) -> str:

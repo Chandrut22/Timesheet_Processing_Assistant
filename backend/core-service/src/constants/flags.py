@@ -26,6 +26,7 @@ FLAG_SEVERITY: dict[str, Severity] = {
     "conflicting_hours": Severity.HIGH,
     "no_entries": Severity.HIGH,
     "duplicate_day": Severity.HIGH,
+    "document_truncated": Severity.HIGH,  # the document was too long: pages may be missing
     # paid twice / to the wrong person
     "duplicate_week": Severity.HIGH,
     "duplicate_file": Severity.HIGH,
@@ -42,6 +43,7 @@ FLAG_SEVERITY: dict[str, Severity] = {
     "undated_days": Severity.MEDIUM,
     "model_issue": Severity.MEDIUM,
     "default_rules": Severity.MEDIUM,
+    "multi_week_sheet": Severity.MEDIUM,  # split into one timesheet per week
     # assumptions
     "dates_assumed": Severity.LOW,
     "company_from_sheet": Severity.LOW,
