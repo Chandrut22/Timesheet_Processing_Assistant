@@ -10,6 +10,11 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     app_name: str = "auth-service"
+
+    # Browser apps allowed to call this API (the frontend). In .env as JSON, e.g.
+    # CORS_ORIGINS=["https://timesheets.example.com"]. Use the same host name the
+    # browser uses (localhost and 127.0.0.1 are different origins).
+    cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     environment: str = "local"
 
     # postgresql+asyncpg://USER:PASSWORD@HOST:PORT/DB_NAME

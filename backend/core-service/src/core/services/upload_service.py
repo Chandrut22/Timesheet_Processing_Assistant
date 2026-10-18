@@ -16,17 +16,18 @@ from src.constants.timesheet_status import (
     SubmissionState,
     SubmissionStatus,
 )
-from src.control.workers.dispatch import enqueue_submission
+from src.control.workers.dispatch import enqueue_or_leave_for_sweeper
 from src.core.exceptions import ValidationFailedError
 from src.core.rbac.principal import Principal
 from src.core.services.activity_log import record_step, set_state
 from src.data.clients import upload_buffer
 from src.data.models import Document, Submission
 from src.data.repositories.company_repository import CompanyRepository
+from src.utils.text import db_safe
 
 
 def _safe_filename(raw: str | None) -> str:
-    name = PurePath((raw or "file").replace("\\", "/")).name  # drop any path a client sends
+    name = PurePath(db_safe(raw or "file").replace("\\", "/")).name  # drop any path sent
     return name[:255] or "file"
 
 
@@ -106,5 +107,5 @@ class UploadService:
         for document, data in to_buffer:  # bytes go to Redis BEFORE the commit...
             await upload_buffer.put_file(document.id, data)
         await self.session.commit()  # ...so the worker never sees a row without its file
-        await enqueue_submission(submission.id)
+        await enqueue_or_leave_for_sweeper(submission.id)  # queue down: the sweeper queues it
         return submission

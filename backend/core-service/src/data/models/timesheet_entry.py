@@ -35,7 +35,12 @@ class TimesheetEntry(UUIDPrimaryKeyMixin, Base):
     )
     work_date: Mapped[date] = mapped_column(Date)
     hours: Mapped[Decimal] = mapped_column(Numeric(5, 2))
+    # Holiday in the end (marked on the sheet / by a reviewer, OR in the holiday
+    # calendar). Recomputed by pay_rules.recalculate(); never edit it directly.
     is_holiday: Mapped[bool] = mapped_column(default=False, server_default=false())
+    # Marked as a holiday on the sheet itself, or by a reviewer. Kept apart from the
+    # calendar so deleting a calendar holiday really removes it from the timesheet.
+    sheet_holiday: Mapped[bool] = mapped_column(default=False, server_default=false())
     double_time_marked: Mapped[bool] = mapped_column(default=False, server_default=false())
     note: Mapped[str | None] = mapped_column(String(255))
 

@@ -18,7 +18,12 @@ from src.core.services.audit import record_event
 from src.core.services.employee_matcher import MatchResult, apply_match, to_record
 from src.core.services.pay_rules import recalculate, rules_from_company
 from src.core.services.timesheet_builder import conflicting_hours_flag
-from src.core.services.timesheet_validation import check_assignment, validate_duplicates
+from src.core.services.timesheet_validation import (
+    check_assignment,
+    lock_employee_weeks,
+    other_paid_timesheet,
+    validate_duplicates,
+)
 from src.data.models import Company, Document, Employee, Timesheet, TimesheetEntry
 from src.data.repositories.holiday_repository import HolidayRepository
 from src.schemas.review import BulkItemResult, BulkResult, EntriesUpdate
@@ -159,6 +164,14 @@ class ReviewService:
         timesheet = await self._get(timesheet_id)
         self._ensure_editable(timesheet)
         before = _totals(timesheet)
+        company = await self._company(timesheet)
+        week_start_day = company.week_start if company else 0
+        weeks = sorted({start_of_week(e.work_date, week_start_day) for e in data.entries})
+        if len(weeks) > 1:
+            raise ValidationFailedError(
+                "All days must be in one week (a timesheet is paid per week). These days "
+                f"fall in the weeks starting {', '.join(str(w) for w in weeks)}."
+            )
 
         # Delete the old days first: same dates would clash with the unique constraint.
         timesheet.entries.clear()
@@ -168,14 +181,14 @@ class ReviewService:
                 work_date=e.work_date,
                 hours=e.hours,
                 double_time_marked=e.double_time_marked,
+                is_holiday=e.is_holiday,  # calendar holidays are added by recalculate()
+                sheet_holiday=e.is_holiday,  # marked by the reviewer
                 note=e.note,
             )
             for e in sorted(data.entries, key=lambda e: e.work_date)
         )
-        if data.entries:
-            company = await self._company(timesheet)
-            first_day = min(e.work_date for e in data.entries)
-            timesheet.week_start = start_of_week(first_day, company.week_start if company else 0)
+        if weeks:
+            timesheet.week_start = weeks[0]
 
         _refresh_entry_flags(timesheet)
         await self._recompute(timesheet)
@@ -269,6 +282,15 @@ class ReviewService:
             raise ValidationFailedError(
                 "The pay for this timesheet could not be calculated (a company rate is "
                 "missing). Add the rate to the company, recalculate, then approve."
+            )
+        # One paid timesheet per employee and week: never approve a second one.
+        await lock_employee_weeks(self.session, [(timesheet.employee_id, timesheet.week_start)])
+        other = await other_paid_timesheet(self.session, timesheet)
+        if other is not None:
+            raise ConflictError(
+                f"Another timesheet for this employee and the week of {timesheet.week_start} "
+                f"is already {other.status} ({other.id}). Only one can be paid: reject one "
+                "of them, or put all the hours on one timesheet."
             )
 
         timesheet.status = TimesheetStatus.APPROVED

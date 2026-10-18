@@ -107,6 +107,7 @@ class ExportPreview(BaseModel):
     pending_review: int  # still waiting for a reviewer (blocks the export by default)
     rejected: int  # never exported
     already_exported: int  # in an earlier payroll sheet for this week
+    problems: list[str]  # employees who would be paid twice (block the export)
 
     @classmethod
     def from_result(cls, r: ExportPreviewResult) -> "ExportPreview":
@@ -121,6 +122,7 @@ class ExportPreview(BaseModel):
             pending_review=r.pending_review,
             rejected=r.rejected,
             already_exported=r.already_exported,
+            problems=r.problems,
         )
 
 

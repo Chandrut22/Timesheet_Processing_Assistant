@@ -30,6 +30,17 @@ class FakeRedis:
     async def hset(self, key: str, mapping: dict[str, Any]) -> None:
         self.hashes.setdefault(key, {}).update({k: str(v) for k, v in mapping.items()})
 
+    async def hincrby(self, key: str, field: str, amount: int) -> int:
+        bucket = self.hashes.setdefault(key, {})
+        bucket[field] = str(int(bucket.get(field, "0")) + amount)
+        return int(bucket[field])
+
+    async def expire(self, key: str, seconds: int) -> None:
+        pass
+
+    async def hdel(self, key: str, field: str) -> None:
+        self.hashes.get(key, {}).pop(field, None)
+
 
 class FakeMailbox:
     def __init__(self, uids: list[int], validity: int = 1) -> None:
@@ -144,3 +155,61 @@ def test_full_backfill_batch_leaves_cursor_at_last_read(monkeypatch: pytest.Monk
     assert asyncio.run(cursor.get()) == (1, 2)  # mail 3 comes in the next round
     run(box, cursor, intake, limit=2)
     assert intake.ids[-1] == "<m3@abc.com>"
+
+
+class BrokenData(Exception):
+    """Stands in for data the database refuses (not a connection problem)."""
+
+
+class DbDown(ConnectionError):
+    pass
+
+
+class Failing:
+    def __init__(self, bad: str, error: Exception) -> None:
+        self.bad, self.error = bad, error
+        self.ids: list[str] = []
+
+    async def __call__(self, email: ParsedEmail) -> str:
+        if email.message_id == self.bad:
+            raise self.error
+        self.ids.append(email.message_id)
+        return "queued"
+
+
+def test_a_bad_email_is_skipped_after_3_tries(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "email_start_from", "new")
+    monkeypatch.setattr(settings, "email_max_intake_failures", 3)
+    cursor = Cursor(FakeRedis())  # type: ignore[arg-type]
+    box = FakeMailbox([1])
+    run(box, cursor, Recorder())
+    box.messages.update({2: mail(2), 3: mail(3)})
+    intake = Failing("<m2@abc.com>", BrokenData("invalid byte sequence"))
+    skipped: list[tuple[str, str]] = []
+
+    async def give_up(email: ParsedEmail | None, ref: str, reason: str) -> None:
+        skipped.append((email.message_id if email else "?", reason))
+
+    for _ in range(2):  # tries 1 and 2: the cursor waits before mail 2
+        with pytest.raises(BrokenData):
+            asyncio.run(process_new_mail(box, cursor, intake, batch_limit=50, give_up=give_up))
+        assert asyncio.run(cursor.get()) == (1, 1)
+    asyncio.run(process_new_mail(box, cursor, intake, batch_limit=50, give_up=give_up))
+    assert [s[0] for s in skipped] == ["<m2@abc.com>"]  # recorded as failed
+    assert "after 3 tries" in skipped[0][1]
+    assert intake.ids == ["<m3@abc.com>"]  # the inbox goes on
+    assert asyncio.run(cursor.get()) == (1, 3)
+
+
+def test_database_down_never_skips_an_email(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "email_start_from", "new")
+    monkeypatch.setattr(settings, "email_max_intake_failures", 3)
+    cursor = Cursor(FakeRedis())  # type: ignore[arg-type]
+    box = FakeMailbox([1])
+    run(box, cursor, Recorder())
+    box.messages[2] = mail(2)
+    intake = Failing("<m2@abc.com>", DbDown("connection refused"))
+    for _ in range(5):
+        with pytest.raises(DbDown):
+            asyncio.run(process_new_mail(box, cursor, intake, batch_limit=50))
+    assert asyncio.run(cursor.get()) == (1, 1)  # still waiting for the database

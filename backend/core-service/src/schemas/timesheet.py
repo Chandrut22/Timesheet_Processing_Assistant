@@ -12,7 +12,8 @@ class TimesheetEntryRead(BaseModel):
     id: uuid.UUID
     work_date: date
     hours: HoursOut
-    is_holiday: bool
+    is_holiday: bool  # holiday in the end (sheet / reviewer, or holiday calendar)
+    sheet_holiday: bool  # marked by the sheet or a reviewer (send this back when editing)
     double_time_marked: bool
     note: str | None
 

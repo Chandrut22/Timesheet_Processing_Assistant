@@ -10,7 +10,7 @@ import logging
 from imap_tools.errors import MailboxLoginError
 
 from src.config.settings import settings
-from src.core.services.email_intake_service import accept_email
+from src.core.services.email_intake_service import accept_email, record_failed_email
 from src.data.clients import upload_buffer
 from src.data.clients.postgres import engine
 from src.data.clients.redis import redis_client
@@ -24,7 +24,10 @@ logger = logging.getLogger("email_listener")
 async def _catch_up(source: ImapSource, cursor: Cursor) -> None:
     """Read everything new; a full batch means there is more waiting."""
     while (
-        await process_new_mail(source, cursor, accept_email, batch_limit=FETCH_LIMIT) >= FETCH_LIMIT
+        await process_new_mail(
+            source, cursor, accept_email, batch_limit=FETCH_LIMIT, give_up=record_failed_email
+        )
+        >= FETCH_LIMIT
     ):
         pass
 

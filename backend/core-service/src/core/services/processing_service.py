@@ -15,9 +15,9 @@ import asyncio
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import select, update
+from sqlalchemy import ColumnElement, and_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config.settings import settings
@@ -50,10 +50,11 @@ from src.core.services.employee_matcher import (
 from src.core.services.failures import TooManyRunsError, explain, plan_retry, technical_details
 from src.core.services.pay_rules import PayRules, recalculate, rules_from_company
 from src.core.services.reprocess import finish_run, next_version
-from src.core.services.timesheet_builder import BuildContext, build_timesheet
+from src.core.services.timesheet_builder import BuildContext, build_timesheets, truncation_flag
 from src.core.services.timesheet_validation import (
     can_auto_approve,
     check_assignment,
+    lock_employee_weeks,
     validate_duplicates,
 )
 from src.data.clients import upload_buffer
@@ -62,10 +63,22 @@ from src.data.clients.postgres import SessionLocal
 from src.data.models import Company, Document, Employee, ReprocessRun, Submission, Timesheet
 from src.data.repositories.employee_repository import EmployeeRepository
 from src.data.repositories.holiday_repository import HolidayRepository
+from src.utils.text import db_safe
 
 logger = logging.getLogger(__name__)
 
-CLAIMABLE = (SubmissionStatus.RECEIVED, SubmissionStatus.PROCESSING, SubmissionStatus.FAILED)
+CLAIMABLE = (SubmissionStatus.RECEIVED, SubmissionStatus.FAILED)
+
+
+def claimable(now: datetime) -> ColumnElement[bool]:
+    """Waiting or failed, or "processing" with no progress for worker_stale_after_seconds
+    (its worker died). A job that is really running is never taken over: a second copy
+    of the same job (queued twice, or handed out again by Redis) finds nothing to do."""
+    stale = now - timedelta(seconds=settings.worker_stale_after_seconds)
+    return or_(
+        Submission.status.in_(CLAIMABLE),
+        and_(Submission.status == SubmissionStatus.PROCESSING, Submission.updated_at < stale),
+    )
 
 
 class RetryLater(Exception):  # noqa: N818 - a signal to the task, not an error
@@ -143,7 +156,7 @@ class ProcessingService:
         A scheduled retry only claims it while its token is still the current one, so a
         retry made stale by a reprocess does nothing."""
         query = update(Submission).where(
-            Submission.id == submission_id, Submission.status.in_(CLAIMABLE)
+            Submission.id == submission_id, claimable(datetime.now(UTC))
         )
         if retry_token is not None:
             query = query.where(Submission.retry_token == retry_token)
@@ -154,6 +167,7 @@ class ProcessingService:
                 attempts=Submission.attempts + 1,
                 retry_at=None,
                 retry_token=None,
+                updated_at=datetime.now(UTC),  # the claim is progress (see claimable)
             ).returning(Submission.attempts)
         )
         await self.session.commit()
@@ -184,6 +198,11 @@ class ProcessingService:
                 logger.info("Retry for %s is no longer current; skipped", submission_id)
                 return
             logger.info("Submission %s already processed or missing; skipped", submission_id)
+            current = await self.session.scalar(
+                select(Submission.status).where(Submission.id == submission_id)
+            )
+            if current == SubmissionStatus.PROCESSING:
+                return  # a second copy of a job another worker is running: leave it alone
             if reprocess_run_id is not None:
                 await finish_run(
                     self.session,
@@ -218,6 +237,7 @@ class ProcessingService:
             for document in submission.documents:
                 if document.status == DocumentStatus.PENDING:
                     await self._read(document)
+                    self._progress(submission)
                     await self.session.commit()
                     if document.status != DocumentStatus.PENDING:
                         await upload_buffer.delete_file(document.id)  # text saved: drop the bytes
@@ -230,6 +250,7 @@ class ProcessingService:
                     document.id
                 ):
                     await self._extract(submission, document, company)
+                    self._progress(submission)
                     await self.session.commit()
 
             # 3. Final state (and close the reprocess run, in the same commit)
@@ -245,6 +266,11 @@ class ProcessingService:
             if retry is not None:
                 raise retry from exc
             raise
+
+    @staticmethod
+    def _progress(submission: Submission) -> None:
+        """Mark progress, so a long job with many files is never seen as abandoned."""
+        submission.updated_at = datetime.now(UTC)
 
     async def _fail(
         self,
@@ -376,7 +402,7 @@ class ProcessingService:
             )
             logger.warning("Could not read %s: %s", document.filename, exc)
             return
-        document.extracted_text = text
+        document.extracted_text = text = db_safe(text)  # a NUL would make the save fail
         document.status = DocumentStatus.PARSED
         document.error = None
         record_step(
@@ -408,7 +434,11 @@ class ProcessingService:
     ) -> None:
         set_state(self.session, submission, SubmissionState.MATCHING)
         watch = Stopwatch()
-        step_input = {"file": document.filename, "characters": len(document.extracted_text or "")}
+        step_input = {
+            "file": document.filename,
+            "characters": len(document.extracted_text or ""),
+            "truncated": len(document.extracted_text or "") > settings.llm_max_input_chars,
+        }
         try:
             result = await extract_timesheets(
                 document_text=document.extracted_text or "",
@@ -475,6 +505,7 @@ class ProcessingService:
         companies = await self._company_records()
         sender = companies.get(submission.company_id) if submission.company_id else None
         is_email_body = document.filename == BODY_FILENAME
+        truncated_flag = truncation_flag(document.extracted_text or "")
 
         # 1. Which company and which employee is each timesheet for?
         built: list[tuple[Timesheet, _CompanyContext]] = []
@@ -491,51 +522,57 @@ class ProcessingService:
                 week_start_day=cc.company.week_start if cc.company else 0,
                 is_email_body=is_email_body,
             )
-            timesheet = build_timesheet(extracted, ctx)
-            if decision.flag:
-                timesheet.flags = [*timesheet.flags, decision.flag]
-            timesheet.version = version
-            timesheet.reprocess_run_id = current_reprocess_run.get()
-            match = (
-                match_employee(timesheet.extracted_name, timesheet.extracted_code, cc.records)
-                if cc.company
-                else MatchResult(None, None)
-            )
-            employee = cc.by_id.get(match.employee_id) if match.employee_id else None
-            apply_match(timesheet, match, company_known=cc.company is not None, matched=employee)
-            self.session.add(timesheet)
-            await self.session.flush()  # the timesheet id is known now
-            record_step(
-                self.session,
-                submission_id=submission.id,
-                document_id=document.id,
-                timesheet_id=timesheet.id,
-                step=StepName.MATCH,
-                result=StepResult.SUCCESS if employee else StepResult.WARNING,
-                message=timesheet.match_reason or "",
-                input={
-                    "name": timesheet.extracted_name,
-                    "code": timesheet.extracted_code,
-                    "company_written": timesheet.extracted_company_name,
-                    "sender_company": sender.name if sender else None,
-                },
-                output={
-                    "company": cc.company.name if cc.company else None,
-                    "employee_id": str(employee.id) if employee else None,
-                    "employee": employee.full_name if employee else None,
-                    "method": match.method,
-                    "confidence": float(timesheet.confidence or 0),
-                    "candidates": [
-                        {"name": c.full_name, "code": c.code, "score": round(c.score, 2)}
-                        for c in match.candidates
-                    ],
-                },
-                duration_ms=watch.ms,
-            )
-            built.append((timesheet, cc))
+            for timesheet in build_timesheets(extracted, ctx):  # one per week
+                extra = [f for f in (decision.flag, truncated_flag) if f is not None]
+                if extra:
+                    timesheet.flags = [*timesheet.flags, *extra]
+                timesheet.version = version
+                timesheet.reprocess_run_id = current_reprocess_run.get()
+                match = (
+                    match_employee(timesheet.extracted_name, timesheet.extracted_code, cc.records)
+                    if cc.company
+                    else MatchResult(None, None)
+                )
+                employee = cc.by_id.get(match.employee_id) if match.employee_id else None
+                apply_match(
+                    timesheet, match, company_known=cc.company is not None, matched=employee
+                )
+                self.session.add(timesheet)
+                await self.session.flush()  # the timesheet id is known now
+                record_step(
+                    self.session,
+                    submission_id=submission.id,
+                    document_id=document.id,
+                    timesheet_id=timesheet.id,
+                    step=StepName.MATCH,
+                    result=StepResult.SUCCESS if employee else StepResult.WARNING,
+                    message=timesheet.match_reason or "",
+                    input={
+                        "name": timesheet.extracted_name,
+                        "code": timesheet.extracted_code,
+                        "company_written": timesheet.extracted_company_name,
+                        "sender_company": sender.name if sender else None,
+                    },
+                    output={
+                        "company": cc.company.name if cc.company else None,
+                        "employee_id": str(employee.id) if employee else None,
+                        "employee": employee.full_name if employee else None,
+                        "method": match.method,
+                        "confidence": float(timesheet.confidence or 0),
+                        "candidates": [
+                            {"name": c.full_name, "code": c.code, "score": round(c.score, 2)}
+                            for c in match.candidates
+                        ],
+                    },
+                    duration_ms=watch.ms,
+                )
+                built.append((timesheet, cc))
 
         # 2. Pay rules, assignment dates, duplicates, decision
         set_state(self.session, submission, SubmissionState.RULE_CHECKS)
+        # Hold (employee, week) locks until this document is committed, so two workers
+        # handling the same resent email cannot both miss each other's timesheet.
+        await lock_employee_weeks(self.session, [(t.employee_id, t.week_start) for t, _ in built])
         for timesheet, cc in built:
             watch = Stopwatch()
             recalculate(timesheet, cc.rules, cc.holidays, default_rules_used=cc.company is None)

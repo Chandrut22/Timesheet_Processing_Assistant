@@ -137,6 +137,26 @@ services:
         condition: service_healthy  # healthy = core migrations already ran
     restart: unless-stopped
 
+  core-beat:
+    # Runs the sweeper every 2 minutes: submissions whose job was lost (queue down at
+    # upload time, worker died, scheduled retry lost) are queued again. Run exactly ONE.
+    image: timesheet-core:latest
+    pull_policy: never
+    command:
+      [
+        "celery", "-A", "src.control.workers.celery_app", "beat",
+        "--loglevel=INFO", "--schedule=/tmp/celerybeat-schedule",
+      ]
+    env_file: ./core-service/.env
+    environment:
+      <<: *core-env
+    depends_on:
+      redis:
+        condition: service_healthy
+      core-service:
+        condition: service_healthy
+    restart: unless-stopped
+
   core-email:
     image: timesheet-core:latest
     pull_policy: never

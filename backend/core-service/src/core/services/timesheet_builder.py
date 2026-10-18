@@ -1,7 +1,10 @@
 """Turn one ExtractedTimesheet into a Timesheet + entries, adding flags for anything odd.
 
 Pure function: no database, no LLM. The pay rules (regular / overtime / double time /
-holiday) run afterwards in pay_rules.recalculate(); here every hour starts as 'regular'."""
+holiday) run afterwards in pay_rules.recalculate(); here every hour starts as 'regular'.
+
+Payroll works per employee per week, so a sheet listing days from more than one week
+is split into one timesheet per week (build_timesheets)."""
 
 import uuid
 from dataclasses import dataclass
@@ -9,6 +12,7 @@ from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
+from src.config.settings import settings
 from src.constants.timesheet_status import TimesheetStatus
 from src.data.models import Timesheet, TimesheetEntry
 from src.schemas.extraction import ExtractedTimesheet
@@ -86,7 +90,8 @@ def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timeshe
         if work_date in entries:  # the same day listed twice: add up, but say so
             existing = entries[work_date]
             existing.hours += hours
-            existing.is_holiday = bool(existing.is_holiday) or day.is_public_holiday
+            existing.sheet_holiday = bool(existing.sheet_holiday) or day.is_public_holiday
+            existing.is_holiday = existing.sheet_holiday
             flags.append(
                 _flag("duplicate_day", f"{work_date} appears more than once; hours added.")
             )
@@ -95,7 +100,8 @@ def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timeshe
                 work_date=work_date,
                 hours=hours,
                 double_time_marked=day.double_time_marked,
-                is_holiday=day.is_public_holiday,  # as marked on the sheet
+                is_holiday=day.is_public_holiday,  # calendar added by recalculate()
+                sheet_holiday=day.is_public_holiday,  # as marked on the sheet
                 note=day.note[:255] if day.note else None,
             )
 
@@ -160,3 +166,77 @@ def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timeshe
         flags=flags,
         entries=ordered,
     )
+
+
+def split_by_week(timesheet: Timesheet, week_start_day: int = 0) -> list[Timesheet]:
+    """One timesheet per week. A sheet that covers a single week comes back unchanged.
+
+    Each part keeps the sheet's flags and gets a multi_week_sheet flag (so a reviewer
+    checks it). The sheet's stated total and the email's total belong to the whole
+    sheet, so the parts do not carry them; the whole-sheet checks (total_mismatch,
+    conflicting_hours) were already made in build_timesheet."""
+    entries = list(timesheet.entries)
+    weeks: dict[date, list[TimesheetEntry]] = {}
+    for entry in entries:
+        weeks.setdefault(start_of_week(entry.work_date, week_start_day), []).append(entry)
+    if len(weeks) <= 1:
+        return [timesheet]
+
+    timesheet.entries = []  # the entries move to the parts
+    starts = sorted(weeks)
+    listed = ", ".join(str(w) for w in starts)
+    parts: list[Timesheet] = []
+    for number, week in enumerate(starts, start=1):
+        days = sorted(weeks[week], key=lambda e: e.work_date)
+        flag = _flag(
+            "multi_week_sheet",
+            f"The sheet covers {len(starts)} weeks (starting {listed}); it was split into "
+            f"one timesheet per week. This is week {number} of {len(starts)}"
+            + (
+                f" (the sheet's total of {timesheet.stated_total} h is for all weeks)."
+                if timesheet.stated_total is not None
+                else "."
+            ),
+        )
+        parts.append(
+            Timesheet(
+                submission_id=timesheet.submission_id,
+                document_id=timesheet.document_id,
+                company_id=timesheet.company_id,
+                extracted_name=timesheet.extracted_name,
+                extracted_code=timesheet.extracted_code,
+                extracted_company_name=timesheet.extracted_company_name,
+                email_stated_total=None,
+                week_start=week,
+                status=TimesheetStatus.NEEDS_REVIEW,
+                regular_hours=sum((e.hours for e in days), Decimal("0")),
+                overtime_hours=Decimal("0"),
+                double_time_hours=Decimal("0"),
+                holiday_hours=Decimal("0"),
+                stated_total=None,
+                read_confidence=timesheet.read_confidence,
+                confidence=timesheet.confidence,
+                flags=[*(dict(f) for f in timesheet.flags or []), flag],
+                entries=days,
+            )
+        )
+    return parts
+
+
+def build_timesheets(extracted: ExtractedTimesheet, ctx: BuildContext) -> list[Timesheet]:
+    """build_timesheet, then one timesheet per week."""
+    return split_by_week(build_timesheet(extracted, ctx), ctx.week_start_day)
+
+
+def truncation_flag(text: str) -> dict[str, Any] | None:
+    """The AI only sees the first llm_max_input_chars characters: say so when it was cut."""
+    limit = settings.llm_max_input_chars
+    if len(text) <= limit:
+        return None
+    return {
+        "code": "document_truncated",
+        "message": f"The document is too long ({len(text):,} characters); only the first "
+        f"{limit:,} were read. Later pages or employees may be missing. Check the original.",
+        "characters": len(text),
+        "read_characters": limit,
+    }

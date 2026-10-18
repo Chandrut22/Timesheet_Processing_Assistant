@@ -98,15 +98,62 @@ def test_encoded_subject_and_name() -> None:
 
 
 def test_sender_auth_uses_only_the_top_header() -> None:
-    passed = make_email(auth=["mx.google.com; dkim=pass; spf=pass; dmarc=pass"])
+    passed = make_email(
+        auth=[
+            "mx.google.com; dkim=pass header.i=@abcstaffing.com header.s=s1; "
+            "spf=pass (google.com: domain of payroll@abcstaffing.com designates 1.2.3.4) "
+            "smtp.mailfrom=payroll@abcstaffing.com; dmarc=pass (p=NONE) header.from=abcstaffing.com"
+        ]
+    )
     assert sender_auth_passed(passed) is True
 
     failed_top = make_email(
-        auth=["mx.google.com; spf=fail; dmarc=fail", "forged.example; dmarc=pass"]
+        auth=[
+            "mx.google.com; spf=fail; dmarc=fail header.from=abcstaffing.com",
+            "forged.example; dmarc=pass header.from=abcstaffing.com",
+        ]
     )
     assert sender_auth_passed(failed_top) is False
 
-    spf_and_dkim = make_email(auth=["mx.example; spf=pass; dkim=pass; dmarc=none"])
-    assert sender_auth_passed(spf_and_dkim) is True
+    dkim_aligned = make_email(
+        auth=[
+            "mx.example; spf=pass smtp.mailfrom=bounce@other.net; "
+            "dkim=pass header.d=abcstaffing.com; dmarc=none"
+        ]
+    )
+    assert sender_auth_passed(dkim_aligned) is True
+
+    subdomain = make_email(auth=["mx.example; dkim=pass header.d=mail.abcstaffing.com"])
+    assert sender_auth_passed(subdomain) is True
 
     assert sender_auth_passed(make_email()) is False  # no header at all
+
+
+def test_sender_auth_refuses_a_spoofed_from() -> None:
+    # The attacker passes SPF and DKIM for THEIR domain and writes our client in From.
+    own_domain = make_email(
+        auth=[
+            "mx.google.com; dkim=pass header.d=evil.example; "
+            "spf=pass smtp.mailfrom=x@evil.example; dmarc=fail header.from=abcstaffing.com"
+        ]
+    )
+    assert sender_auth_passed(own_domain) is False
+
+    # "dmarc=pass" hidden in the envelope sender or in a comment is not a result.
+    hidden = make_email(
+        auth=[
+            "mx.google.com; spf=pass smtp.mailfrom=dmarc=pass@evil.example; "
+            "dkim=none (dmarc=pass header.from=abcstaffing.com)"
+        ]
+    )
+    assert sender_auth_passed(hidden) is False
+
+    # DMARC passed, but for another domain than the one in From.
+    other = make_email(auth=["mx.google.com; dmarc=pass header.from=evil.example"])
+    assert sender_auth_passed(other) is False
+
+    # Look-alike domains do not align.
+    lookalike = make_email(auth=["mx.example; dkim=pass header.d=evil-abcstaffing.com"])
+    assert sender_auth_passed(lookalike) is False
+    tld = make_email(auth=["mx.example; dkim=pass header.d=com"])
+    assert sender_auth_passed(tld) is False

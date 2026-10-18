@@ -3,6 +3,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.middleware.error_handlers import register_exception_handlers
 from src.api.rest.routes import (
@@ -58,6 +59,14 @@ app = FastAPI(
     redoc_url=None,
 )
 register_exception_handlers(app)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+    expose_headers=["Content-Disposition"],  # the payroll CSV's file name
+)
 app.include_router(health.router)
 app.include_router(me.router)
 app.include_router(companies.router)

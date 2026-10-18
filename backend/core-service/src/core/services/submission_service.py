@@ -7,6 +7,7 @@ Files are read once; a reprocess uses the text saved from the first read."""
 
 import uuid
 from collections.abc import Sequence
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +26,7 @@ from src.core.rbac.principal import Principal
 from src.core.services.activity_log import set_state
 from src.core.services.audit import record_event
 from src.core.services.reprocess import finish_run, snapshot
+from src.core.services.sweeper import is_stuck
 from src.data.models import Document, ReprocessRun, Submission, Timesheet
 from src.data.repositories.company_repository import WhitelistRepository
 
@@ -66,7 +68,10 @@ class SubmissionService:
         submission = await self._locked(submission_id)  # one request at a time
 
         # --- can it be reprocessed? -------------------------------------------------
-        if submission.status in (SubmissionStatus.RECEIVED, SubmissionStatus.PROCESSING):
+        if submission.status in (
+            SubmissionStatus.RECEIVED,
+            SubmissionStatus.PROCESSING,
+        ) and not is_stuck(submission, datetime.now(UTC)):
             raise ConflictError("This email is already queued or being processed. Try again later.")
         if submission.status == SubmissionStatus.IGNORED:
             raise ConflictError(

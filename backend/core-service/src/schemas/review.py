@@ -10,6 +10,8 @@ class EntryInput(BaseModel):
     work_date: date
     hours: Decimal = Field(ge=0, le=24, decimal_places=2)
     double_time_marked: bool = False
+    # Marked as a holiday by the reviewer. Calendar holidays apply on their own, so
+    # send the entry's sheet_holiday value here, not is_holiday.
     is_holiday: bool = False
     note: str | None = Field(default=None, max_length=255)
 
