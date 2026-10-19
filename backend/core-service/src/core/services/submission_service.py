@@ -21,7 +21,12 @@ from src.constants.timesheet_status import (
     TimesheetStatus,
 )
 from src.control.workers.dispatch import enqueue_submission
-from src.core.exceptions import ConflictError, NotFoundError, ValidationFailedError
+from src.core.exceptions import (
+    ConfirmationRequiredError,
+    ConflictError,
+    NotFoundError,
+    ValidationFailedError,
+)
 from src.core.rbac.principal import Principal
 from src.core.services.activity_log import set_state
 from src.core.services.audit import record_event
@@ -60,6 +65,7 @@ class SubmissionService:
         actor: Principal,
         *,
         document_id: uuid.UUID | None = None,
+        confirm_approved: bool = False,
     ) -> ReprocessRun:
         reason = reason.strip()
         if len(reason) < 3:
@@ -127,6 +133,15 @@ class SubmissionService:
                 "cannot be replaced."
             )
 
+        approved = [t for t in current if t.status == TimesheetStatus.APPROVED]
+        if approved and not confirm_approved:
+            who = ", ".join(sorted({t.extracted_name or "unknown" for t in approved})[:5])
+            raise ConfirmationRequiredError(
+                f"{len(approved)} approved timesheet(s) would be replaced and go back to "
+                f"review ({who}); their approvals are cleared. Reprocess again with "
+                "confirm_approved=true to continue."
+            )
+
         # --- start the run --------------------------------------------------------------
         run = ReprocessRun(
             id=uuid.uuid4(),
@@ -174,6 +189,7 @@ class SubmissionService:
                 "reason": reason,
                 "document_id": str(document_id) if document_id else None,
                 "superseded_timesheets": [str(t.id) for t in current],
+                "approvals_cleared": [str(t.id) for t in approved],
                 "company_changed": submission.company_id != company_before,
             },
         )

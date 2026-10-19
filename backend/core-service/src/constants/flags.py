@@ -39,6 +39,7 @@ FLAG_SEVERITY: dict[str, Severity] = {
     "holiday_not_in_calendar": Severity.MEDIUM,
     "outside_assignment": Severity.MEDIUM,
     "company_mismatch": Severity.MEDIUM,  # the sheet names another / unknown company
+    "company_guessed": Severity.MEDIUM,  # no company on the upload; partial name / close spelling
     "name_mismatch": Severity.MEDIUM,
     "unknown_code": Severity.MEDIUM,
     "undated_days": Severity.MEDIUM,

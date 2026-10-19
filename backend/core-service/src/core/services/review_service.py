@@ -42,7 +42,7 @@ ENTRY_FLAG_CODES = frozenset(
     }
 )
 # Company flags raised at extraction: settled once a reviewer picks the employee.
-COMPANY_FLAG_CODES = frozenset({"company_mismatch", "company_from_sheet"})
+COMPANY_FLAG_CODES = frozenset({"company_mismatch", "company_from_sheet", "company_guessed"})
 
 
 def _totals(timesheet: Timesheet) -> dict[str, float | None]:

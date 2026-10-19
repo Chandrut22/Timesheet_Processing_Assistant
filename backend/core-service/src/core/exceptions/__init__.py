@@ -21,6 +21,13 @@ class ConflictError(AppError):
     code = "conflict"
 
 
+class ConfirmationRequiredError(ConflictError):
+    """The action would undo something people did (e.g. approvals): ask first, then
+    repeat the request with the confirmation flag the message names."""
+
+    code = "confirmation_required"
+
+
 class ForbiddenError(AppError):
     status_code = 403
     code = "forbidden"
