@@ -51,6 +51,26 @@ class TooManyRunsError(Exception):
         self.runs = runs
 
 
+# How providers say "the request is longer than the model's context window". They send it
+# as a "bad request", which would otherwise read as "API key or model not accepted".
+CONTEXT_LIMIT_MARKERS = (
+    "context_length_exceeded",
+    "context length",
+    "context window",
+    "maximum context",
+    "too many tokens",
+    "prompt is too long",
+    "input is too long",
+    "reduce the length",
+    "request too large",
+)
+
+
+class AnswerTooLongError(Exception):
+    """The AI's answer hit the output limit twice: the document holds more than one
+    answer can carry (many people or days)."""
+
+
 class JobTooSlowError(Exception):
     """The job ran longer than WORKER_JOB_TIMEOUT_SECONDS and was stopped."""
 
@@ -103,6 +123,21 @@ def explain(exc: BaseException) -> Failure:
             "(usually a very large or slow-to-read file).",
             temporary=False,  # the same file would take as long again
             advice="Split the file or send a smaller / clearer copy, then reprocess.",
+        )
+    if any(isinstance(e, AnswerTooLongError) for e in chain):
+        return Failure(
+            "The AI's answer was too long and got cut off: the document holds too many "
+            "people or days for one answer.",
+            temporary=False,  # the same document would be cut off again
+            advice="Split the file (for example one sheet or a few people per file), or an "
+            "admin raises LLM_MAX_OUTPUT_TOKENS; then reprocess.",
+        )
+    if any(marker in str(e).lower() for e in chain for marker in CONTEXT_LIMIT_MARKERS):
+        return Failure(
+            "The document is too long for the AI model.",
+            temporary=False,
+            advice="Split the file, or an admin lowers LLM_MAX_INPUT_CHARS (or picks a model "
+            "with a larger context window); then reprocess.",
         )
     if any(pkg in AI_MODULES and name in AI_SETUP_ERRORS for pkg, name in origins):
         return Failure(

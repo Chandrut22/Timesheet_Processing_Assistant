@@ -43,6 +43,13 @@ class Settings(BaseSettings):
     # read them; then they are deleted. A shared Docker volume in compose. Never in Redis.
     upload_dir: Path = Path("data/uploads")
     upload_buffer_ttl_hours: int = 72  # a file not read by then is deleted (sweeper)
+    # Big files: counted BEFORE reading (reading is the slow part, and the AI only sees
+    # the first LLM_MAX_INPUT_CHARS anyway). Hidden and empty Excel sheets are never read.
+    max_pages: int = Field(default=50, ge=1)  # PDF pages read
+    max_sheets: int = Field(default=30, ge=1)  # Excel sheets (with data) read
+    # partial: read the first MAX_PAGES / MAX_SHEETS and flag document_too_large
+    # refuse:  do not read the file; "split it and send it again"
+    large_document_mode: Literal["partial", "refuse"] = "partial"
 
     # --- LLM: any OpenAI-compatible API (Groq, OpenRouter, OpenAI, Ollama, vLLM) ---
     llm_base_url: str | None = None
@@ -57,6 +64,9 @@ class Settings(BaseSettings):
     # retried by the worker (WORKER_MAX_ATTEMPTS), so keep this small.
     llm_max_retries: int = 1
     llm_max_input_chars: int = 30_000
+    # Cap on the AI's answer. A cut-off answer is retried once with "shorter", then
+    # reported as "too many people in one document" (no 3 x 3 retries). None = provider default.
+    llm_max_output_tokens: int | None = 16_000
     # long documents are cut to this before the LLM
 
     # --- review ---

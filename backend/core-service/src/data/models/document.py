@@ -1,7 +1,8 @@
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import CheckConstraint, ForeignKey, Integer, String, Text, Uuid
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.constants.timesheet_status import DocumentStatus
@@ -34,5 +35,8 @@ class Document(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     extracted_text: Mapped[str | None] = mapped_column(Text)
     error: Mapped[str | None] = mapped_column(Text)
+    # What was NOT read of a big file (pages / sheets over the limit, empty or hidden
+    # sheets), e.g. {"pages_total": 100, "pages_read": 50}. NULL = read in full.
+    read_limit: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
 
     submission: Mapped["Submission"] = relationship(back_populates="documents", lazy="raise")

@@ -35,6 +35,10 @@ class StructuredOutputError(Exception):
     """The model never produced valid JSON for the schema."""
 
 
+class AnswerCutOffError(StructuredOutputError):
+    """The answer hit the output limit twice in a row: retrying will not make it fit."""
+
+
 def _extract_json(text: str) -> str:
     """Pull the JSON object out of a reply that may have fences or extra words around it."""
     text = text.strip()
@@ -86,6 +90,7 @@ async def invoke_structured[SchemaT: BaseModel](
     ]
     messages = list(base)
     last_error = "No response received"
+    cut_off = 0
 
     for attempt in range(1, retries + 2):
         response = await llm.ainvoke(messages)
@@ -99,6 +104,11 @@ async def invoke_structured[SchemaT: BaseModel](
         if not raw.strip():
             last_error = "The model returned an empty response."
         elif truncated:
+            cut_off += 1
+            if cut_off >= 2:  # asked for a shorter answer once already: it will not fit
+                raise AnswerCutOffError(
+                    f"The answer was cut off at the output limit {cut_off} times in a row."
+                )
             last_error = "The response was cut off (too long). Return a shorter, complete object."
         else:
             try:

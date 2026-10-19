@@ -69,7 +69,7 @@ def files_in(samples: Path) -> list[tuple[Path, bool]]:
 async def evaluate(samples: Path, read: Reader, classify: Classifier) -> list[Row]:
     rows: list[Row] = []
     for path, is_timesheet in files_in(samples):
-        name = str(path.relative_to(samples))
+        name = path.relative_to(samples).as_posix()
         try:
             text = await asyncio.to_thread(read, path)
             result = await classify(text)

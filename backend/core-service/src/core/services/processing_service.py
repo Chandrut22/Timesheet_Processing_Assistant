@@ -73,7 +73,8 @@ from src.core.services.timesheet_validation import (
     validate_duplicates,
 )
 from src.data.clients import upload_buffer
-from src.data.clients.document_reader import DocumentReadError, read_document
+from src.data.clients.document_limits import DocumentTooLargeError, too_large_flag
+from src.data.clients.document_reader import DocumentReadError, read_document_with_limits
 from src.data.clients.jev_client import classify
 from src.data.clients.postgres import SessionLocal
 from src.data.models import Company, Document, Employee, ReprocessRun, Submission, Timesheet
@@ -444,10 +445,16 @@ class ProcessingService:
             return
         try:
             # Docling is CPU-heavy and blocking: run it off the event loop.
-            text = await asyncio.to_thread(read_document, document.filename, data)
-        except DocumentReadError as exc:
+            text, limit = await asyncio.to_thread(
+                read_document_with_limits, document.filename, data
+            )
+        except (DocumentReadError, DocumentTooLargeError) as exc:
             document.status = DocumentStatus.FAILED
-            document.error = friendly_read_error(document.filename, exc)
+            document.error = (
+                str(exc)  # "has 120 pages; the limit is 50. Split it ..."
+                if isinstance(exc, DocumentTooLargeError)
+                else friendly_read_error(document.filename, exc)
+            )
             record_step(
                 self.session,
                 submission_id=document.submission_id,
@@ -464,15 +471,18 @@ class ProcessingService:
         document.extracted_text = text = db_safe(text)  # a NUL would make the save fail
         document.status = DocumentStatus.PARSED
         document.error = None
+        document.read_limit = limit.as_dict() or None
+        left_out = limit.content_left_out
         record_step(
             self.session,
             submission_id=document.submission_id,
             document_id=document.id,
             step=StepName.READ,
-            result=StepResult.SUCCESS,
-            message=f"Read {document.filename}",
+            result=StepResult.WARNING if left_out else StepResult.SUCCESS,
+            message=f"Read {document.filename}"
+            + (" (too large: not every page / sheet was read)" if left_out else ""),
             input=step_input,
-            output={"characters": len(text)},
+            output={"characters": len(text), **limit.as_dict()},
             duration_ms=watch.ms,
         )
         logger.info("Read %s: %d characters", document.filename, len(text))
@@ -643,6 +653,7 @@ class ProcessingService:
         sender = companies.get(submission.company_id) if submission.company_id else None
         is_email_body = document.filename == BODY_FILENAME
         truncated_flag = truncation_flag(document.extracted_text or "")
+        size_flag = too_large_flag(document.read_limit)  # pages / sheets not read
 
         # 1. Which company and which employee is each timesheet for?
         built: list[tuple[Timesheet, _CompanyContext]] = []
@@ -661,7 +672,7 @@ class ProcessingService:
             )
             for timesheet in build_timesheets(extracted, ctx):  # one per week
                 match_started = now_ns()
-                extra = [f for f in (decision.flag, truncated_flag) if f is not None]
+                extra = [f for f in (decision.flag, truncated_flag, size_flag) if f is not None]
                 if extra:
                     timesheet.flags = [*timesheet.flags, *extra]
                 timesheet.version = version
