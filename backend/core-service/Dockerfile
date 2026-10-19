@@ -27,10 +27,11 @@ COPY src ./src
 
 
 # Run as a normal user, not root. The code and .venv stay root-owned (read-only for
-# the app is fine); only /models must be writable, for Docling's model cache.
+# the app is fine); only /models (Docling's model cache) and /data/uploads (files
+# waiting for the worker) must be writable.
 RUN useradd --create-home --uid 1000 app \
- && mkdir -p /models/hf \
- && chown app:app /models /models/hf
+ && mkdir -p /models/hf /data/uploads \
+ && chown app:app /models /models/hf /data /data/uploads
 USER app
 
 EXPOSE 8002

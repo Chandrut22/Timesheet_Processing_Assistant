@@ -90,6 +90,9 @@ class ProcessingStep(UUIDPrimaryKeyMixin, Base):
     )
     error_details: Mapped[str | None] = mapped_column(Text)  # technical, for the log only
     duration_ms: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    # OpenTelemetry trace this step ran in (32 hex chars), to open it in Jaeger.
+    # NULL when tracing is off.
+    trace_id: Mapped[str | None] = mapped_column(String(32))
     # clock_timestamp(), not now(): now() is the same for a whole transaction, and
     # several rows written in one transaction must keep their real order.
     created_at: Mapped[datetime] = mapped_column(

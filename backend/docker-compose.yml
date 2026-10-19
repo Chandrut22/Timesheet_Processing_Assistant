@@ -19,16 +19,26 @@ x-db-url: &db-url postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PAS
 
 # Inside Docker, services reach each other by name (postgres, redis), not 127.0.0.1.
 # These override the 127.0.0.1 values in each service's .env (those are for local runs).
+# Tracing: every service sends spans to Jaeger (UI http://localhost:16686).
+# Set OTEL_ENABLED=false in backend/.env to switch it off; nothing else changes.
+x-otel-env: &otel-env
+  OTEL_ENABLED: ${OTEL_ENABLED:-true}
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+
 x-auth-env: &auth-env
+  <<: *otel-env
   DATABASE_URL: *db-url
   REDIS_URL: redis://redis:6379/0
   JWT_PRIVATE_KEY_PATH: /app/keys/jwt_private.pem
   JWT_PUBLIC_KEY_PATH: /app/keys/jwt_public.pem
+  OTEL_SERVICE_NAME: auth-service
 
 x-core-env: &core-env
+  <<: *otel-env
   DATABASE_URL: *db-url
   REDIS_URL: redis://redis:6379/0
   JWT_PUBLIC_KEY_PATH: /app/keys/jwt_public.pem
+  UPLOAD_DIR: /data/uploads  # the shared "uploads" volume (files waiting for the worker)
 
 services:
   # --- shared infrastructure ------------------------------------------------
@@ -52,7 +62,10 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    # Redis only holds the job queue, sessions, codes and counters (no files), so a small
+    # memory cap is plenty. noeviction: when full, writes fail loudly instead of Redis
+    # silently dropping queued jobs or sign-in sessions.
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
     ports:
       - "6380:6379"
     volumes:
@@ -100,6 +113,7 @@ services:
     volumes:
       # ONLY the public key: core verifies tokens, it can never create them
       - ./auth-service/keys/jwt_public.pem:/app/keys/jwt_public.pem:ro
+      - uploads:/data/uploads  # uploaded files wait here for the worker
     ports:
       - "8002:8002"
     depends_on:
@@ -127,9 +141,11 @@ services:
     env_file: ./core-service/.env
     environment:
       <<: *core-env
+      OTEL_SERVICE_NAME: core-worker
       HF_HOME: /models/hf  # Docling / Hugging Face model cache
     volumes:
       - models:/models  # models download once, survive rebuilds
+      - uploads:/data/uploads  # reads the files, deletes them once their text is saved
     depends_on:
       redis:
         condition: service_healthy
@@ -163,17 +179,31 @@ services:
     command: ["python", "-m", "src.control.workers.email_listener"]
     environment:
       <<: *core-env
+      OTEL_SERVICE_NAME: core-email
       EMAIL_ENABLED: "true"
       IMAP_HOST: ${IMAP_HOST:-imap.gmail.com}
       IMAP_USER: ${IMAP_USER}
       IMAP_PASSWORD: ${IMAP_PASSWORD}
       EMAIL_START_FROM: new
+    volumes:
+      - uploads:/data/uploads  # email attachments wait here for the worker
     depends_on:
       core-service:
         condition: service_healthy
+    restart: unless-stopped
+
+  jaeger:
+    # Traces: one per email / upload, across API -> queue -> worker -> AI call.
+    # UI: http://localhost:16686 (search by service, or by a trace id from the step log).
+    # Keeps traces in memory only: they are gone after a restart (the step log in
+    # PostgreSQL is the permanent record). Services send to it inside Docker on 4318.
+    image: jaegertracing/jaeger:2.1.0
+    ports:
+      - "16686:16686"
     restart: unless-stopped
 
 volumes:
   pgdata:
   redisdata:
   models:
+  uploads:

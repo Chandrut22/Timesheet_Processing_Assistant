@@ -3,7 +3,7 @@
   1. Same Message-ID seen before                          -> skipped (no double processing)
   2. Unknown sender (not on any company's whitelist)      -> saved as Ignored, never read
   3. Sender not verified by our mail server (SPF/DKIM)    -> saved as Ignored, never read
-  4. Attachments -> documents; their bytes go to the Redis upload buffer
+  4. Attachments -> documents; their bytes go to the upload store (disk)
      (logos, invoices-as-images and unsupported files are recorded but never read)
   5. No readable attachment but text in the body          -> the body becomes the document
   6. Commit, then queue the submission for the worker (if the queue is down, the
@@ -40,6 +40,7 @@ from src.data.clients.postgres import SessionLocal
 from src.data.models import Document, Submission
 from src.data.repositories.company_repository import WhitelistRepository
 from src.handlers.email.parser import Attachment, ParsedEmail
+from src.observability.tracing.spans import pipeline_span, set_attributes
 
 logger = logging.getLogger(__name__)
 
@@ -180,6 +181,7 @@ class EmailIntakeService:
 
         # Capture scalar values before any commit.
         submission_id = submission.id
+        set_attributes(submission_id=submission_id)
         document_count = len(documents)
 
         set_state(
@@ -287,5 +289,8 @@ async def record_failed_email(email: ParsedEmail | None, ref: str, reason: str) 
 
 async def accept_email(email: ParsedEmail) -> str:
     """One session per email: a failure never leaves the next email in a broken session."""
-    async with SessionLocal() as session:
-        return await EmailIntakeService(session).accept(email)
+    with pipeline_span("email.intake", attachments=len(email.attachments)) as span:
+        async with SessionLocal() as session:
+            outcome = await EmailIntakeService(session).accept(email)
+        span.set_attribute("outcome", str(outcome))
+        return outcome

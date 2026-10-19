@@ -17,6 +17,7 @@ from src.data.clients.redis import redis_client
 from src.handlers.email.imap_source import FETCH_LIMIT, ImapSource
 from src.handlers.email.listener import Cursor, process_new_mail
 from src.observability.logging.setup import configure_logging
+from src.observability.tracing.setup import setup_tracing, shutdown_tracing
 
 logger = logging.getLogger("email_listener")
 
@@ -68,6 +69,7 @@ async def run() -> None:
 
 async def main() -> None:
     configure_logging(settings.log_level)
+    setup_tracing(engine=engine, celery=True)  # only if OTEL_ENABLED
     if not settings.email_enabled:
         logger.warning("EMAIL_ENABLED is false: the email listener is not running.")
         return
@@ -80,6 +82,7 @@ async def main() -> None:
         await engine.dispose()
         await redis_client.aclose()
         await upload_buffer.close()
+        shutdown_tracing()
 
 
 if __name__ == "__main__":

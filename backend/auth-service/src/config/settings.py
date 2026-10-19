@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -44,6 +44,13 @@ class Settings(BaseSettings):
     refresh_cookie_path: str = "/auth"  # the browser only sends it to /auth/*
     # True in production (HTTPS). Set REFRESH_COOKIE_SECURE=false for local http.
     refresh_cookie_secure: bool = True
+
+    # --- Tracing (OpenTelemetry) -----------------------------------------------
+    # Off by default; on in docker compose (traces go to Jaeger, UI on port 16686).
+    otel_enabled: bool = False
+    otel_service_name: str = "auth-service"
+    otel_exporter_otlp_endpoint: str = "http://127.0.0.1:4318"  # OTLP over HTTP
+    otel_sample_ratio: float = Field(default=1.0, ge=0, le=1)
 
     # --- Redis (password-reset codes and lockouts) ---------------------------
     redis_url: str = "redis://127.0.0.1:6379/0"

@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -39,8 +39,10 @@ class Settings(BaseSettings):
     # --- uploads ---
     max_upload_mb: int = 15
     max_files_per_upload: int = 10
-    upload_buffer_ttl_hours: int = 24
-    # how long uploaded bytes wait in Redis for the worker
+    # Uploaded / emailed files wait here (one file per document) until the worker has
+    # read them; then they are deleted. A shared Docker volume in compose. Never in Redis.
+    upload_dir: Path = Path("data/uploads")
+    upload_buffer_ttl_hours: int = 72  # a file not read by then is deleted (sweeper)
 
     # --- LLM: any OpenAI-compatible API (Groq, OpenRouter, OpenAI, Ollama, vLLM) ---
     llm_base_url: str | None = None
@@ -51,6 +53,9 @@ class Settings(BaseSettings):
     llm_json_retries: int = 3
     # extra attempts when the reply is not valid JSON for the schema
     llm_timeout_s: float = 90
+    # Quick retries inside one AI call (a dropped connection). Longer outages are
+    # retried by the worker (WORKER_MAX_ATTEMPTS), so keep this small.
+    llm_max_retries: int = 1
     llm_max_input_chars: int = 30_000
     # long documents are cut to this before the LLM
 
@@ -80,10 +85,43 @@ class Settings(BaseSettings):
     # A job "processing" with no progress for this long is treated as abandoned (the
     # worker died): another worker may take it over. Progress = every state / document.
     worker_stale_after_seconds: int = 1800
+    # One job may run this long; then it stops with "took too long" (no retry).
+    worker_job_timeout_seconds: int = 1500
+    # Celery kills a job that is still running this long after it started (a backstop if
+    # the job is stuck in code that cannot be interrupted).
+    worker_hard_time_limit_seconds: int = 1620
+    # Redis hands an unfinished job to another worker after this long. Must be longer
+    # than any job can run, or a running job would be started a second time.
+    broker_visibility_timeout_seconds: int = 3600
+
+    # --- tracing (OpenTelemetry) ---
+    # Off by default. In docker compose it is on and traces go to Jaeger
+    # (UI at http://localhost:16686). The state log and step log in PostgreSQL stay the
+    # record of what happened; traces show timings across API -> queue -> worker.
+    otel_enabled: bool = False
+    otel_service_name: str = "core-service"  # compose sets core-worker / core-email
+    otel_exporter_otlp_endpoint: str = "http://127.0.0.1:4318"  # OTLP over HTTP
+    otel_sample_ratio: float = Field(default=1.0, ge=0, le=1)  # share of traces kept
 
     # --- sweeper (Celery beat): re-queue work that was lost ---
     sweeper_interval_seconds: int = 120  # how often it looks
     sweeper_grace_seconds: int = 600  # "received" (or a retry overdue) this long = lost
+
+    @model_validator(mode="after")
+    def check_worker_times(self) -> "Settings":
+        """A job must be stopped before it counts as abandoned or is handed out again."""
+        times = (
+            self.worker_job_timeout_seconds,
+            self.worker_hard_time_limit_seconds,
+            self.worker_stale_after_seconds,
+            self.broker_visibility_timeout_seconds,
+        )
+        if list(times) != sorted(times) or len(set(times)) != len(times):
+            raise ValueError(
+                "Need WORKER_JOB_TIMEOUT_SECONDS < WORKER_HARD_TIME_LIMIT_SECONDS < "
+                "WORKER_STALE_AFTER_SECONDS < BROKER_VISIBILITY_TIMEOUT_SECONDS"
+            )
+        return self
 
 
 @lru_cache
