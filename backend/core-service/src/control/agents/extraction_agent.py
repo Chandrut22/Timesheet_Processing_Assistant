@@ -7,7 +7,12 @@ Payroll maths (overtime, holidays) is NOT done here: the rules engine does that.
 from datetime import datetime
 
 from src.config.settings import settings
-from src.control.agents.structured_output import StructuredOutputError, invoke_structured
+from src.control.agents.structured_output import (
+    AnswerCutOffError,
+    StructuredOutputError,
+    invoke_structured,
+)
+from src.core.services.failures import AnswerTooLongError
 from src.data.clients.llm import get_chat_model
 from src.schemas.extraction import ExtractionResult
 
@@ -73,6 +78,8 @@ async def extract_timesheets(
             user=user_message,
             retries=settings.llm_json_retries,
         )
+    except AnswerCutOffError as exc:
+        raise AnswerTooLongError(str(exc)) from exc
     except StructuredOutputError as exc:
         raise ExtractionError(str(exc)) from exc
     except Exception as exc:  # API errors: bad key, unknown model, provider down

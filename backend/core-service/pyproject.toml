@@ -83,6 +83,11 @@ exclude = ["src/data/migrations/versions/"]
 module = ["asyncpg.*"]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+# Come with Docling, ship no type information (used for page / sheet counts).
+module = ["openpyxl.*", "pypdfium2.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

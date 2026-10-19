@@ -24,6 +24,8 @@ from docling.document_converter import (
     PdfFormatOption,
 )
 
+from src.data.clients.document_limits import ReadLimit, prepare
+
 logger = logging.getLogger(__name__)
 
 SUPPORTED_EXTENSIONS = {
@@ -75,7 +77,17 @@ def _converter() -> DocumentConverter:
 
 
 def read_document(filename: str, data: bytes) -> str:
-    """Convert uploaded document bytes into Markdown.
+    """Convert uploaded document bytes into Markdown (see read_document_with_limits)."""
+    return read_document_with_limits(filename, data)[0]
+
+
+def read_document_with_limits(filename: str, data: bytes) -> tuple[str, ReadLimit]:
+    """Convert uploaded document bytes into Markdown, within the size limits.
+
+    Big files are checked first (document_limits.prepare): only the first MAX_PAGES of a
+    PDF and the first MAX_SHEETS sheets with data of a workbook are converted; hidden and
+    empty sheets never are. Returns the text and what was left out. In refuse mode a file
+    over the limit raises DocumentTooLargeError (its message says to split the file).
 
     Args:
         filename: Original filename, including its extension.
@@ -104,16 +116,20 @@ def read_document(filename: str, data: bytes) -> str:
             f"Unsupported file type '{extension}'. Supported extensions: {supported}"
         )
 
+    prepared = prepare(filename, data)  # may raise DocumentTooLargeError (refuse mode)
+
     try:
         document_stream = DocumentStream(
             name=filename,
-            stream=BytesIO(data),
+            stream=BytesIO(prepared.data),
         )
 
-        result = _converter().convert(
-            document_stream,
-            raises_on_error=True,
-        )
+        if prepared.page_range is not None:
+            result = _converter().convert(
+                document_stream, raises_on_error=True, page_range=prepared.page_range
+            )
+        else:
+            result = _converter().convert(document_stream, raises_on_error=True)
 
         markdown = result.document.export_to_markdown().strip()
 
@@ -126,7 +142,7 @@ def read_document(filename: str, data: bytes) -> str:
             len(markdown),
         )
 
-        return markdown
+        return markdown, prepared.limit
 
     except DocumentReadError:
         raise

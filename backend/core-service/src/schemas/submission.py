@@ -17,6 +17,7 @@ class DocumentRead(BaseModel):
     sha256: str
     status: str
     error: str | None
+    read_limit: dict[str, Any] | None  # pages / sheets not read (big files); None = all read
     created_at: datetime
 
 

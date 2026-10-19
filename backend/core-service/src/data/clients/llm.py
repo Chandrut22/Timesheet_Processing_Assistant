@@ -33,6 +33,8 @@ def get_chat_model() -> BaseChatModel:
         # itself (WORKER_MAX_ATTEMPTS), so retries are not multiplied layer on layer.
         "max_retries": settings.llm_max_retries,
     }
+    if settings.llm_max_output_tokens:  # a cut-off answer is detected and reported
+        options["max_tokens"] = settings.llm_max_output_tokens
     if settings.llm_base_url:  # only for OpenAI-compatible endpoints
         options["base_url"] = settings.llm_base_url
 
