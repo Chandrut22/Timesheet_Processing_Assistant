@@ -51,6 +51,14 @@ class TooManyRunsError(Exception):
         self.runs = runs
 
 
+class JobTooSlowError(Exception):
+    """The job ran longer than WORKER_JOB_TIMEOUT_SECONDS and was stopped."""
+
+    def __init__(self, seconds: int) -> None:
+        super().__init__(f"stopped after {seconds} s")
+        self.seconds = seconds
+
+
 @dataclass(frozen=True, slots=True)
 class Failure:
     message: str  # what happened, for people
@@ -72,6 +80,11 @@ def _origin(exc: BaseException) -> tuple[str, str]:
     return type(exc).__module__.split(".")[0], type(exc).__name__
 
 
+def _minutes(seconds: int) -> str:
+    minutes = max(round(seconds / 60), 1)
+    return f"{minutes} minute" if minutes == 1 else f"{minutes} minutes"
+
+
 def explain(exc: BaseException) -> Failure:
     chain = list(_chain(exc))
     origins = [_origin(e) for e in chain]
@@ -83,6 +96,13 @@ def explain(exc: BaseException) -> Failure:
             temporary=False,
             advice="Check the attachments; remove or replace the problem file, then "
             "reprocess or upload again.",
+        )
+    if isinstance(exc, JobTooSlowError):
+        return Failure(
+            f"Processing took longer than {_minutes(exc.seconds)} and was stopped "
+            "(usually a very large or slow-to-read file).",
+            temporary=False,  # the same file would take as long again
+            advice="Split the file or send a smaller / clearer copy, then reprocess.",
         )
     if any(pkg in AI_MODULES and name in AI_SETUP_ERRORS for pkg, name in origins):
         return Failure(
@@ -104,7 +124,7 @@ def explain(exc: BaseException) -> Failure:
         )
     if any(pkg == "redis" and name in REDIS_ERRORS for pkg, name in origins):
         return Failure(
-            "The temporary file store (Redis) could not be reached.",
+            "The job queue (Redis) could not be reached.",
             temporary=True,
             advice="Check that Redis is running, then reprocess.",
         )

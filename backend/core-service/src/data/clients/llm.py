@@ -29,7 +29,9 @@ def get_chat_model() -> BaseChatModel:
         "api_key": settings.llm_api_key.get_secret_value(),
         "temperature": 0,
         "timeout": settings.llm_timeout_s,
-        "max_retries": 5,
+        # One quick retry for a dropped connection. The worker retries longer outages
+        # itself (WORKER_MAX_ATTEMPTS), so retries are not multiplied layer on layer.
+        "max_retries": settings.llm_max_retries,
     }
     if settings.llm_base_url:  # only for OpenAI-compatible endpoints
         options["base_url"] = settings.llm_base_url

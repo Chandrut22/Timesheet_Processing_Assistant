@@ -30,7 +30,9 @@ from src.constants.timesheet_status import (
 )
 from src.control.workers.dispatch import enqueue_submission
 from src.core.services.activity_log import record_step
+from src.data.clients import upload_buffer
 from src.data.models import ReprocessRun, Submission
+from src.observability.tracing.spans import pipeline_span
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +131,16 @@ async def find_and_mark(session: AsyncSession, now: datetime) -> list[Requeue]:
 
 async def sweep(session: AsyncSession) -> int:
     """One sweep. Returns how many submissions were queued again."""
+    with pipeline_span("sweeper.sweep") as span:
+        queued = await _sweep(session)
+        span.set_attribute("queued", queued)
+        return queued
+
+
+async def _sweep(session: AsyncSession) -> int:
+    removed = await upload_buffer.purge_expired()  # files nobody read in time
+    if removed:
+        logger.warning("Sweeper deleted %d expired upload file(s)", removed)
     found = await find_and_mark(session, datetime.now(UTC))
     if not found:
         return 0

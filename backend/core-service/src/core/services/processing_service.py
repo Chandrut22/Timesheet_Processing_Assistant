@@ -16,6 +16,7 @@ import logging
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from pathlib import PurePath
 
 from sqlalchemy import ColumnElement, and_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,7 +48,13 @@ from src.core.services.employee_matcher import (
     match_employee,
     to_record,
 )
-from src.core.services.failures import TooManyRunsError, explain, plan_retry, technical_details
+from src.core.services.failures import (
+    JobTooSlowError,
+    TooManyRunsError,
+    explain,
+    plan_retry,
+    technical_details,
+)
 from src.core.services.pay_rules import PayRules, recalculate, rules_from_company
 from src.core.services.reprocess import finish_run, next_version
 from src.core.services.timesheet_builder import BuildContext, build_timesheets, truncation_flag
@@ -63,6 +70,12 @@ from src.data.clients.postgres import SessionLocal
 from src.data.models import Company, Document, Employee, ReprocessRun, Submission, Timesheet
 from src.data.repositories.employee_repository import EmployeeRepository
 from src.data.repositories.holiday_repository import HolidayRepository
+from src.observability.tracing.spans import (
+    finished_span,
+    now_ns,
+    pipeline_span,
+    set_attributes,
+)
 from src.utils.text import db_safe
 
 logger = logging.getLogger(__name__)
@@ -182,7 +195,13 @@ class ProcessingService:
         """Raises RetryLater after a temporary failure while runs are left."""
         token = current_reprocess_run.set(reprocess_run_id)
         try:
-            await self._process(submission_id, reprocess_run_id, retry_token)
+            with pipeline_span(
+                "submission.process",
+                submission_id=submission_id,
+                reprocess_run_id=reprocess_run_id,
+                scheduled_retry=retry_token is not None,
+            ):
+                await self._process(submission_id, reprocess_run_id, retry_token)
         finally:
             current_reprocess_run.reset(token)
 
@@ -193,6 +212,7 @@ class ProcessingService:
         retry_token: uuid.UUID | None,
     ) -> None:
         attempt = await self._claim(submission_id, retry_token)
+        set_attributes(run=attempt, claimed=attempt is not None)
         if attempt is None:
             if retry_token is not None:
                 logger.info("Retry for %s is no longer current; skipped", submission_id)
@@ -231,41 +251,71 @@ class ProcessingService:
         try:
             if attempt > settings.worker_max_attempts:  # the worker kept dying on this job
                 raise TooManyRunsError(attempt)
-            # 1. Read every file that is waiting
-            set_state(self.session, submission, SubmissionState.READING)
-            await self.session.commit()
-            for document in submission.documents:
-                if document.status == DocumentStatus.PENDING:
-                    await self._read(document)
-                    self._progress(submission)
-                    await self.session.commit()
-                    if document.status != DocumentStatus.PENDING:
-                        await upload_buffer.delete_file(document.id)  # text saved: drop the bytes
-
-            # 2. Extract, match, rules, decide - document by document
-            for document in submission.documents:
-                if only_document is not None and document.id != only_document:
-                    continue  # reprocess of one attachment: leave the others alone
-                if document.status == DocumentStatus.PARSED and not await self._has_timesheets(
-                    document.id
-                ):
-                    await self._extract(submission, document, company)
-                    self._progress(submission)
-                    await self.session.commit()
-
-            # 3. Final state (and close the reprocess run, in the same commit)
-            await self._finish(submission)
-            if reprocess_run_id is not None:
-                await self.session.flush()
-                await finish_run(self.session, reprocess_run_id)
-            await self.session.commit()
-            logger.info("Submission %s processed: %s", submission_id, submission.state)
+            limit = settings.worker_job_timeout_seconds
+            deadline = asyncio.timeout(limit)
+            try:
+                async with deadline:
+                    await self._steps(submission, company, only_document, reprocess_run_id)
+            except TimeoutError as exc:
+                if deadline.expired():  # our limit, not a timeout inside a library
+                    raise JobTooSlowError(limit) from exc
+                raise
         except Exception as exc:
-            await self.session.rollback()
+            try:
+                await self.session.rollback()
+            except Exception:  # the timeout cut a database call short: drop the connection
+                await self.session.invalidate()
             retry = await self._fail(submission_id, reprocess_run_id, attempt, exc)
             if retry is not None:
                 raise retry from exc
             raise
+
+    async def _steps(
+        self,
+        submission: Submission,
+        company: Company | None,
+        only_document: uuid.UUID | None,
+        reprocess_run_id: uuid.UUID | None,
+    ) -> None:
+        """Read, extract, match, rules, decide; then the final state."""
+        # 1. Read every file that is waiting
+        set_state(self.session, submission, SubmissionState.READING)
+        await self.session.commit()
+        for document in submission.documents:
+            if document.status == DocumentStatus.PENDING:
+                with pipeline_span(
+                    "document.read",
+                    document_id=document.id,
+                    file_type=PurePath(document.filename).suffix.lower() or None,
+                    size_bytes=document.size_bytes,
+                ) as span:
+                    await self._read(document)
+                    span.set_attribute("status", document.status)
+                    span.set_attribute("characters", len(document.extracted_text or ""))
+                self._progress(submission)
+                await self.session.commit()
+                if document.status != DocumentStatus.PENDING:
+                    await upload_buffer.delete_file(document.id)  # text saved: drop the bytes
+
+        # 2. Extract, match, rules, decide - document by document
+        for document in submission.documents:
+            if only_document is not None and document.id != only_document:
+                continue  # reprocess of one attachment: leave the others alone
+            if document.status == DocumentStatus.PARSED and not await self._has_timesheets(
+                document.id
+            ):
+                with pipeline_span("document.extract", document_id=document.id):
+                    await self._extract(submission, document, company)
+                self._progress(submission)
+                await self.session.commit()
+
+        # 3. Final state (and close the reprocess run, in the same commit)
+        await self._finish(submission)
+        if reprocess_run_id is not None:
+            await self.session.flush()
+            await finish_run(self.session, reprocess_run_id)
+        await self.session.commit()
+        logger.info("Submission %s processed: %s", submission.id, submission.state)
 
     @staticmethod
     def _progress(submission: Submission) -> None:
@@ -440,13 +490,20 @@ class ProcessingService:
             "truncated": len(document.extracted_text or "") > settings.llm_max_input_chars,
         }
         try:
-            result = await extract_timesheets(
-                document_text=document.extracted_text or "",
-                filename=document.filename,
-                received_at=submission.received_at,
-                email_subject=submission.subject,
-                email_body=submission.body_text,
-            )
+            with pipeline_span(
+                "ai.extract",
+                characters=step_input["characters"],
+                truncated=step_input["truncated"],
+                model=settings.llm_model,
+            ) as span:
+                result = await extract_timesheets(
+                    document_text=document.extracted_text or "",
+                    filename=document.filename,
+                    received_at=submission.received_at,
+                    email_subject=submission.subject,
+                    email_body=submission.body_text,
+                )
+                span.set_attribute("timesheets", len(result.timesheets))
         except Exception as exc:
             # Usually temporary (model down, timeout): log the step, then let the whole
             # submission fail so it can be retried or reprocessed.
@@ -523,6 +580,7 @@ class ProcessingService:
                 is_email_body=is_email_body,
             )
             for timesheet in build_timesheets(extracted, ctx):  # one per week
+                match_started = now_ns()
                 extra = [f for f in (decision.flag, truncated_flag) if f is not None]
                 if extra:
                     timesheet.flags = [*timesheet.flags, *extra]
@@ -539,6 +597,14 @@ class ProcessingService:
                 )
                 self.session.add(timesheet)
                 await self.session.flush()  # the timesheet id is known now
+                finished_span(
+                    "timesheet.match",
+                    match_started,
+                    timesheet_id=timesheet.id,
+                    method=match.method,
+                    matched=employee is not None,
+                    confidence=float(timesheet.confidence or 0),
+                )
                 record_step(
                     self.session,
                     submission_id=submission.id,
@@ -575,12 +641,22 @@ class ProcessingService:
         await lock_employee_weeks(self.session, [(t.employee_id, t.week_start) for t, _ in built])
         for timesheet, cc in built:
             watch = Stopwatch()
+            rules_started = now_ns()
             recalculate(timesheet, cc.rules, cc.holidays, default_rules_used=cc.company is None)
             placed = cc.employees.get(timesheet.employee_id) if timesheet.employee_id else None
             if placed is not None:
                 check_assignment(timesheet, placed.assignment_start, placed.assignment_end)
             await validate_duplicates(self.session, timesheet, document)
             codes = [f.get("code") for f in timesheet.flags or []]
+            finished_span(
+                "timesheet.rules",
+                rules_started,
+                timesheet_id=timesheet.id,
+                flags=len(codes),
+                flag_codes=",".join(str(c) for c in codes),  # codes only, no messages
+                severity=timesheet.severity,
+                days=len(timesheet.entries),
+            )
             record_step(
                 self.session,
                 submission_id=submission.id,
@@ -603,6 +679,7 @@ class ProcessingService:
                 duration_ms=watch.ms,
             )
 
+            decide_started = now_ns()
             if can_auto_approve(timesheet):
                 timesheet.status = TimesheetStatus.APPROVED
                 timesheet.reviewed_at = datetime.now(UTC)
@@ -623,6 +700,13 @@ class ProcessingService:
                     "severity": timesheet.severity,
                 },
                 output={"status": timesheet.status, "reason": why},
+            )
+            finished_span(
+                "timesheet.decide",
+                decide_started,
+                timesheet_id=timesheet.id,
+                status=timesheet.status,
+                auto_approved=action == "auto_approved",
             )
             record_event(
                 self.session,

@@ -6,7 +6,16 @@ celery_app = Celery("core", broker=settings.redis_url, include=["src.control.wor
 
 celery_app.conf.update(
     # Redis is shared: every Celery key starts with "core:celery:"
-    broker_transport_options={"global_keyprefix": f"{settings.redis_prefix}:celery:"},
+    broker_transport_options={
+        "global_keyprefix": f"{settings.redis_prefix}:celery:",
+        # An unacknowledged job goes to another worker only after this long: longer
+        # than any job may run (see the time limits below), so a running job is never
+        # started twice.
+        "visibility_timeout": settings.broker_visibility_timeout_seconds,
+    },
+    # The job stops itself at WORKER_JOB_TIMEOUT_SECONDS (processing_service); this hard
+    # limit kills the worker process if the job is stuck where it cannot be stopped.
+    task_time_limit=settings.worker_hard_time_limit_seconds,
     task_default_queue="timesheets",
     task_serializer="json",
     accept_content=["json"],

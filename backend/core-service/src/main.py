@@ -24,6 +24,7 @@ from src.data.clients import upload_buffer
 from src.data.clients.postgres import engine
 from src.data.clients.redis import redis_client
 from src.observability.logging.setup import configure_logging
+from src.observability.tracing.setup import setup_tracing, shutdown_tracing
 
 configure_logging(settings.log_level)
 logger = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         await upload_buffer.close()
     except Exception:
         logger.exception("Error closing the upload buffer")
+    shutdown_tracing()
 
 
 app = FastAPI(
@@ -59,6 +61,8 @@ app = FastAPI(
     redoc_url=None,
 )
 register_exception_handlers(app)
+# Tracing (only if OTEL_ENABLED): requests, SQL, Redis, and the queued Celery jobs.
+setup_tracing(app=app, engine=engine, celery=True)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,

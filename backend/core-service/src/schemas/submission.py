@@ -66,6 +66,7 @@ class ProcessingStepRead(BaseModel):
     error_details: str | None
     duration_ms: int
     reprocess_run_id: uuid.UUID | None  # set on steps written during a reprocess
+    trace_id: str | None  # OpenTelemetry trace (open in Jaeger); None when tracing is off
     created_at: datetime
 
 

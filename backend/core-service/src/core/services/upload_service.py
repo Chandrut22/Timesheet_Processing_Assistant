@@ -23,6 +23,7 @@ from src.core.services.activity_log import record_step, set_state
 from src.data.clients import upload_buffer
 from src.data.models import Document, Submission
 from src.data.repositories.company_repository import CompanyRepository
+from src.observability.tracing.spans import set_attributes
 from src.utils.text import db_safe
 
 
@@ -104,8 +105,9 @@ class UploadService:
                 ]
             },
         )
-        for document, data in to_buffer:  # bytes go to Redis BEFORE the commit...
+        for document, data in to_buffer:  # bytes go to the upload store BEFORE the commit...
             await upload_buffer.put_file(document.id, data)
         await self.session.commit()  # ...so the worker never sees a row without its file
+        set_attributes(submission_id=submission.id, documents=len(submission.documents))
         await enqueue_or_leave_for_sweeper(submission.id)  # queue down: the sweeper queues it
         return submission

@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.constants.timesheet_status import StepName, StepResult, SubmissionState, TimesheetStatus
 from src.core.rbac.principal import Principal
 from src.data.models import ProcessingStep, Submission, SubmissionStateChange, Timesheet
+from src.observability.tracing.spans import current_trace_id
 
 MAX_DETAIL_CHARS = 2000
 
@@ -95,6 +96,7 @@ def record_step(
             output=output or {},
             error_details=error_details[:MAX_DETAIL_CHARS] if error_details else None,
             duration_ms=duration_ms,
+            trace_id=current_trace_id(),
             created_at=datetime.now(UTC),
         )
     )
