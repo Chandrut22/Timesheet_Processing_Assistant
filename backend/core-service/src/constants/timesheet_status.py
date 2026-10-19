@@ -57,6 +57,7 @@ class StepName(StrEnum):
 
     COLLECT = "collect"
     READ = "read"
+    CLASSIFY = "classify"  # optional: is the document a timesheet? (attachment classifier)
     EXTRACT = "extract"
     MATCH = "match"
     RULES = "rules"

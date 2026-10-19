@@ -94,6 +94,20 @@ class Settings(BaseSettings):
     # than any job can run, or a running job would be started a second time.
     broker_visibility_timeout_seconds: int = 3600
 
+    # --- attachment classifier (Jev by TypeSafe): optional, OFF by default ---
+    # Asks "is this document a timesheet?" after reading and before the AI extraction.
+    # Extraction is skipped ONLY when the label is not timesheet AND P(timesheet) is
+    # below CLASSIFIER_SKIP_BELOW. Errors, timeouts, unknown answers and manual
+    # reprocessing always continue as before. Shadow mode only logs what it would do.
+    classifier_enabled: bool = False
+    classifier_shadow_only: bool = True
+    classifier_skip_below: float = Field(default=0.2, ge=0, le=1)
+    classifier_timeout_s: float = Field(default=10, gt=0, le=60)
+    classifier_max_chars: int = Field(default=8000, ge=500, le=32000)  # start of the text only
+    jev_api_key: SecretStr | None = None  # in .env only
+    jev_model: str = "jev-1.13.0"  # pinned: "latest" could change answers silently
+    jev_url: str = "https://api.typesafe.ai/v1/systemone"
+
     # --- tracing (OpenTelemetry) ---
     # Off by default. In docker compose it is on and traces go to Jaeger
     # (UI at http://localhost:16686). The state log and step log in PostgreSQL stay the
@@ -106,6 +120,12 @@ class Settings(BaseSettings):
     # --- sweeper (Celery beat): re-queue work that was lost ---
     sweeper_interval_seconds: int = 120  # how often it looks
     sweeper_grace_seconds: int = 600  # "received" (or a retry overdue) this long = lost
+
+    @model_validator(mode="after")
+    def check_classifier(self) -> "Settings":
+        if self.classifier_enabled and self.jev_api_key is None:
+            raise ValueError("CLASSIFIER_ENABLED=true needs JEV_API_KEY in .env")
+        return self
 
     @model_validator(mode="after")
     def check_worker_times(self) -> "Settings":
