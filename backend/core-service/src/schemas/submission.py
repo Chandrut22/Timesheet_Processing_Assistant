@@ -80,6 +80,12 @@ class ReprocessRequest(BaseModel):
     document_id: uuid.UUID | None = Field(
         default=None, description="Reprocess only this attachment (default: the whole email)"
     )
+    confirm_approved: bool = Field(
+        default=False,
+        description="Needed when approved timesheets would be replaced: they go back to "
+        "review (approvals are cleared). Without it the request is refused with 409 "
+        "confirmation_required, listing them.",
+    )
 
 
 class ReprocessRunRead(BaseModel):

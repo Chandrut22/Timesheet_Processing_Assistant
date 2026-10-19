@@ -39,6 +39,7 @@ LEGAL_WORDS = frozenset(
     }
 )
 FUZZY_MIN = 0.88
+EXACT_METHODS = frozenset({"name", "alias"})  # anything else is a guess
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,12 +133,28 @@ def decide_company(
     if sender_company is None:
         if found.company_id is None:
             return CompanyDecision(None)
+        if found.method in EXACT_METHODS:  # the sheet names the company (or a set alias)
+            return CompanyDecision(
+                found.company_id,
+                {
+                    "code": "company_from_sheet",
+                    "message": f"Company taken from the sheet: '{written}' = "
+                    f"{found.company_name} (by {found.method}).",
+                },
+            )
+        # Only a partial name or a close spelling: a guess, so a reviewer must confirm it
+        # (this flag blocks automatic approval; the guessed company's rates apply meanwhile).
+        how = (
+            "start of the name"
+            if found.method == "prefix"
+            else f"close spelling, {found.score:.0%}"
+        )
         return CompanyDecision(
             found.company_id,
             {
-                "code": "company_from_sheet",
-                "message": f"Company taken from the sheet: '{written}' = {found.company_name} "
-                f"(by {found.method}).",
+                "code": "company_guessed",
+                "message": f"Company guessed from the sheet: '{written}' looks like "
+                f"{found.company_name} ({how}). Confirm it, or pick the right employee.",
             },
         )
 
