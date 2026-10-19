@@ -14,6 +14,7 @@ dependencies = [
     "docling>=2.138.0",
     "email-validator>=2.3.0",
     "fastapi>=0.143.0",
+    "httpx>=0.28.1",  # the attachment classifier (Jev) client
     "imap-tools>=1.16.0",
     "langchain>=1.4.5",
     "langchain-openai>=1.7.1",
