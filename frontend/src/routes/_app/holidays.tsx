@@ -20,7 +20,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, NativeSelect } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { applyFieldErrors } from "@/lib/forms";
 import { formatDayLabel } from "@/lib/format";
 import { useCompanyMap } from "@/lib/lookups";
@@ -55,7 +62,10 @@ function HolidaysPage() {
   const [deleting, setDeleting] = useState<HolidayRead | null>(null);
   const year = search.year ?? THIS_YEAR;
   const params = { year, company_id: search.company_id };
-  const list = useQuery({ queryKey: qk.holidays.list(params), queryFn: () => coreApi.listHolidays(params) });
+  const list = useQuery({
+    queryKey: qk.holidays.list(params),
+    queryFn: () => coreApi.listHolidays(params),
+  });
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -63,7 +73,11 @@ function HolidaysPage() {
   });
   const create = useMutation({
     mutationFn: (v: Values) =>
-      coreApi.createHoliday({ holiday_date: v.holiday_date, name: v.name.trim(), company_id: v.company_id || null }),
+      coreApi.createHoliday({
+        holiday_date: v.holiday_date,
+        name: v.name.trim(),
+        company_id: v.company_id || null,
+      }),
     meta: { silentError: true },
     onSuccess: (h) => {
       toast.success(`${h.name} added.`);
@@ -99,7 +113,12 @@ function HolidaysPage() {
                 <NativeSelect
                   id="h-year"
                   value={String(year)}
-                  onChange={(e) => void navigate({ search: (p) => ({ ...p, year: Number(e.target.value) }), replace: true })}
+                  onChange={(e) =>
+                    void navigate({
+                      search: (p) => ({ ...p, year: Number(e.target.value) }),
+                      replace: true,
+                    })
+                  }
                 >
                   {years.map((y) => (
                     <option key={y} value={y}>
@@ -113,7 +132,12 @@ function HolidaysPage() {
                 <CompanySelect
                   id="h-company"
                   value={search.company_id ?? ""}
-                  onChange={(id) => void navigate({ search: (p) => ({ ...p, company_id: id || undefined }), replace: true })}
+                  onChange={(id) =>
+                    void navigate({
+                      search: (p) => ({ ...p, company_id: id || undefined }),
+                      replace: true,
+                    })
+                  }
                 />
               </div>
             </div>
@@ -121,9 +145,13 @@ function HolidaysPage() {
           {list.isPending ? (
             <TableSkeleton rows={6} cols={3} />
           ) : list.isError ? (
-            <CardContent><ErrorState error={list.error} onRetry={() => void list.refetch()} /></CardContent>
+            <CardContent>
+              <ErrorState error={list.error} onRetry={() => void list.refetch()} />
+            </CardContent>
           ) : rows.length === 0 ? (
-            <CardContent><EmptyState title={`No holidays in ${year}`} /></CardContent>
+            <CardContent>
+              <EmptyState title={`No holidays in ${year}`} />
+            </CardContent>
           ) : (
             <Table>
               <TableHeader>
@@ -141,14 +169,19 @@ function HolidaysPage() {
                     <TableCell className="font-medium">{h.name}</TableCell>
                     <TableCell>
                       {h.company_id ? (
-                        companies.get(h.company_id)?.name ?? "One company"
+                        (companies.get(h.company_id)?.name ?? "One company")
                       ) : (
                         <Badge variant="secondary">All companies</Badge>
                       )}
                     </TableCell>
                     {isAdmin ? (
                       <TableCell>
-                        <Button variant="ghost" size="icon-sm" aria-label={`Delete ${h.name}`} onClick={() => setDeleting(h)}>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Delete ${h.name}`}
+                          onClick={() => setDeleting(h)}
+                        >
                           <Trash2 />
                         </Button>
                       </TableCell>
@@ -166,9 +199,17 @@ function HolidaysPage() {
               <CardTitle>Add a holiday</CardTitle>
             </CardHeader>
             <CardContent>
-              <form onSubmit={form.handleSubmit((v) => create.mutate(v))} noValidate className="grid gap-4">
+              <form
+                onSubmit={form.handleSubmit((v) => create.mutate(v))}
+                noValidate
+                className="grid gap-4"
+              >
                 <FormError message={create.error ? errorMessage(create.error) : null} />
-                <Field label="Date" htmlFor="h-date" error={form.formState.errors.holiday_date?.message}>
+                <Field
+                  label="Date"
+                  htmlFor="h-date"
+                  error={form.formState.errors.holiday_date?.message}
+                >
                   <Input id="h-date" type="date" {...form.register("holiday_date")} />
                 </Field>
                 <Field label="Name" htmlFor="h-name" error={form.formState.errors.name?.message}>
@@ -179,7 +220,13 @@ function HolidaysPage() {
                     control={form.control}
                     name="company_id"
                     render={({ field }) => (
-                      <CompanySelect id="h-scope" value={field.value} onChange={field.onChange} allLabel="All companies" activeOnly />
+                      <CompanySelect
+                        id="h-scope"
+                        value={field.value}
+                        onChange={field.onChange}
+                        allLabel="All companies"
+                        activeOnly
+                      />
                     )}
                   />
                 </Field>

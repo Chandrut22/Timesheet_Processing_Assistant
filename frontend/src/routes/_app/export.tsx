@@ -17,7 +17,14 @@ import { Banner, EmptyState, ErrorState, TableSkeleton } from "@/components/Stat
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox, Input, Label } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   backendWeekday,
   formatDateTime,
@@ -67,7 +74,12 @@ function ExportPage() {
         <CardContent className="grid gap-4 pt-5 sm:grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[20rem_auto_1fr]">
           <div className="grid gap-1.5">
             <Label htmlFor="ex-company">Company</Label>
-            <CompanySelect id="ex-company" value={search.company_id ?? ""} onChange={onCompany} includeAll={false} />
+            <CompanySelect
+              id="ex-company"
+              value={search.company_id ?? ""}
+              onChange={onCompany}
+              includeAll={false}
+            />
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="ex-week">Week starting</Label>
@@ -104,10 +116,13 @@ function ExportPage() {
           <div className="self-end pb-2 text-sm text-muted-foreground">
             {company ? (
               weekOk ? (
-                <>Week {formatWeek(week)} · weeks start on {WEEKDAYS[company.week_start]}</>
+                <>
+                  Week {formatWeek(week)} · weeks start on {WEEKDAYS[company.week_start]}
+                </>
               ) : (
                 <span className="text-destructive">
-                  {company.name}'s weeks start on {WEEKDAYS[company.week_start]}. Pick a {WEEKDAYS[company.week_start]}.
+                  {company.name}'s weeks start on {WEEKDAYS[company.week_start]}. Pick a{" "}
+                  {WEEKDAYS[company.week_start]}.
                 </span>
               )
             ) : (
@@ -149,8 +164,14 @@ function PreviewSection({ company, week }: { company: CompanyRead; week: string 
     },
   });
 
-  if (preview.isPending) return <Card><TableSkeleton rows={5} cols={8} /></Card>;
-  if (preview.isError) return <ErrorState error={preview.error} onRetry={() => void preview.refetch()} />;
+  if (preview.isPending)
+    return (
+      <Card>
+        <TableSkeleton rows={5} cols={8} />
+      </Card>
+    );
+  if (preview.isError)
+    return <ErrorState error={preview.error} onRetry={() => void preview.refetch()} />;
 
   const p = preview.data;
   const blocked = p.problems.length > 0;
@@ -162,22 +183,27 @@ function PreviewSection({ company, week }: { company: CompanyRead; week: string 
         <Banner tone="success" className="flex flex-wrap items-center justify-between gap-3">
           <span>
             Created <strong>{created.filename}</strong>: {created.row_count} rows,{" "}
-            <Money amount={created.gross_amount} currency={created.currency} /> gross. Its timesheets are now marked
-            exported.
+            <Money amount={created.gross_amount} currency={created.currency} /> gross. Its
+            timesheets are now marked exported.
           </span>
           <DownloadButton batch={created} />
         </Banner>
       ) : null}
 
       {blocked ? (
-        <div role="alert" className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900">
+        <div
+          role="alert"
+          className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900"
+        >
           <p className="font-semibold">Export blocked: someone would be paid twice</p>
           <ul className="mt-1 list-disc space-y-0.5 pl-5">
             {p.problems.map((msg) => (
               <li key={msg}>{msg}</li>
             ))}
           </ul>
-          <p className="mt-2">Reject or fix the duplicate timesheets in the review queue, then preview again.</p>
+          <p className="mt-2">
+            Reject or fix the duplicate timesheets in the review queue, then preview again.
+          </p>
         </div>
       ) : null}
 
@@ -198,7 +224,10 @@ function PreviewSection({ company, week }: { company: CompanyRead; week: string 
           <div className="flex flex-wrap items-center gap-3">
             {p.pending_review > 0 ? (
               <label className="flex items-center gap-2 text-sm">
-                <Checkbox checked={allowPending} onChange={(e) => setAllowPending(e.target.checked)} />
+                <Checkbox
+                  checked={allowPending}
+                  onChange={(e) => setAllowPending(e.target.checked)}
+                />
                 Export even though {p.pending_review} still need review
               </label>
             ) : null}
@@ -215,7 +244,10 @@ function PreviewSection({ company, week }: { company: CompanyRead; week: string 
         ) : null}
         {p.rows.length === 0 ? (
           <CardContent>
-            <EmptyState title="No approved timesheets for this week" hint="Approve timesheets in the review queue first." />
+            <EmptyState
+              title="No approved timesheets for this week"
+              hint="Approve timesheets in the review queue first."
+            />
           </CardContent>
         ) : (
           <Table>
@@ -235,32 +267,74 @@ function PreviewSection({ company, week }: { company: CompanyRead; week: string 
               {p.rows.map((r) => (
                 <TableRow key={r.timesheet_id}>
                   <TableCell>
-                    <Link to="/timesheets/$timesheetId" params={{ timesheetId: r.timesheet_id }} className="font-medium hover:underline">
+                    <Link
+                      to="/timesheets/$timesheetId"
+                      params={{ timesheetId: r.timesheet_id }}
+                      className="font-medium hover:underline"
+                    >
                       {r.employee_name}
                     </Link>
                     <span className="block text-xs text-muted-foreground">{r.employee_code}</span>
                   </TableCell>
-                  <HoursCell hours={r.regular_hours} amount={r.regular_amount} currency={r.currency ?? p.currency} />
-                  <HoursCell hours={r.overtime_hours} amount={r.overtime_amount} currency={r.currency ?? p.currency} />
-                  <HoursCell hours={r.double_time_hours} amount={r.double_time_amount} currency={r.currency ?? p.currency} />
-                  <HoursCell hours={r.holiday_hours} amount={r.holiday_amount} currency={r.currency ?? p.currency} />
-                  <TableCell className="tabular text-right font-medium">{formatHours(r.total_hours)}</TableCell>
+                  <HoursCell
+                    hours={r.regular_hours}
+                    amount={r.regular_amount}
+                    currency={r.currency ?? p.currency}
+                  />
+                  <HoursCell
+                    hours={r.overtime_hours}
+                    amount={r.overtime_amount}
+                    currency={r.currency ?? p.currency}
+                  />
+                  <HoursCell
+                    hours={r.double_time_hours}
+                    amount={r.double_time_amount}
+                    currency={r.currency ?? p.currency}
+                  />
+                  <HoursCell
+                    hours={r.holiday_hours}
+                    amount={r.holiday_amount}
+                    currency={r.currency ?? p.currency}
+                  />
+                  <TableCell className="tabular text-right font-medium">
+                    {formatHours(r.total_hours)}
+                  </TableCell>
                   <TableCell className="text-right font-medium">
                     <Money amount={r.gross_amount} currency={r.currency ?? p.currency} />
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {r.approved_by ?? "—"}
-                    {r.approved_at ? <span className="block text-xs">{formatDateTime(r.approved_at)}</span> : null}
+                    {r.approved_at ? (
+                      <span className="block text-xs">{formatDateTime(r.approved_at)}</span>
+                    ) : null}
                   </TableCell>
                 </TableRow>
               ))}
               <TableRow className="bg-muted/40 font-semibold hover:bg-muted/40">
                 <TableCell>Totals</TableCell>
-                <HoursCell hours={p.totals.regular_hours} amount={p.totals.regular_amount} currency={p.currency} />
-                <HoursCell hours={p.totals.overtime_hours} amount={p.totals.overtime_amount} currency={p.currency} />
-                <HoursCell hours={p.totals.double_time_hours} amount={p.totals.double_time_amount} currency={p.currency} />
-                <HoursCell hours={p.totals.holiday_hours} amount={p.totals.holiday_amount} currency={p.currency} />
-                <TableCell className="tabular text-right">{formatHours(p.totals.total_hours)}</TableCell>
+                <HoursCell
+                  hours={p.totals.regular_hours}
+                  amount={p.totals.regular_amount}
+                  currency={p.currency}
+                />
+                <HoursCell
+                  hours={p.totals.overtime_hours}
+                  amount={p.totals.overtime_amount}
+                  currency={p.currency}
+                />
+                <HoursCell
+                  hours={p.totals.double_time_hours}
+                  amount={p.totals.double_time_amount}
+                  currency={p.currency}
+                />
+                <HoursCell
+                  hours={p.totals.holiday_hours}
+                  amount={p.totals.holiday_amount}
+                  currency={p.currency}
+                />
+                <TableCell className="tabular text-right">
+                  {formatHours(p.totals.total_hours)}
+                </TableCell>
                 <TableCell className="text-right">
                   <Money amount={p.totals.gross_amount} currency={p.currency} />
                 </TableCell>
@@ -274,7 +348,15 @@ function PreviewSection({ company, week }: { company: CompanyRead; week: string 
   );
 }
 
-function HoursCell({ hours, amount, currency }: { hours: number; amount: number | null; currency: string | null }) {
+function HoursCell({
+  hours,
+  amount,
+  currency,
+}: {
+  hours: number;
+  amount: number | null;
+  currency: string | null;
+}) {
   return (
     <TableCell className="text-right">
       <span className="tabular block">{formatHours(hours)}</span>
@@ -290,10 +372,15 @@ function HoursCell({ hours, amount, currency }: { hours: number; amount: number 
 function Warnings({ p }: { p: ExportPreview }) {
   const items: string[] = [];
   if (p.pending_review > 0)
-    items.push(`${p.pending_review} timesheet${p.pending_review === 1 ? "" : "s"} for this week still need review and won't be included.`);
-  if (p.rejected > 0) items.push(`${p.rejected} rejected timesheet${p.rejected === 1 ? " is" : "s are"} left out.`);
+    items.push(
+      `${p.pending_review} timesheet${p.pending_review === 1 ? "" : "s"} for this week still need review and won't be included.`,
+    );
+  if (p.rejected > 0)
+    items.push(`${p.rejected} rejected timesheet${p.rejected === 1 ? " is" : "s are"} left out.`);
   if (p.already_exported > 0)
-    items.push(`${p.already_exported} timesheet${p.already_exported === 1 ? " was" : "s were"} already exported earlier and won't be exported again.`);
+    items.push(
+      `${p.already_exported} timesheet${p.already_exported === 1 ? " was" : "s were"} already exported earlier and won't be exported again.`,
+    );
   if (items.length === 0) return null;
   return (
     <Banner tone="warning">
@@ -303,7 +390,11 @@ function Warnings({ p }: { p: ExportPreview }) {
         ))}
       </ul>
       {p.pending_review > 0 ? (
-        <Link to="/review" search={{ status: "needs_review", company_id: p.company_id }} className="mt-1 inline-block font-medium underline">
+        <Link
+          to="/review"
+          search={{ status: "needs_review", company_id: p.company_id }}
+          className="mt-1 inline-block font-medium underline"
+        >
           Review them now
         </Link>
       ) : null}
@@ -311,7 +402,13 @@ function Warnings({ p }: { p: ExportPreview }) {
   );
 }
 
-function DownloadButton({ batch, size = "sm" }: { batch: ExportBatchRead; size?: "sm" | "default" }) {
+function DownloadButton({
+  batch,
+  size = "sm",
+}: {
+  batch: ExportBatchRead;
+  size?: "sm" | "default";
+}) {
   const [busy, setBusy] = useState(false);
   return (
     <Button
@@ -346,7 +443,9 @@ function History({ companyId }: { companyId?: string }) {
   return (
     <Card className="mt-6">
       <CardHeader>
-        <CardTitle>Export history{companyId ? ` · ${companies.get(companyId)?.name ?? ""}` : ""}</CardTitle>
+        <CardTitle>
+          Export history{companyId ? ` · ${companies.get(companyId)?.name ?? ""}` : ""}
+        </CardTitle>
       </CardHeader>
       {q.isPending ? (
         <TableSkeleton rows={4} cols={6} />
@@ -382,7 +481,9 @@ function History({ companyId }: { companyId?: string }) {
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {formatDateTime(b.created_at)}
-                    {b.created_by_name ? <span className="block text-xs">{b.created_by_name}</span> : null}
+                    {b.created_by_name ? (
+                      <span className="block text-xs">{b.created_by_name}</span>
+                    ) : null}
                   </TableCell>
                   <TableCell>
                     <DownloadButton batch={b} />

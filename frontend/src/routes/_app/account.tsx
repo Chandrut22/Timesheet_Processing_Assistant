@@ -23,7 +23,10 @@ const schema = z
     new_password: z.string().min(8, "At least 8 characters").max(128, "At most 128 characters"),
     confirm: z.string(),
   })
-  .refine((v) => v.new_password === v.confirm, { path: ["confirm"], message: "The passwords don't match" })
+  .refine((v) => v.new_password === v.confirm, {
+    path: ["confirm"],
+    message: "The passwords don't match",
+  })
   .refine((v) => v.new_password !== v.current_password, {
     path: ["new_password"],
     message: "Choose a password different from the current one",
@@ -63,7 +66,10 @@ function AccountPage() {
               <dd>{user.email}</dd>
               <dt className="text-muted-foreground">Role</dt>
               <dd>
-                <Badge variant={user.role === "admin" ? "default" : "secondary"} className="capitalize">
+                <Badge
+                  variant={user.role === "admin" ? "default" : "secondary"}
+                  className="capitalize"
+                >
                   {user.role}
                 </Badge>
               </dd>
@@ -78,16 +84,39 @@ function AccountPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <form onSubmit={form.handleSubmit((v) => m.mutate(v))} noValidate className="grid max-w-sm gap-4">
+            <form
+              onSubmit={form.handleSubmit((v) => m.mutate(v))}
+              noValidate
+              className="grid max-w-sm gap-4"
+            >
               <FormError message={m.error ? errorMessage(m.error) : null} />
-              <Field label="Current password" htmlFor="cp-current" error={e.current_password?.message}>
-                <Input id="cp-current" type="password" autoComplete="current-password" {...form.register("current_password")} />
+              <Field
+                label="Current password"
+                htmlFor="cp-current"
+                error={e.current_password?.message}
+              >
+                <Input
+                  id="cp-current"
+                  type="password"
+                  autoComplete="current-password"
+                  {...form.register("current_password")}
+                />
               </Field>
               <Field label="New password" htmlFor="cp-new" error={e.new_password?.message}>
-                <Input id="cp-new" type="password" autoComplete="new-password" {...form.register("new_password")} />
+                <Input
+                  id="cp-new"
+                  type="password"
+                  autoComplete="new-password"
+                  {...form.register("new_password")}
+                />
               </Field>
               <Field label="Confirm new password" htmlFor="cp-confirm" error={e.confirm?.message}>
-                <Input id="cp-confirm" type="password" autoComplete="new-password" {...form.register("confirm")} />
+                <Input
+                  id="cp-confirm"
+                  type="password"
+                  autoComplete="new-password"
+                  {...form.register("confirm")}
+                />
               </Field>
               <Button type="submit" className="w-fit" disabled={m.isPending}>
                 {m.isPending ? "Saving…" : "Change password"}

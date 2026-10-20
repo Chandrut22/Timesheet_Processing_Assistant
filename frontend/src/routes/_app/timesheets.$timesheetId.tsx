@@ -19,7 +19,12 @@ import { MatchEmployeeDialog } from "@/features/timesheet/MatchEmployeeDialog";
 import { PayBreakdown } from "@/features/timesheet/PayBreakdown";
 import { useTimesheetMutation } from "@/features/timesheet/useTimesheetMutation";
 import { formatDateTime, formatHours, formatPercent, formatWeek, humanize } from "@/lib/format";
-import { timesheetCompanyName, timesheetEmployeeName, useCompanyMap, useEmployeeMap } from "@/lib/lookups";
+import {
+  timesheetCompanyName,
+  timesheetEmployeeName,
+  useCompanyMap,
+  useEmployeeMap,
+} from "@/lib/lookups";
 import { hasFlag } from "@/lib/severity";
 
 export const Route = createFileRoute("/_app/timesheets/$timesheetId")({
@@ -36,7 +41,10 @@ function TimesheetDetailPage() {
   });
 
   const back = (
-    <Link to="/review" className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
+    <Link
+      to="/review"
+      className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+    >
       <ArrowLeft className="size-4" /> Review queue
     </Link>
   );
@@ -57,7 +65,10 @@ function TimesheetDetailPage() {
       <>
         <PageHeader title="Timesheet" back={back} />
         {isApiError(q.error, 404) ? (
-          <EmptyState title="Timesheet not found" hint="It may have been replaced, or the link is wrong." />
+          <EmptyState
+            title="Timesheet not found"
+            hint="It may have been replaced, or the link is wrong."
+          />
         ) : (
           <ErrorState error={q.error} onRetry={() => void q.refetch()} />
         )}
@@ -146,8 +157,16 @@ function TimesheetDetail({ t, back }: { t: TimesheetRead; back: ReactNode }) {
 
       {!readOnly ? (
         <>
-          <ApproveDialog t={t} open={dialog === "approve"} onOpenChange={(o) => setDialog(o ? "approve" : null)} />
-          <RejectDialog t={t} open={dialog === "reject"} onOpenChange={(o) => setDialog(o ? "reject" : null)} />
+          <ApproveDialog
+            t={t}
+            open={dialog === "approve"}
+            onOpenChange={(o) => setDialog(o ? "approve" : null)}
+          />
+          <RejectDialog
+            t={t}
+            open={dialog === "reject"}
+            onOpenChange={(o) => setDialog(o ? "reject" : null)}
+          />
           {dialog === "match" ? (
             <MatchEmployeeDialog t={t} open onOpenChange={(o) => setDialog(o ? "match" : null)} />
           ) : null}
@@ -161,8 +180,8 @@ function StatusBanner({ t }: { t: TimesheetRead }) {
   if (t.status === "superseded") {
     return (
       <Banner tone="warning" className="mb-4">
-        This version was replaced when the submission was reprocessed. It's kept for the record and can't be
-        changed.{" "}
+        This version was replaced when the submission was reprocessed. It's kept for the record and
+        can't be changed.{" "}
         {t.superseded_by_id ? (
           <Link
             to="/timesheets/$timesheetId"
@@ -279,8 +298,12 @@ function SourcePanel({ t }: { t: TimesheetRead }) {
           <p className="text-muted-foreground">Couldn't load the submission.</p>
         ) : (
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">
-            <dt className="text-muted-foreground">{q.data.source === "upload" ? "Uploaded by" : "From"}</dt>
-            <dd className="min-w-0 break-words">{q.data.sender_email ?? q.data.uploaded_by_name ?? "—"}</dd>
+            <dt className="text-muted-foreground">
+              {q.data.source === "upload" ? "Uploaded by" : "From"}
+            </dt>
+            <dd className="min-w-0 break-words">
+              {q.data.sender_email ?? q.data.uploaded_by_name ?? "—"}
+            </dd>
             <dt className="text-muted-foreground">Subject</dt>
             <dd className="min-w-0 break-words">{q.data.subject ?? "—"}</dd>
             <dt className="text-muted-foreground">Received</dt>

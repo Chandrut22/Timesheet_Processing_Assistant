@@ -35,7 +35,10 @@ function LoginPage() {
   const { redirect } = Route.useSearch();
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
-  const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { email: "", password: "" } });
+  const form = useForm<Values>({
+    resolver: zodResolver(schema),
+    defaultValues: { email: "", password: "" },
+  });
   const { errors, isSubmitting } = form.formState;
 
   const onSubmit = form.handleSubmit(async (values) => {

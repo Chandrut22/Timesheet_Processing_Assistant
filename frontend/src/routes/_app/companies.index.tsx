@@ -14,10 +14,24 @@ import { EmptyState, ErrorState, TableSkeleton } from "@/components/States";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Label, NativeSelect } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CompanyForm, toCompanyBody, type CompanyFormValues } from "@/features/companies/CompanyForm";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { CompanyForm, type CompanyFormValues } from "@/features/companies/CompanyForm";
+import { toCompanyBody } from "@/features/companies/company-utils";
 import { DebouncedInput } from "@/features/review/DebouncedInput";
 import { WEEKDAYS } from "@/lib/format";
 
@@ -31,7 +45,12 @@ function CompaniesPage() {
   const [active, setActive] = useState<"" | "true" | "false">("true");
   const [page, setPage] = useState(1);
   const [creating, setCreating] = useState(false);
-  const params = { q: q || undefined, is_active: active === "" ? undefined : active === "true", page, size: 25 };
+  const params = {
+    q: q || undefined,
+    is_active: active === "" ? undefined : active === "true",
+    page,
+    size: 25,
+  };
   const list = useQuery({
     queryKey: qk.companies.list(params),
     queryFn: () => coreApi.listCompanies(params),
@@ -45,7 +64,11 @@ function CompaniesPage() {
       toast.success(`${c.name} created. Next, add the email addresses it sends timesheets from.`);
       void queryClient.invalidateQueries({ queryKey: qk.companies.all });
       setCreating(false);
-      void navigate({ to: "/companies/$companyId", params: { companyId: c.id }, search: { tab: "senders" } });
+      void navigate({
+        to: "/companies/$companyId",
+        params: { companyId: c.id },
+        search: { tab: "senders" },
+      });
     },
   });
 
@@ -102,7 +125,10 @@ function CompaniesPage() {
           </div>
         ) : list.data.items.length === 0 ? (
           <div className="p-4">
-            <EmptyState title="No companies found" hint={isAdmin ? "Create the first one with “New company”." : undefined} />
+            <EmptyState
+              title="No companies found"
+              hint={isAdmin ? "Create the first one with “New company”." : undefined}
+            />
           </div>
         ) : (
           <>
@@ -122,22 +148,36 @@ function CompaniesPage() {
                 {list.data.items.map((c) => (
                   <TableRow key={c.id}>
                     <TableCell>
-                      <Link to="/companies/$companyId" params={{ companyId: c.id }} className="font-medium hover:underline">
+                      <Link
+                        to="/companies/$companyId"
+                        params={{ companyId: c.id }}
+                        className="font-medium hover:underline"
+                      >
                         {c.name}
                       </Link>
                       {c.aliases.length ? (
-                        <span className="block max-w-64 truncate text-xs text-muted-foreground">{c.aliases.join(", ")}</span>
+                        <span className="block max-w-64 truncate text-xs text-muted-foreground">
+                          {c.aliases.join(", ")}
+                        </span>
                       ) : null}
                     </TableCell>
-                    <TableCell className="text-right"><Money amount={c.hourly_rate} currency={c.currency} /></TableCell>
-                    <TableCell className="text-right"><Money amount={c.overtime_rate} currency={c.currency} /></TableCell>
-                    <TableCell className="text-right"><Money amount={c.holiday_rate} currency={c.currency} /></TableCell>
+                    <TableCell className="text-right">
+                      <Money amount={c.hourly_rate} currency={c.currency} />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Money amount={c.overtime_rate} currency={c.currency} />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Money amount={c.holiday_rate} currency={c.currency} />
+                    </TableCell>
                     <TableCell className="tabular">
                       {c.daily_ot_after} h/day · {c.weekly_ot_after} h/week
                     </TableCell>
                     <TableCell>{WEEKDAYS[c.week_start]}</TableCell>
                     <TableCell>
-                      <Badge variant={c.is_active ? "success" : "muted"}>{c.is_active ? "Active" : "Inactive"}</Badge>
+                      <Badge variant={c.is_active ? "success" : "muted"}>
+                        {c.is_active ? "Active" : "Inactive"}
+                      </Badge>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -158,7 +198,9 @@ function CompaniesPage() {
         <DialogContent wide>
           <DialogHeader>
             <DialogTitle>New company</DialogTitle>
-            <DialogDescription>Pay rates are required. You can change them later.</DialogDescription>
+            <DialogDescription>
+              Pay rates are required. You can change them later.
+            </DialogDescription>
           </DialogHeader>
           <CompanyForm
             submitLabel="Create company"
