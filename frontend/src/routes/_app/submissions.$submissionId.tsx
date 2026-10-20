@@ -8,7 +8,6 @@ import type { SubmissionRead } from "@/api/models";
 import { qk } from "@/api/queryKeys";
 import {
   FlagBadges,
-  IN_PROGRESS_STATES,
   SeverityDot,
   SourceIcon,
   SubmissionStateBadge,
@@ -21,11 +20,25 @@ import { Banner, BlockSkeleton, EmptyState, ErrorState, TableSkeleton } from "@/
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { ReprocessDialog, ReprocessRuns } from "@/features/submissions/Reprocess";
 import { describeReadLimit } from "@/features/submissions/readLimit";
 import { Timeline } from "@/features/submissions/Timeline";
-import { formatBytes, formatDateTime, formatHours, formatTime, formatWeek, humanize } from "@/lib/format";
+import {
+  formatBytes,
+  formatDateTime,
+  formatHours,
+  formatTime,
+  formatWeek,
+  humanize,
+} from "@/lib/format";
 import { timesheetEmployeeName, useCompanyMap, useEmployeeMap } from "@/lib/lookups";
 
 export const Route = createFileRoute("/_app/submissions/$submissionId")({
@@ -33,6 +46,13 @@ export const Route = createFileRoute("/_app/submissions/$submissionId")({
 });
 
 function isBusy(s: SubmissionRead) {
+  const IN_PROGRESS_STATES = new Set([
+    "received",
+    "reading",
+    "matching",
+    "rule_checks",
+    "reprocessing",
+  ]);
   return s.status === "received" || s.status === "processing" || IN_PROGRESS_STATES.has(s.state);
 }
 
@@ -45,7 +65,13 @@ function SubmissionDetailPage() {
     refetchInterval: (q) => (q.state.data && isBusy(q.state.data.submission) ? 3000 : false),
   });
   const busy = timeline.data ? isBusy(timeline.data.submission) : false;
-  const tsParams = { submission_id: submissionId, include_superseded: true, size: 100, sort: "employee" as const, order: "asc" as const };
+  const tsParams = {
+    submission_id: submissionId,
+    include_superseded: true,
+    size: 100,
+    sort: "employee" as const,
+    order: "asc" as const,
+  };
   const timesheets = useQuery({
     queryKey: qk.timesheets.list(tsParams),
     queryFn: () => coreApi.listTimesheets(tsParams),
@@ -68,7 +94,10 @@ function SubmissionDetailPage() {
   }, [busy, queryClient]);
 
   const back = (
-    <Link to="/submissions" className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
+    <Link
+      to="/submissions"
+      className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+    >
       <ArrowLeft className="size-4" /> Submissions
     </Link>
   );
@@ -95,7 +124,8 @@ function SubmissionDetailPage() {
   }
 
   const s = timeline.data.submission;
-  const docName = (id: string | null) => (id ? (s.documents.find((d) => d.id === id)?.filename ?? null) : null);
+  const docName = (id: string | null) =>
+    id ? (s.documents.find((d) => d.id === id)?.filename ?? null) : null;
   const company = s.company_id ? companies.get(s.company_id)?.name : null;
 
   return (
@@ -185,7 +215,10 @@ function SubmissionDetailPage() {
                   {timesheets.data.items.map((t) => {
                     const e = timesheetEmployeeName(t, employees);
                     return (
-                      <TableRow key={t.id} className={t.status === "superseded" ? "opacity-60" : undefined}>
+                      <TableRow
+                        key={t.id}
+                        className={t.status === "superseded" ? "opacity-60" : undefined}
+                      >
                         <TableCell>
                           <SeverityDot severity={t.severity} />
                         </TableCell>
@@ -197,10 +230,14 @@ function SubmissionDetailPage() {
                           >
                             {e.matched ? e.name : `Unmatched: «${e.name}»`}
                           </Link>
-                          {t.version > 1 ? <span className="ml-1 text-xs text-muted-foreground">v{t.version}</span> : null}
+                          {t.version > 1 ? (
+                            <span className="ml-1 text-xs text-muted-foreground">v{t.version}</span>
+                          ) : null}
                         </TableCell>
                         <TableCell>{formatWeek(t.week_start)}</TableCell>
-                        <TableCell className="tabular text-right">{formatHours(t.total_hours)}</TableCell>
+                        <TableCell className="tabular text-right">
+                          {formatHours(t.total_hours)}
+                        </TableCell>
                         <TableCell className="text-right">
                           <Money amount={t.gross_amount} currency={t.currency} />
                         </TableCell>
@@ -221,7 +258,9 @@ function SubmissionDetailPage() {
           <Card>
             <CardHeader>
               <CardTitle>Timeline</CardTitle>
-              <span className="text-xs text-muted-foreground">Oldest first · open a step to see its input and output</span>
+              <span className="text-xs text-muted-foreground">
+                Oldest first · open a step to see its input and output
+              </span>
             </CardHeader>
             <CardContent>
               <Timeline data={timeline.data} documentName={docName} />
@@ -244,7 +283,9 @@ function SubmissionDetailPage() {
                     <li key={d.id} className="rounded-md border p-2.5 text-sm">
                       <div className="flex items-start justify-between gap-2">
                         <span className="min-w-0 font-medium break-words">{d.filename}</span>
-                        <Badge variant={d.error ? "danger" : "secondary"}>{humanize(d.status)}</Badge>
+                        <Badge variant={d.error ? "danger" : "secondary"}>
+                          {humanize(d.status)}
+                        </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {d.content_type} · {formatBytes(d.size_bytes)}

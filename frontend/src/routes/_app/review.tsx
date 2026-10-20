@@ -16,7 +16,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox, Input, Label, NativeSelect } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { BulkBar } from "@/features/review/BulkActions";
 import { DebouncedInput } from "@/features/review/DebouncedInput";
 import {
@@ -258,11 +265,20 @@ function ReviewQueuePage() {
         ) : null}
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => setShowMore((v) => !v)} aria-expanded={showMore}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowMore((v) => !v)}
+            aria-expanded={showMore}
+          >
             <SlidersHorizontal /> {showMore ? "Fewer filters" : "More filters"}
             {moreCount > 0 ? <Badge variant="default">{moreCount}</Badge> : null}
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => void navigate({ search: {}, replace: true })}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void navigate({ search: {}, replace: true })}
+          >
             <RotateCcw /> Reset filters
           </Button>
           {query.isFetching && !query.isPending ? (
@@ -281,7 +297,9 @@ function ReviewQueuePage() {
         ) : items.length === 0 ? (
           <div className="p-4">
             <EmptyState
-              title={status === "needs_review" ? "Nothing waiting for review" : "No timesheets match"}
+              title={
+                status === "needs_review" ? "Nothing waiting for review" : "No timesheets match"
+              }
               hint="Try other filters, or reset them."
             />
           </div>
@@ -298,10 +316,28 @@ function ReviewQueuePage() {
                       disabled={selectable.length === 0}
                     />
                   </TableHead>
-                  <SortHeader label="Sev." sortKey="severity" current={sort} order={order} onSort={onSort} />
-                  <SortHeader label="Employee" sortKey="employee" current={sort} order={order} onSort={onSort} />
+                  <SortHeader
+                    label="Sev."
+                    sortKey="severity"
+                    current={sort}
+                    order={order}
+                    onSort={onSort}
+                  />
+                  <SortHeader
+                    label="Employee"
+                    sortKey="employee"
+                    current={sort}
+                    order={order}
+                    onSort={onSort}
+                  />
                   <TableHead>Company</TableHead>
-                  <SortHeader label="Week" sortKey="week" current={sort} order={order} onSort={onSort} />
+                  <SortHeader
+                    label="Week"
+                    sortKey="week"
+                    current={sort}
+                    order={order}
+                    onSort={onSort}
+                  />
                   <SortHeader
                     label="Hours"
                     sortKey="hours"
@@ -328,7 +364,13 @@ function ReviewQueuePage() {
                   />
                   <TableHead>Flags</TableHead>
                   <TableHead>Status</TableHead>
-                  <SortHeader label="Received" sortKey="received" current={sort} order={order} onSort={onSort} />
+                  <SortHeader
+                    label="Received"
+                    sortKey="received"
+                    current={sort}
+                    order={order}
+                    onSort={onSort}
+                  />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -400,7 +442,9 @@ function QueueRow({
             <span className="text-amber-800">Unmatched: «{employee.name}»</span>
           )}
         </Link>
-        {employee.code ? <span className="text-xs text-muted-foreground">{employee.code}</span> : null}
+        {employee.code ? (
+          <span className="text-xs text-muted-foreground">{employee.code}</span>
+        ) : null}
       </TableCell>
       <TableCell className="max-w-48 truncate">{company}</TableCell>
       <TableCell>{formatWeek(t.week_start)}</TableCell>

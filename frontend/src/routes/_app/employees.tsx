@@ -17,18 +17,26 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label, NativeSelect } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  EmployeeForm,
-  toEmployeeCreate,
-  toEmployeeUpdate,
-  type EmployeeFormValues,
-} from "@/features/employees/EmployeeForm";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { EmployeeForm, type EmployeeFormValues } from "@/features/employees/EmployeeForm";
+import { toEmployeeCreate, toEmployeeUpdate } from "@/features/employees/employee-utils";
 import { DebouncedInput } from "@/features/review/DebouncedInput";
 import { formatDate } from "@/lib/format";
 import { useCompanyMap } from "@/lib/lookups";
 
-type EmployeesSearch = { company_id?: string; q?: string; active?: "all" | "inactive"; page?: number };
+type EmployeesSearch = {
+  company_id?: string;
+  q?: string;
+  active?: "all" | "inactive";
+  page?: number;
+};
 
 export const Route = createFileRoute("/_app/employees")({
   validateSearch: (s: Record<string, unknown>): EmployeesSearch => ({
@@ -96,18 +104,33 @@ function EmployeesPage() {
       <Card className="mb-4 grid gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4">
         <div className="grid gap-1.5">
           <Label htmlFor="em-company">Company</Label>
-          <CompanySelect id="em-company" value={search.company_id ?? ""} onChange={(company_id) => update({ company_id: company_id || undefined })} />
+          <CompanySelect
+            id="em-company"
+            value={search.company_id ?? ""}
+            onChange={(company_id) => update({ company_id: company_id || undefined })}
+          />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="em-q">Search</Label>
-          <DebouncedInput id="em-q" type="search" placeholder="Name or code" value={search.q ?? ""} onCommit={(q) => update({ q: q.trim() || undefined })} />
+          <DebouncedInput
+            id="em-q"
+            type="search"
+            placeholder="Name or code"
+            value={search.q ?? ""}
+            onCommit={(q) => update({ q: q.trim() || undefined })}
+          />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="em-active">Show</Label>
           <NativeSelect
             id="em-active"
             value={search.active ?? "active"}
-            onChange={(e) => update({ active: e.target.value === "active" ? undefined : (e.target.value as "all" | "inactive") })}
+            onChange={(e) =>
+              update({
+                active:
+                  e.target.value === "active" ? undefined : (e.target.value as "all" | "inactive"),
+              })
+            }
           >
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
@@ -120,9 +143,13 @@ function EmployeesPage() {
         {list.isPending ? (
           <TableSkeleton rows={6} cols={6} />
         ) : list.isError ? (
-          <div className="p-4"><ErrorState error={list.error} onRetry={() => void list.refetch()} /></div>
+          <div className="p-4">
+            <ErrorState error={list.error} onRetry={() => void list.refetch()} />
+          </div>
         ) : list.data.items.length === 0 ? (
-          <div className="p-4"><EmptyState title="No employees found" /></div>
+          <div className="p-4">
+            <EmptyState title="No employees found" />
+          </div>
         ) : (
           <>
             <Table>
@@ -143,19 +170,31 @@ function EmployeesPage() {
                     <TableCell className="tabular">{e.employee_code}</TableCell>
                     <TableCell>
                       <span className="font-medium">{e.full_name}</span>
-                      {e.aliases.length ? <span className="block max-w-56 truncate text-xs text-muted-foreground">{e.aliases.join(", ")}</span> : null}
+                      {e.aliases.length ? (
+                        <span className="block max-w-56 truncate text-xs text-muted-foreground">
+                          {e.aliases.join(", ")}
+                        </span>
+                      ) : null}
                     </TableCell>
                     <TableCell>{companies.get(e.company_id)?.name ?? "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{e.email ?? "—"}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {e.assignment_start ? formatDate(e.assignment_start) : "—"} – {e.assignment_end ? formatDate(e.assignment_end) : "ongoing"}
+                      {e.assignment_start ? formatDate(e.assignment_start) : "—"} –{" "}
+                      {e.assignment_end ? formatDate(e.assignment_end) : "ongoing"}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={e.is_active ? "success" : "muted"}>{e.is_active ? "Active" : "Inactive"}</Badge>
+                      <Badge variant={e.is_active ? "success" : "muted"}>
+                        {e.is_active ? "Active" : "Inactive"}
+                      </Badge>
                     </TableCell>
                     {isAdmin ? (
                       <TableCell>
-                        <Button variant="ghost" size="icon-sm" aria-label={`Edit ${e.full_name}`} onClick={() => setEditing(e)}>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Edit ${e.full_name}`}
+                          onClick={() => setEditing(e)}
+                        >
                           <Pencil />
                         </Button>
                       </TableCell>
@@ -164,7 +203,12 @@ function EmployeesPage() {
                 ))}
               </TableBody>
             </Table>
-            <Pagination page={params.page} size={25} total={list.data.total} onPage={(page) => update({ page })} />
+            <Pagination
+              page={params.page}
+              size={25}
+              total={list.data.total}
+              onPage={(page) => update({ page })}
+            />
           </>
         )}
       </Card>

@@ -1,4 +1,10 @@
-import { createFileRoute, Outlet, redirect, useLocation, useNavigate } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Outlet,
+  redirect,
+  useLocation,
+  useNavigate,
+} from "@tanstack/react-router";
 import { useEffect } from "react";
 import { ensureSession } from "@/api/session";
 import { useSession } from "@/auth/useSession";

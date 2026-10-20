@@ -19,7 +19,14 @@ import { EmptyState, ErrorState, TableSkeleton } from "@/components/States";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label, NativeSelect } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { formatDateTime, formatTime, humanize } from "@/lib/format";
 
 type SubmissionsSearch = {
@@ -34,8 +41,12 @@ const PAGE_SIZE = 25;
 
 export const Route = createFileRoute("/_app/submissions/")({
   validateSearch: (s: Record<string, unknown>): SubmissionsSearch => ({
-    status: (SUBMISSION_STATUSES as string[]).includes(String(s.status)) ? (s.status as SubmissionStatus) : undefined,
-    state: (SUBMISSION_STATES as string[]).includes(String(s.state)) ? (s.state as SubmissionState) : undefined,
+    status: (SUBMISSION_STATUSES as string[]).includes(String(s.status))
+      ? (s.status as SubmissionStatus)
+      : undefined,
+    state: (SUBMISSION_STATES as string[]).includes(String(s.state))
+      ? (s.state as SubmissionState)
+      : undefined,
     source: s.source === "email" || s.source === "upload" ? s.source : undefined,
     company_id: typeof s.company_id === "string" && s.company_id ? s.company_id : undefined,
     page: Number.isInteger(Number(s.page)) && Number(s.page) > 1 ? Number(s.page) : undefined,
@@ -57,7 +68,9 @@ function SubmissionsPage() {
     placeholderData: keepPreviousData,
     // Live updates while anything on screen is still being processed.
     refetchInterval: (query) =>
-      query.state.data?.items.some((s) => s.status === "received" || s.status === "processing") ? 5000 : false,
+      query.state.data?.items.some((s) => s.status === "received" || s.status === "processing")
+        ? 5000
+        : false,
   });
 
   const update = (patch: Partial<SubmissionsSearch>) =>
@@ -91,7 +104,9 @@ function SubmissionsPage() {
             <NativeSelect
               id="s-status"
               value={search.status ?? ""}
-              onChange={(e) => update({ status: (e.target.value || undefined) as SubmissionStatus | undefined })}
+              onChange={(e) =>
+                update({ status: (e.target.value || undefined) as SubmissionStatus | undefined })
+              }
             >
               <option value="">Any</option>
               {SUBMISSION_STATUSES.map((s) => (
@@ -106,7 +121,9 @@ function SubmissionsPage() {
             <NativeSelect
               id="s-state"
               value={search.state ?? ""}
-              onChange={(e) => update({ state: (e.target.value || undefined) as SubmissionState | undefined })}
+              onChange={(e) =>
+                update({ state: (e.target.value || undefined) as SubmissionState | undefined })
+              }
             >
               <option value="">Any</option>
               {SUBMISSION_STATES.map((s) => (
@@ -121,7 +138,9 @@ function SubmissionsPage() {
             <NativeSelect
               id="s-source"
               value={search.source ?? ""}
-              onChange={(e) => update({ source: (e.target.value || undefined) as SubmissionSource | undefined })}
+              onChange={(e) =>
+                update({ source: (e.target.value || undefined) as SubmissionSource | undefined })
+              }
             >
               <option value="">Email and upload</option>
               <option value="email">Email</option>
@@ -137,7 +156,11 @@ function SubmissionsPage() {
             />
           </div>
           <div className="flex items-end">
-            <Button variant="ghost" size="sm" onClick={() => void navigate({ search: {}, replace: true })}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void navigate({ search: {}, replace: true })}
+            >
               <RotateCcw /> Reset
             </Button>
           </div>
@@ -153,7 +176,10 @@ function SubmissionsPage() {
           </div>
         ) : q.data.items.length === 0 ? (
           <div className="p-4">
-            <EmptyState title="No submissions match" hint="Try other filters, or upload a timesheet." />
+            <EmptyState
+              title="No submissions match"
+              hint="Try other filters, or upload a timesheet."
+            />
           </div>
         ) : (
           <>
@@ -188,8 +214,12 @@ function SubmissionsPage() {
                         {s.sender_email ?? s.uploaded_by_name ?? "—"}
                       </Link>
                     </TableCell>
-                    <TableCell className="max-w-64 truncate text-muted-foreground">{s.subject ?? "—"}</TableCell>
-                    <TableCell className="text-muted-foreground">{formatDateTime(s.received_at)}</TableCell>
+                    <TableCell className="max-w-64 truncate text-muted-foreground">
+                      {s.subject ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatDateTime(s.received_at)}
+                    </TableCell>
                     <TableCell>
                       <SubmissionStateBadge state={s.state} />
                     </TableCell>
@@ -203,13 +233,20 @@ function SubmissionsPage() {
                         <span className="text-amber-700">Retrying at {formatTime(s.retry_at)}</span>
                       ) : null}
                       {s.error ? <span className="block text-red-700">{s.error}</span> : null}
-                      {!s.retry_at && !s.error ? <span className="text-muted-foreground">—</span> : null}
+                      {!s.retry_at && !s.error ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-            <Pagination page={params.page ?? 1} size={PAGE_SIZE} total={q.data.total} onPage={(page) => update({ page })} />
+            <Pagination
+              page={params.page ?? 1}
+              size={PAGE_SIZE}
+              total={q.data.total}
+              onPage={(page) => update({ page })}
+            />
           </>
         )}
       </Card>

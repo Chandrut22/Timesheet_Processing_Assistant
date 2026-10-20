@@ -10,7 +10,14 @@ import { PageHeader } from "@/components/PageHeader";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/States";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { formatRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -47,19 +54,28 @@ function DashboardPage() {
     queryKey: qk.submissions.list(recentParams),
     queryFn: () => coreApi.listSubmissions(recentParams),
     refetchInterval: (q) =>
-      q.state.data?.items.some((s) => s.status === "received" || s.status === "processing") ? 5000 : false,
+      q.state.data?.items.some((s) => s.status === "received" || s.status === "processing")
+        ? 5000
+        : false,
   });
 
   return (
     <>
-      <PageHeader title={`Hello, ${user.name.split(" ")[0]}`} description="What needs attention today." />
+      <PageHeader
+        title={`Hello, ${user.name.split(" ")[0]}`}
+        description="What needs attention today."
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Needs review"
           query={needsReview}
           icon={<ClipboardCheck />}
-          link={<Link to="/review" search={{ status: "needs_review" }}>Open review queue</Link>}
+          link={
+            <Link to="/review" search={{ status: "needs_review" }}>
+              Open review queue
+            </Link>
+          }
         />
         <StatCard
           label="High severity"
@@ -86,7 +102,11 @@ function DashboardPage() {
           query={failed}
           icon={<MailWarning />}
           tone="warning"
-          link={<Link to="/submissions" search={{ status: "failed" }}>See failed submissions</Link>}
+          link={
+            <Link to="/submissions" search={{ status: "failed" }}>
+              See failed submissions
+            </Link>
+          }
         />
       </div>
 
@@ -133,11 +153,15 @@ function DashboardPage() {
                       {s.sender_email ?? s.uploaded_by_name ?? "—"}
                     </Link>
                   </TableCell>
-                  <TableCell className="max-w-72 truncate text-muted-foreground">{s.subject ?? "—"}</TableCell>
+                  <TableCell className="max-w-72 truncate text-muted-foreground">
+                    {s.subject ?? "—"}
+                  </TableCell>
                   <TableCell>
                     <SubmissionStateBadge state={s.state} />
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{formatRelative(s.received_at)}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {formatRelative(s.received_at)}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -171,7 +195,9 @@ function StatCard({
   return (
     <Card>
       <CardContent className="flex items-start gap-4 pt-5">
-        <span className={cn("grid size-10 place-items-center rounded-lg [&_svg]:size-5", TONES[tone])}>
+        <span
+          className={cn("grid size-10 place-items-center rounded-lg [&_svg]:size-5", TONES[tone])}
+        >
           {icon}
         </span>
         <div className="min-w-0">

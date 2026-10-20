@@ -16,9 +16,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CompanyForm, toCompanyBody, type CompanyFormValues } from "@/features/companies/CompanyForm";
+import { CompanyForm, type CompanyFormValues } from "@/features/companies/CompanyForm";
+import { toCompanyBody } from "@/features/companies/company-utils";
 import { formatDate, humanize } from "@/lib/format";
 
 type CompanySearch = { tab?: "details" | "senders" };
@@ -34,20 +42,36 @@ function CompanyPage() {
   const { companyId } = Route.useParams();
   const { tab } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
-  const q = useQuery({ queryKey: qk.companies.detail(companyId), queryFn: () => coreApi.getCompany(companyId) });
+  const q = useQuery({
+    queryKey: qk.companies.detail(companyId),
+    queryFn: () => coreApi.getCompany(companyId),
+  });
 
   const back = (
-    <Link to="/companies" className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
+    <Link
+      to="/companies"
+      className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+    >
       <ArrowLeft className="size-4" /> Companies
     </Link>
   );
 
-  if (q.isPending) return (<><PageHeader title="Company" back={back} /><BlockSkeleton className="h-80" /></>);
+  if (q.isPending)
+    return (
+      <>
+        <PageHeader title="Company" back={back} />
+        <BlockSkeleton className="h-80" />
+      </>
+    );
   if (q.isError)
     return (
       <>
         <PageHeader title="Company" back={back} />
-        {isApiError(q.error, 404) ? <EmptyState title="Company not found" /> : <ErrorState error={q.error} onRetry={() => void q.refetch()} />}
+        {isApiError(q.error, 404) ? (
+          <EmptyState title="Company not found" />
+        ) : (
+          <ErrorState error={q.error} onRetry={() => void q.refetch()} />
+        )}
       </>
     );
 
@@ -59,7 +83,9 @@ function CompanyPage() {
         title={c.name}
         description={
           <span className="flex items-center gap-2">
-            <Badge variant={c.is_active ? "success" : "muted"}>{c.is_active ? "Active" : "Inactive"}</Badge>
+            <Badge variant={c.is_active ? "success" : "muted"}>
+              {c.is_active ? "Active" : "Inactive"}
+            </Badge>
             <span>Currency {c.currency}</span>
           </span>
         }
@@ -73,7 +99,9 @@ function CompanyPage() {
       />
       <Tabs
         value={tab ?? "details"}
-        onValueChange={(v) => void navigate({ search: { tab: v === "senders" ? "senders" : undefined }, replace: true })}
+        onValueChange={(v) =>
+          void navigate({ search: { tab: v === "senders" ? "senders" : undefined }, replace: true })
+        }
       >
         <TabsList>
           <TabsTrigger value="details">Rates and rules</TabsTrigger>
@@ -94,7 +122,8 @@ function DetailsTab({ company }: { company: CompanyRead }) {
   const isAdmin = useIsAdmin();
   const queryClient = useQueryClient();
   const update = useMutation({
-    mutationFn: (v: CompanyFormValues) => coreApi.updateCompany(company.id, { ...toCompanyBody(v), is_active: v.is_active }),
+    mutationFn: (v: CompanyFormValues) =>
+      coreApi.updateCompany(company.id, { ...toCompanyBody(v), is_active: v.is_active }),
     meta: { silentError: true },
     onSuccess: (c) => {
       queryClient.setQueryData(qk.companies.detail(c.id), c);
@@ -105,7 +134,9 @@ function DetailsTab({ company }: { company: CompanyRead }) {
   return (
     <Card>
       <CardContent className="pt-5">
-        {!isAdmin ? <p className="mb-4 text-sm text-muted-foreground">Only admins can change companies.</p> : null}
+        {!isAdmin ? (
+          <p className="mb-4 text-sm text-muted-foreground">Only admins can change companies.</p>
+        ) : null}
         <CompanyForm
           key={company.updated_at}
           company={company}
@@ -124,7 +155,10 @@ function WhitelistTab({ company }: { company: CompanyRead }) {
   const queryClient = useQueryClient();
   const [value, setValue] = useState("");
   const [removing, setRemoving] = useState<WhitelistRead | null>(null);
-  const list = useQuery({ queryKey: qk.companies.whitelist(company.id), queryFn: () => coreApi.listWhitelist(company.id) });
+  const list = useQuery({
+    queryKey: qk.companies.whitelist(company.id),
+    queryFn: () => coreApi.listWhitelist(company.id),
+  });
 
   const add = useMutation({
     mutationFn: (v: string) => coreApi.addWhitelist(company.id, v),
@@ -151,8 +185,8 @@ function WhitelistTab({ company }: { company: CompanyRead }) {
         <div>
           <CardTitle>Allowed senders</CardTitle>
           <CardDescription>
-            Emails from these addresses or domains are accepted as {company.name}'s timesheets. Everything else is
-            ignored.
+            Emails from these addresses or domains are accepted as {company.name}'s timesheets.
+            Everything else is ignored.
           </CardDescription>
         </div>
       </CardHeader>
@@ -187,7 +221,10 @@ function WhitelistTab({ company }: { company: CompanyRead }) {
         ) : list.isError ? (
           <ErrorState error={list.error} onRetry={() => void list.refetch()} />
         ) : list.data.length === 0 ? (
-          <EmptyState title="No senders yet" hint="Until one is added, no emails are accepted for this company." />
+          <EmptyState
+            title="No senders yet"
+            hint="Until one is added, no emails are accepted for this company."
+          />
         ) : (
           <Table>
             <TableHeader>
@@ -205,10 +242,17 @@ function WhitelistTab({ company }: { company: CompanyRead }) {
                   <TableCell>
                     <Badge variant="secondary">{humanize(w.kind)}</Badge>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(w.created_at)}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {formatDate(w.created_at)}
+                  </TableCell>
                   {isAdmin ? (
                     <TableCell>
-                      <Button variant="ghost" size="icon-sm" aria-label={`Remove ${w.value}`} onClick={() => setRemoving(w)}>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Remove ${w.value}`}
+                        onClick={() => setRemoving(w)}
+                      >
                         <Trash2 />
                       </Button>
                     </TableCell>

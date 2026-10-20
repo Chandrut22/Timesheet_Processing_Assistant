@@ -1,10 +1,14 @@
 import { createRootRouteWithContext, Link, Outlet, useRouter } from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
+import type { SessionUser } from "@/api/session";
 import { RouterDevtools } from "@/app/devtools";
 import { ErrorState } from "@/components/States";
 import { Button } from "@/components/ui/button";
 
-export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+export const Route = createRootRouteWithContext<{
+  queryClient: QueryClient;
+  user?: SessionUser;
+}>()({
   component: RootLayout,
   notFoundComponent: NotFound,
   errorComponent: RootError,

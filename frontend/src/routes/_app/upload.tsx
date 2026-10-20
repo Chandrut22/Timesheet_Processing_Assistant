@@ -99,12 +99,17 @@ function UploadPage() {
             <CloudUpload className="size-8 text-muted-foreground" aria-hidden />
             <div>
               <p className="text-sm font-medium">Drag files here, or</p>
-              <Button variant="link" className="h-auto p-0" onClick={() => inputRef.current?.click()}>
+              <Button
+                variant="link"
+                className="h-auto p-0"
+                onClick={() => inputRef.current?.click()}
+              >
                 choose files
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Up to {MAX_FILES} files, 15 MB each · PDF, images (PNG, JPG, TIFF), DOCX, XLSX, CSV, TXT
+              Up to {MAX_FILES} files, 15 MB each · PDF, images (PNG, JPG, TIFF), DOCX, XLSX, CSV,
+              TXT
             </p>
             <input
               ref={inputRef}
@@ -121,7 +126,10 @@ function UploadPage() {
           </div>
 
           {problems.length > 0 ? (
-            <ul role="alert" className="space-y-1 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <ul
+              role="alert"
+              className="space-y-1 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+            >
               {problems.map((p) => (
                 <li key={p}>{p}</li>
               ))}
@@ -131,10 +139,15 @@ function UploadPage() {
           {files.length > 0 ? (
             <ul className="divide-y rounded-md border">
               {files.map((f, i) => (
-                <li key={`${f.name}-${f.size}`} className="flex items-center gap-3 px-3 py-2 text-sm">
+                <li
+                  key={`${f.name}-${f.size}`}
+                  className="flex items-center gap-3 px-3 py-2 text-sm"
+                >
                   <FileUp className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                   <span className="min-w-0 flex-1 truncate">{f.name}</span>
-                  <span className="tabular text-xs text-muted-foreground">{formatBytes(f.size)}</span>
+                  <span className="tabular text-xs text-muted-foreground">
+                    {formatBytes(f.size)}
+                  </span>
                   <Button
                     variant="ghost"
                     size="icon-sm"
@@ -167,12 +180,27 @@ function UploadPage() {
           <FormError message={upload.error ? errorMessage(upload.error) : null} />
 
           <div className="flex items-center gap-3">
-            <Button onClick={() => upload.mutate()} disabled={files.length === 0 || upload.isPending}>
-              <CloudUpload /> {upload.isPending ? `Uploading… ${progress ?? 0}%` : `Upload ${files.length || ""} file${files.length === 1 ? "" : "s"}`}
+            <Button
+              onClick={() => upload.mutate()}
+              disabled={files.length === 0 || upload.isPending}
+            >
+              <CloudUpload />{" "}
+              {upload.isPending
+                ? `Uploading… ${progress ?? 0}%`
+                : `Upload ${files.length || ""} file${files.length === 1 ? "" : "s"}`}
             </Button>
             {progress !== null ? (
-              <div className="h-2 w-40 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
-                <div className="h-full bg-primary transition-[width]" style={{ width: `${progress}%` }} />
+              <div
+                className="h-2 w-40 overflow-hidden rounded-full bg-muted"
+                role="progressbar"
+                aria-valuenow={progress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <div
+                  className="h-full bg-primary transition-[width]"
+                  style={{ width: `${progress}%` }}
+                />
               </div>
             ) : null}
           </div>

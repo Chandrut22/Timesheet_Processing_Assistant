@@ -79,10 +79,20 @@ function ResetPasswordPage() {
         />
       </Field>
       <Field label="New password" htmlFor="new_password" error={errors.new_password?.message}>
-        <Input id="new_password" type="password" autoComplete="new-password" {...form.register("new_password")} />
+        <Input
+          id="new_password"
+          type="password"
+          autoComplete="new-password"
+          {...form.register("new_password")}
+        />
       </Field>
       <Field label="Confirm new password" htmlFor="confirm" error={errors.confirm?.message}>
-        <Input id="confirm" type="password" autoComplete="new-password" {...form.register("confirm")} />
+        <Input
+          id="confirm"
+          type="password"
+          autoComplete="new-password"
+          {...form.register("confirm")}
+        />
       </Field>
       <Button type="submit" disabled={isSubmitting}>
         {isSubmitting ? "Saving…" : "Set new password"}

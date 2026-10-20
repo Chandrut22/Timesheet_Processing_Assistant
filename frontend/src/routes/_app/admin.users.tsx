@@ -20,9 +20,23 @@ import { EmptyState, ErrorState, TableSkeleton } from "@/components/States";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input, Label, NativeSelect } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { DebouncedInput } from "@/features/review/DebouncedInput";
 import { applyFieldErrors } from "@/lib/forms";
 import { formatDate, formatRelative } from "@/lib/format";
@@ -43,12 +57,23 @@ function UsersPage() {
   const [resetting, setResetting] = useState<UserRead | null>(null);
   const [toggling, setToggling] = useState<UserRead | null>(null);
 
-  const params = { q: q || undefined, role: role || undefined, is_active: active === "" ? undefined : active === "true", page, size: 25 };
-  const list = useQuery({ queryKey: qk.users.list(params), queryFn: () => authApi.listUsers(params), placeholderData: keepPreviousData });
+  const params = {
+    q: q || undefined,
+    role: role || undefined,
+    is_active: active === "" ? undefined : active === "true",
+    page,
+    size: 25,
+  };
+  const list = useQuery({
+    queryKey: qk.users.list(params),
+    queryFn: () => authApi.listUsers(params),
+    placeholderData: keepPreviousData,
+  });
 
   // The backend refuses changing your own role or demoting the last admin; its message is shown in a toast.
   const update = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: { role?: RoleName; is_active?: boolean } }) => authApi.updateUser(id, body),
+    mutationFn: ({ id, body }: { id: string; body: { role?: RoleName; is_active?: boolean } }) =>
+      authApi.updateUser(id, body),
     onSuccess: (u) => {
       toast.success(`${u.name} updated.`);
       setToggling(null);
@@ -70,11 +95,27 @@ function UsersPage() {
       <Card className="mb-4 grid gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4">
         <div className="grid gap-1.5">
           <Label htmlFor="u-q">Search</Label>
-          <DebouncedInput id="u-q" type="search" placeholder="Name or email" value={q} onCommit={(v) => { setQ(v.trim()); setPage(1); }} />
+          <DebouncedInput
+            id="u-q"
+            type="search"
+            placeholder="Name or email"
+            value={q}
+            onCommit={(v) => {
+              setQ(v.trim());
+              setPage(1);
+            }}
+          />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="u-role">Role</Label>
-          <NativeSelect id="u-role" value={role} onChange={(e) => { setRole(e.target.value as typeof role); setPage(1); }}>
+          <NativeSelect
+            id="u-role"
+            value={role}
+            onChange={(e) => {
+              setRole(e.target.value as typeof role);
+              setPage(1);
+            }}
+          >
             <option value="">All roles</option>
             <option value="admin">Admin</option>
             <option value="reviewer">Reviewer</option>
@@ -82,7 +123,14 @@ function UsersPage() {
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="u-active">Show</Label>
-          <NativeSelect id="u-active" value={active} onChange={(e) => { setActive(e.target.value as typeof active); setPage(1); }}>
+          <NativeSelect
+            id="u-active"
+            value={active}
+            onChange={(e) => {
+              setActive(e.target.value as typeof active);
+              setPage(1);
+            }}
+          >
             <option value="true">Active</option>
             <option value="false">Deactivated</option>
             <option value="">All</option>
@@ -94,9 +142,13 @@ function UsersPage() {
         {list.isPending ? (
           <TableSkeleton rows={5} cols={6} />
         ) : list.isError ? (
-          <div className="p-4"><ErrorState error={list.error} onRetry={() => void list.refetch()} /></div>
+          <div className="p-4">
+            <ErrorState error={list.error} onRetry={() => void list.refetch()} />
+          </div>
         ) : list.data.items.length === 0 ? (
-          <div className="p-4"><EmptyState title="No users found" /></div>
+          <div className="p-4">
+            <EmptyState title="No users found" />
+          </div>
         ) : (
           <>
             <Table>
@@ -127,23 +179,36 @@ function UsersPage() {
                           value={u.role}
                           disabled={isMe || update.isPending}
                           title={isMe ? "You can't change your own role" : undefined}
-                          onChange={(e) => update.mutate({ id: u.id, body: { role: e.target.value as RoleName } })}
+                          onChange={(e) =>
+                            update.mutate({ id: u.id, body: { role: e.target.value as RoleName } })
+                          }
                         >
                           <option value="admin">Admin</option>
                           <option value="reviewer">Reviewer</option>
                         </NativeSelect>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={u.is_active ? "success" : "muted"}>{u.is_active ? "Active" : "Deactivated"}</Badge>
+                        <Badge variant={u.is_active ? "success" : "muted"}>
+                          {u.is_active ? "Active" : "Deactivated"}
+                        </Badge>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{u.last_login_at ? formatRelative(u.last_login_at) : "Never"}</TableCell>
-                      <TableCell className="text-muted-foreground">{formatDate(u.created_at)}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {u.last_login_at ? formatRelative(u.last_login_at) : "Never"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatDate(u.created_at)}
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           <Button variant="ghost" size="sm" onClick={() => setResetting(u)}>
                             <KeyRound /> Password
                           </Button>
-                          <Button variant="ghost" size="sm" disabled={isMe} onClick={() => setToggling(u)}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={isMe}
+                            onClick={() => setToggling(u)}
+                          >
                             {u.is_active ? "Deactivate" : "Reactivate"}
                           </Button>
                         </div>
@@ -159,16 +224,28 @@ function UsersPage() {
       </Card>
 
       <CreateUserDialog open={creating} onOpenChange={setCreating} />
-      {resetting ? <ResetPasswordDialog user={resetting} onClose={() => setResetting(null)} /> : null}
+      {resetting ? (
+        <ResetPasswordDialog user={resetting} onClose={() => setResetting(null)} />
+      ) : null}
       <ConfirmDialog
         open={!!toggling}
         onOpenChange={(o) => !o && setToggling(null)}
-        title={toggling?.is_active ? `Deactivate ${toggling?.name}?` : `Reactivate ${toggling?.name ?? ""}?`}
-        description={toggling?.is_active ? "They won't be able to sign in. Their past work is kept." : "They'll be able to sign in again."}
+        title={
+          toggling?.is_active
+            ? `Deactivate ${toggling?.name}?`
+            : `Reactivate ${toggling?.name ?? ""}?`
+        }
+        description={
+          toggling?.is_active
+            ? "They won't be able to sign in. Their past work is kept."
+            : "They'll be able to sign in again."
+        }
         confirmLabel={toggling?.is_active ? "Deactivate" : "Reactivate"}
         destructive={!!toggling?.is_active}
         pending={update.isPending}
-        onConfirm={() => toggling && update.mutate({ id: toggling.id, body: { is_active: !toggling.is_active } })}
+        onConfirm={() =>
+          toggling && update.mutate({ id: toggling.id, body: { is_active: !toggling.is_active } })
+        }
       />
     </>
   );
@@ -182,14 +259,21 @@ const createSchema = z.object({
 });
 type CreateValues = z.infer<typeof createSchema>;
 
-function CreateUserDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+function CreateUserDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
   const queryClient = useQueryClient();
   const form = useForm<CreateValues>({
     resolver: zodResolver(createSchema),
     defaultValues: { name: "", email: "", password: "", role: "reviewer" },
   });
   const m = useMutation({
-    mutationFn: (v: CreateValues) => authApi.createUser({ ...v, name: v.name.trim(), email: v.email.trim() }),
+    mutationFn: (v: CreateValues) =>
+      authApi.createUser({ ...v, name: v.name.trim(), email: v.email.trim() }),
     meta: { silentError: true },
     onSuccess: (u) => {
       toast.success(`${u.name} can now sign in.`);
@@ -201,12 +285,20 @@ function CreateUserDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
   });
   const e = form.formState.errors;
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) m.reset(); onOpenChange(o); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) m.reset();
+        onOpenChange(o);
+      }}
+    >
       <DialogContent>
         <form onSubmit={form.handleSubmit((v) => m.mutate(v))} noValidate className="grid gap-4">
           <DialogHeader>
             <DialogTitle>New user</DialogTitle>
-            <DialogDescription>Share the password with them; they can change it under Account.</DialogDescription>
+            <DialogDescription>
+              Share the password with them; they can change it under Account.
+            </DialogDescription>
           </DialogHeader>
           <FormError message={m.error ? errorMessage(m.error) : null} />
           <Field label="Name" htmlFor="nu-name" error={e.name?.message}>
@@ -215,8 +307,18 @@ function CreateUserDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
           <Field label="Email" htmlFor="nu-email" error={e.email?.message}>
             <Input id="nu-email" type="email" autoComplete="off" {...form.register("email")} />
           </Field>
-          <Field label="Password" htmlFor="nu-password" error={e.password?.message} hint="At least 8 characters">
-            <Input id="nu-password" type="password" autoComplete="new-password" {...form.register("password")} />
+          <Field
+            label="Password"
+            htmlFor="nu-password"
+            error={e.password?.message}
+            hint="At least 8 characters"
+          >
+            <Input
+              id="nu-password"
+              type="password"
+              autoComplete="new-password"
+              {...form.register("password")}
+            />
           </Field>
           <Field label="Role" htmlFor="nu-role" error={e.role?.message}>
             <NativeSelect id="nu-role" {...form.register("role")}>
@@ -225,8 +327,12 @@ function CreateUserDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
             </NativeSelect>
           </Field>
           <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={m.isPending}>Cancel</Button>
-            <Button type="submit" disabled={m.isPending}>{m.isPending ? "Creating…" : "Create user"}</Button>
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={m.isPending}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={m.isPending}>
+              {m.isPending ? "Creating…" : "Create user"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -235,12 +341,21 @@ function CreateUserDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
 }
 
 const resetSchema = z
-  .object({ new_password: z.string().min(8, "At least 8 characters").max(128), confirm: z.string() })
-  .refine((v) => v.new_password === v.confirm, { path: ["confirm"], message: "The passwords don't match" });
+  .object({
+    new_password: z.string().min(8, "At least 8 characters").max(128),
+    confirm: z.string(),
+  })
+  .refine((v) => v.new_password === v.confirm, {
+    path: ["confirm"],
+    message: "The passwords don't match",
+  });
 type ResetValues = z.infer<typeof resetSchema>;
 
 function ResetPasswordDialog({ user, onClose }: { user: UserRead; onClose: () => void }) {
-  const form = useForm<ResetValues>({ resolver: zodResolver(resetSchema), defaultValues: { new_password: "", confirm: "" } });
+  const form = useForm<ResetValues>({
+    resolver: zodResolver(resetSchema),
+    defaultValues: { new_password: "", confirm: "" },
+  });
   const m = useMutation({
     mutationFn: (v: ResetValues) => authApi.setUserPassword(user.id, v.new_password),
     meta: { silentError: true },
@@ -257,18 +372,34 @@ function ResetPasswordDialog({ user, onClose }: { user: UserRead; onClose: () =>
         <form onSubmit={form.handleSubmit((v) => m.mutate(v))} noValidate className="grid gap-4">
           <DialogHeader>
             <DialogTitle>Set a new password for {user.name}</DialogTitle>
-            <DialogDescription>Tell them the new password; their current one stops working.</DialogDescription>
+            <DialogDescription>
+              Tell them the new password; their current one stops working.
+            </DialogDescription>
           </DialogHeader>
           <FormError message={m.error ? errorMessage(m.error) : null} />
           <Field label="New password" htmlFor="rp-new" error={e.new_password?.message}>
-            <Input id="rp-new" type="password" autoComplete="new-password" {...form.register("new_password")} />
+            <Input
+              id="rp-new"
+              type="password"
+              autoComplete="new-password"
+              {...form.register("new_password")}
+            />
           </Field>
           <Field label="Confirm" htmlFor="rp-confirm" error={e.confirm?.message}>
-            <Input id="rp-confirm" type="password" autoComplete="new-password" {...form.register("confirm")} />
+            <Input
+              id="rp-confirm"
+              type="password"
+              autoComplete="new-password"
+              {...form.register("confirm")}
+            />
           </Field>
           <DialogFooter>
-            <Button variant="outline" onClick={onClose} disabled={m.isPending}>Cancel</Button>
-            <Button type="submit" disabled={m.isPending}>{m.isPending ? "Saving…" : "Set password"}</Button>
+            <Button variant="outline" onClick={onClose} disabled={m.isPending}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={m.isPending}>
+              {m.isPending ? "Saving…" : "Set password"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
