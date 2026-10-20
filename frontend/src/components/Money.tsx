@@ -10,6 +10,7 @@ export function Money({
   missingLabel?: string;
 }) {
   const text = formatMoney(amount, currency);
-  if (text === null) return <span className="text-xs font-medium text-amber-700">{missingLabel}</span>;
+  if (text === null)
+    return <span className="text-xs font-medium text-amber-700">{missingLabel}</span>;
   return <span className="tabular">{text}</span>;
 }

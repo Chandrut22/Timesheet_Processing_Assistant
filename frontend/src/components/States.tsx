@@ -74,7 +74,9 @@ export function TableSkeleton({ rows = 6, cols = 6 }: { rows?: number; cols?: nu
 }
 
 export function BlockSkeleton({ className }: { className?: string }) {
-  return <Skeleton className={cn("h-32 w-full", className)} aria-busy="true" aria-label="Loading" />;
+  return (
+    <Skeleton className={cn("h-32 w-full", className)} aria-busy="true" aria-label="Loading" />
+  );
 }
 
 export function Banner({
@@ -93,7 +95,10 @@ export function Banner({
     success: "border-emerald-200 bg-emerald-50 text-emerald-900",
   } as const;
   return (
-    <div role="status" className={cn("rounded-lg border px-4 py-3 text-sm", tones[tone], className)}>
+    <div
+      role="status"
+      className={cn("rounded-lg border px-4 py-3 text-sm", tones[tone], className)}
+    >
       {children}
     </div>
   );

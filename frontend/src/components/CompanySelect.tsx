@@ -20,7 +20,12 @@ export function CompanySelect({
   const { data, isLoading } = useCompanies();
   const companies = (data ?? []).filter((c) => !activeOnly || c.is_active);
   return (
-    <NativeSelect value={value} onChange={(e) => onChange(e.target.value)} disabled={isLoading} {...props}>
+    <NativeSelect
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={isLoading}
+      {...props}
+    >
       {includeAll ? (
         <option value="">{isLoading ? "Loading…" : allLabel}</option>
       ) : (

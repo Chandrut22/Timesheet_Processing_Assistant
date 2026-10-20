@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 export function JsonBlock({ value, className }: { value: unknown; className?: string }) {
   const text =
-    typeof value === "string" ? value : JSON.stringify(value ?? null, null, 2) ?? String(value);
+    typeof value === "string" ? value : (JSON.stringify(value ?? null, null, 2) ?? String(value));
   return (
     <pre
       className={cn(

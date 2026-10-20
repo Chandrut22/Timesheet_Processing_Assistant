@@ -89,7 +89,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Sidebar (md and up) */}
       <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground md:flex">
         <div className="flex h-14 items-center gap-2 px-5">
-          <span className="grid size-7 place-items-center rounded-md bg-white/10 text-sm font-bold">T</span>
+          <span className="grid size-7 place-items-center rounded-md bg-white/10 text-sm font-bold">
+            T
+          </span>
           <span className="text-sm font-semibold tracking-tight">Timesheet Assistant</span>
         </div>
         <nav aria-label="Main" className="flex-1 space-y-5 overflow-y-auto px-3 py-2">
