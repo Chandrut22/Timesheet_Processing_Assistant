@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import type { CompanyCreate, CompanyRead, CompanyUpdate } from "@/api/models";
+import type { CompanyRead } from "@/api/models";
 import { Field, FormError } from "@/components/Field";
 import { Button } from "@/components/ui/button";
 import { Checkbox, Input, NativeSelect } from "@/components/ui/input";
@@ -18,12 +18,18 @@ const money = z
 const optionalMoney = z
   .string()
   .trim()
-  .refine((v) => v === "" || (AMOUNT.test(v) && Number(v) > 0), "Enter an amount above 0, or leave it empty");
+  .refine(
+    (v) => v === "" || (AMOUNT.test(v) && Number(v) > 0),
+    "Enter an amount above 0, or leave it empty",
+  );
 const hours = (max: number) =>
   z
     .string()
     .trim()
-    .refine((v) => NUMBER.test(v) && Number(v) > 0 && Number(v) <= max, `More than 0 and at most ${max}`);
+    .refine(
+      (v) => NUMBER.test(v) && Number(v) > 0 && Number(v) <= max,
+      `More than 0 and at most ${max}`,
+    );
 const optionalHours = (max: number) =>
   z
     .string()
@@ -99,23 +105,6 @@ function toValues(c?: CompanyRead): CompanyFormValues {
   };
 }
 
-/** Rates are sent as strings ("450.00"): the API accepts them and keeps exact decimals. */
-export function toCompanyBody(v: CompanyFormValues): CompanyCreate & CompanyUpdate {
-  return {
-    name: v.name.trim(),
-    aliases: splitList(v.aliases),
-    currency: v.currency.trim().toUpperCase(),
-    hourly_rate: v.hourly_rate,
-    overtime_rate: v.overtime_rate,
-    double_time_rate: v.double_time_rate || null,
-    holiday_rate: v.holiday_rate,
-    daily_ot_after: v.daily_ot_after,
-    weekly_ot_after: v.weekly_ot_after,
-    double_time_after: v.double_time_after || null,
-    week_start: Number(v.week_start),
-  };
-}
-
 export function CompanyForm({
   company,
   readOnly = false,
@@ -131,7 +120,10 @@ export function CompanyForm({
   onCancel?: () => void;
   serverError?: string | null;
 }) {
-  const form = useForm<CompanyFormValues>({ resolver: zodResolver(schema), defaultValues: toValues(company) });
+  const form = useForm<CompanyFormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: toValues(company),
+  });
   const { errors, isSubmitting, isDirty } = form.formState;
   const reg = form.register;
 
@@ -169,13 +161,28 @@ export function CompanyForm({
               <Input id="c-currency" maxLength={3} className="uppercase" {...reg("currency")} />
             </Field>
             <Field label="Regular" htmlFor="c-hourly" error={errors.hourly_rate?.message}>
-              <Input id="c-hourly" inputMode="decimal" className="tabular" {...reg("hourly_rate")} />
+              <Input
+                id="c-hourly"
+                inputMode="decimal"
+                className="tabular"
+                {...reg("hourly_rate")}
+              />
             </Field>
             <Field label="Overtime" htmlFor="c-ot" error={errors.overtime_rate?.message}>
               <Input id="c-ot" inputMode="decimal" className="tabular" {...reg("overtime_rate")} />
             </Field>
-            <Field label="Double time" htmlFor="c-dt" error={errors.double_time_rate?.message} hint="Optional">
-              <Input id="c-dt" inputMode="decimal" className="tabular" {...reg("double_time_rate")} />
+            <Field
+              label="Double time"
+              htmlFor="c-dt"
+              error={errors.double_time_rate?.message}
+              hint="Optional"
+            >
+              <Input
+                id="c-dt"
+                inputMode="decimal"
+                className="tabular"
+                {...reg("double_time_rate")}
+              />
             </Field>
             <Field label="Holiday" htmlFor="c-hol" error={errors.holiday_rate?.message}>
               <Input id="c-hol" inputMode="decimal" className="tabular" {...reg("holiday_rate")} />
@@ -186,11 +193,29 @@ export function CompanyForm({
         <section>
           <h3 className="mb-2 text-sm font-semibold">Rules</h3>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label="Overtime after (hours a day)" htmlFor="c-daily" error={errors.daily_ot_after?.message}>
-              <Input id="c-daily" inputMode="decimal" className="tabular" {...reg("daily_ot_after")} />
+            <Field
+              label="Overtime after (hours a day)"
+              htmlFor="c-daily"
+              error={errors.daily_ot_after?.message}
+            >
+              <Input
+                id="c-daily"
+                inputMode="decimal"
+                className="tabular"
+                {...reg("daily_ot_after")}
+              />
             </Field>
-            <Field label="Overtime after (hours a week)" htmlFor="c-weekly" error={errors.weekly_ot_after?.message}>
-              <Input id="c-weekly" inputMode="decimal" className="tabular" {...reg("weekly_ot_after")} />
+            <Field
+              label="Overtime after (hours a week)"
+              htmlFor="c-weekly"
+              error={errors.weekly_ot_after?.message}
+            >
+              <Input
+                id="c-weekly"
+                inputMode="decimal"
+                className="tabular"
+                {...reg("weekly_ot_after")}
+              />
             </Field>
             <Field
               label="Double time after (hours a day)"
@@ -198,7 +223,12 @@ export function CompanyForm({
               error={errors.double_time_after?.message}
               hint="Leave empty for no double-time rule"
             >
-              <Input id="c-dta" inputMode="decimal" className="tabular" {...reg("double_time_after")} />
+              <Input
+                id="c-dta"
+                inputMode="decimal"
+                className="tabular"
+                {...reg("double_time_after")}
+              />
             </Field>
             <Field label="Week starts on" htmlFor="c-week" error={errors.week_start?.message}>
               <NativeSelect id="c-week" {...reg("week_start")}>

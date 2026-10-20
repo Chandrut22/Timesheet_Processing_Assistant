@@ -7,7 +7,12 @@ import {
   CircleX,
   ExternalLink,
 } from "lucide-react";
-import type { AuditEventRead, ProcessingStepRead, StateChangeRead, SubmissionTimeline } from "@/api/models";
+import type {
+  AuditEventRead,
+  ProcessingStepRead,
+  StateChangeRead,
+  SubmissionTimeline,
+} from "@/api/models";
 import { SubmissionStateBadge } from "@/components/Badges";
 import { JsonBlock } from "@/components/JsonBlock";
 import { formatDateTime, formatDuration, humanize } from "@/lib/format";
@@ -20,14 +25,21 @@ type Item =
   | { kind: "audit"; at: string; v: AuditEventRead };
 
 /** State changes, processing steps and decisions merged into one list, oldest first. */
-export function Timeline({ data, documentName }: { data: SubmissionTimeline; documentName: (id: string | null) => string | null }) {
+export function Timeline({
+  data,
+  documentName,
+}: {
+  data: SubmissionTimeline;
+  documentName: (id: string | null) => string | null;
+}) {
   const items: Item[] = [
     ...data.states.map((v) => ({ kind: "state" as const, at: v.created_at, v })),
     ...data.steps.map((v) => ({ kind: "step" as const, at: v.created_at, v })),
     ...data.audit.map((v) => ({ kind: "audit" as const, at: v.created_at, v })),
   ].sort((a, b) => a.at.localeCompare(b.at));
 
-  if (items.length === 0) return <p className="text-sm text-muted-foreground">Nothing has happened yet.</p>;
+  if (items.length === 0)
+    return <p className="text-sm text-muted-foreground">Nothing has happened yet.</p>;
 
   return (
     <ol className="relative space-y-3 border-l pl-5">
@@ -48,15 +60,38 @@ export function Timeline({ data, documentName }: { data: SubmissionTimeline; doc
 }
 
 function Marker({ item }: { item: Item }) {
-  const base = "absolute -left-[29px] top-0.5 grid size-4 place-items-center rounded-full bg-card [&_svg]:size-4";
-  if (item.kind === "state") return <span className={cn(base, "text-primary")}><CircleDot aria-hidden /></span>;
-  if (item.kind === "audit") return <span className={cn(base, "text-muted-foreground")}><History aria-hidden /></span>;
+  const base =
+    "absolute -left-[29px] top-0.5 grid size-4 place-items-center rounded-full bg-card [&_svg]:size-4";
+  if (item.kind === "state")
+    return (
+      <span className={cn(base, "text-primary")}>
+        <CircleDot aria-hidden />
+      </span>
+    );
+  if (item.kind === "audit")
+    return (
+      <span className={cn(base, "text-muted-foreground")}>
+        <History aria-hidden />
+      </span>
+    );
   const r = item.v.result.toLowerCase();
   if (r === "ok" || r === "success" || r === "succeeded" || r === "done")
-    return <span className={cn(base, "text-emerald-600")}><CircleCheck aria-hidden /></span>;
+    return (
+      <span className={cn(base, "text-emerald-600")}>
+        <CircleCheck aria-hidden />
+      </span>
+    );
   if (r === "failed" || r === "error")
-    return <span className={cn(base, "text-red-600")}><CircleX aria-hidden /></span>;
-  return <span className={cn(base, "text-amber-600")}><CircleAlert aria-hidden /></span>;
+    return (
+      <span className={cn(base, "text-red-600")}>
+        <CircleX aria-hidden />
+      </span>
+    );
+  return (
+    <span className={cn(base, "text-amber-600")}>
+      <CircleAlert aria-hidden />
+    </span>
+  );
 }
 
 function When({ at, extra }: { at: string; extra?: string | null }) {
@@ -100,7 +135,10 @@ function StepRow({ v, documentName }: { v: ProcessingStepRead; documentName: str
           <span className="ml-2 hidden text-xs text-primary group-open:inline">Hide details</span>
         </p>
         {v.message ? <p className="text-sm text-muted-foreground">{v.message}</p> : null}
-        <When at={v.created_at} extra={[formatDuration(v.duration_ms), documentName].filter(Boolean).join(" · ")} />
+        <When
+          at={v.created_at}
+          extra={[formatDuration(v.duration_ms), documentName].filter(Boolean).join(" · ")}
+        />
         {trace ? (
           <a
             href={trace}
@@ -115,11 +153,19 @@ function StepRow({ v, documentName }: { v: ProcessingStepRead; documentName: str
       <div className="mt-2 grid gap-2 lg:grid-cols-2">
         <div>
           <p className="mb-1 text-xs font-medium text-muted-foreground">Input</p>
-          {hasInput ? <JsonBlock value={v.input} /> : <p className="text-xs text-muted-foreground">—</p>}
+          {hasInput ? (
+            <JsonBlock value={v.input} />
+          ) : (
+            <p className="text-xs text-muted-foreground">—</p>
+          )}
         </div>
         <div>
           <p className="mb-1 text-xs font-medium text-muted-foreground">Output</p>
-          {hasOutput ? <JsonBlock value={v.output} /> : <p className="text-xs text-muted-foreground">—</p>}
+          {hasOutput ? (
+            <JsonBlock value={v.output} />
+          ) : (
+            <p className="text-xs text-muted-foreground">—</p>
+          )}
         </div>
         {v.error_details ? (
           <div className="lg:col-span-2">

@@ -19,7 +19,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { humanize } from "@/lib/format";
 
 type Kind = "approve" | "reject";
@@ -115,14 +122,18 @@ function BulkApproveDialog({
           <DialogHeader>
             <DialogTitle>Approve {ids.length} timesheets</DialogTitle>
             <DialogDescription>
-              Each timesheet gets the same checks as a single approval. Ones that fail are listed with the
-              reason; the rest still go through.
+              Each timesheet gets the same checks as a single approval. Ones that fail are listed
+              with the reason; the rest still go through.
             </DialogDescription>
           </DialogHeader>
           <Banner tone="warning">
             Timesheets with high-severity flags are skipped. Open those and approve them one by one.
           </Banner>
-          <Field label="Notes (optional)" htmlFor="bulk-notes" error={form.formState.errors.notes?.message}>
+          <Field
+            label="Notes (optional)"
+            htmlFor="bulk-notes"
+            error={form.formState.errors.notes?.message}
+          >
             <Textarea id="bulk-notes" rows={3} {...form.register("notes")} />
           </Field>
           <DialogFooter>
@@ -200,7 +211,9 @@ function BulkResultDialog({
     <Dialog open={!!result} onOpenChange={(o) => !o && onClose()}>
       <DialogContent wide>
         <DialogHeader>
-          <DialogTitle>{result?.kind === "approve" ? "Bulk approve" : "Bulk reject"}: results</DialogTitle>
+          <DialogTitle>
+            {result?.kind === "approve" ? "Bulk approve" : "Bulk reject"}: results
+          </DialogTitle>
           {data ? (
             <DialogDescription>
               {data.succeeded} of {data.requested} done

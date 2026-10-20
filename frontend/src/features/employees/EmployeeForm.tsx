@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
-import type { EmployeeCreate, EmployeeRead, EmployeeUpdate } from "@/api/models";
+import type { EmployeeRead } from "@/api/models";
 import { CompanySelect } from "@/components/CompanySelect";
 import { Field, FormError } from "@/components/Field";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,11 @@ const schema = z
   })
   .superRefine((v, ctx) => {
     if (v.assignment_start && v.assignment_end && v.assignment_end < v.assignment_start) {
-      ctx.addIssue({ code: "custom", path: ["assignment_end"], message: "Must be on or after the start date" });
+      ctx.addIssue({
+        code: "custom",
+        path: ["assignment_end"],
+        message: "Must be on or after the start date",
+      });
     }
     if (splitList(v.aliases).length > 20) {
       ctx.addIssue({ code: "custom", path: ["aliases"], message: "At most 20 other names" });
@@ -31,7 +35,16 @@ const schema = z
 
 export type EmployeeFormValues = z.infer<typeof schema>;
 
-const FIELDS = ["company_id", "employee_code", "full_name", "email", "aliases", "assignment_start", "assignment_end", "is_active"] as const;
+const FIELDS = [
+  "company_id",
+  "employee_code",
+  "full_name",
+  "email",
+  "aliases",
+  "assignment_start",
+  "assignment_end",
+  "is_active",
+] as const;
 
 function toValues(e?: EmployeeRead, companyId?: string): EmployeeFormValues {
   return {
@@ -44,24 +57,6 @@ function toValues(e?: EmployeeRead, companyId?: string): EmployeeFormValues {
     assignment_end: e?.assignment_end ?? "",
     is_active: e?.is_active ?? true,
   };
-}
-
-export function toEmployeeCreate(v: EmployeeFormValues): EmployeeCreate {
-  return {
-    company_id: v.company_id,
-    employee_code: v.employee_code.trim(),
-    full_name: v.full_name.trim(),
-    email: v.email.trim() || null,
-    aliases: splitList(v.aliases),
-    assignment_start: v.assignment_start || null,
-    assignment_end: v.assignment_end || null,
-  };
-}
-
-export function toEmployeeUpdate(v: EmployeeFormValues): EmployeeUpdate {
-  const { company_id: _ignored, ...rest } = toEmployeeCreate(v);
-  void _ignored; // company can't change: an employee's history belongs to one company
-  return { ...rest, is_active: v.is_active };
 }
 
 export function EmployeeForm({
@@ -98,7 +93,11 @@ export function EmployeeForm({
         label="Company"
         htmlFor="e-company"
         error={errors.company_id?.message}
-        hint={employee ? "The company can't be changed: an employee's history belongs to one company." : undefined}
+        hint={
+          employee
+            ? "The company can't be changed: an employee's history belongs to one company."
+            : undefined
+        }
       >
         <Controller
           control={form.control}
@@ -125,13 +124,27 @@ export function EmployeeForm({
         <Field label="Email (optional)" htmlFor="e-email" error={errors.email?.message}>
           <Input id="e-email" type="email" {...form.register("email")} />
         </Field>
-        <Field label="Other names" htmlFor="e-aliases" error={errors.aliases?.message} hint="Separate with commas">
+        <Field
+          label="Other names"
+          htmlFor="e-aliases"
+          error={errors.aliases?.message}
+          hint="Separate with commas"
+        >
           <Input id="e-aliases" {...form.register("aliases")} />
         </Field>
-        <Field label="First day at the client" htmlFor="e-start" error={errors.assignment_start?.message}>
+        <Field
+          label="First day at the client"
+          htmlFor="e-start"
+          error={errors.assignment_start?.message}
+        >
           <Input id="e-start" type="date" {...form.register("assignment_start")} />
         </Field>
-        <Field label="Last day" htmlFor="e-end" error={errors.assignment_end?.message} hint="Leave empty if ongoing">
+        <Field
+          label="Last day"
+          htmlFor="e-end"
+          error={errors.assignment_end?.message}
+          hint="Leave empty if ongoing"
+        >
           <Input id="e-end" type="date" {...form.register("assignment_end")} />
         </Field>
       </div>

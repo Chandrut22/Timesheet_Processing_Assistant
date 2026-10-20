@@ -19,8 +19,18 @@ export function PayBreakdown({
 }) {
   const rows = [
     { label: "Regular", hours: t.regular_hours, rate: t.hourly_rate, amount: t.regular_amount },
-    { label: "Overtime", hours: t.overtime_hours, rate: t.overtime_rate, amount: t.overtime_amount },
-    { label: "Double time", hours: t.double_time_hours, rate: t.double_time_rate, amount: t.double_time_amount },
+    {
+      label: "Overtime",
+      hours: t.overtime_hours,
+      rate: t.overtime_rate,
+      amount: t.overtime_amount,
+    },
+    {
+      label: "Double time",
+      hours: t.double_time_hours,
+      rate: t.double_time_rate,
+      amount: t.double_time_amount,
+    },
     { label: "Holiday", hours: t.holiday_hours, rate: t.holiday_rate, amount: t.holiday_amount },
   ];
   // A missing amount only matters where there are hours to pay.
@@ -39,8 +49,8 @@ export function PayBreakdown({
       <CardContent className="space-y-3">
         {missing ? (
           <Banner tone="warning">
-            A pay rate is missing for this company, so some amounts can't be worked out. Set the rate on the
-            company, then press Recalculate.
+            A pay rate is missing for this company, so some amounts can't be worked out. Set the
+            rate on the company, then press Recalculate.
           </Banner>
         ) : null}
         <dl className="divide-y text-sm">
