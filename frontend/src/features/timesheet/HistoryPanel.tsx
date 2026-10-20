@@ -7,7 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateTime, humanize } from "@/lib/format";
 
-export function HistoryPanel({ entityType, entityId }: { entityType: "timesheet" | "submission"; entityId: string }) {
+export function HistoryPanel({
+  entityType,
+  entityId,
+}: {
+  entityType: "timesheet" | "submission";
+  entityId: string;
+}) {
   const q = useQuery({
     queryKey: qk.audit(entityType, entityId),
     queryFn: () => coreApi.listAuditEvents(entityType, entityId),
@@ -30,7 +36,10 @@ export function HistoryPanel({ entityType, entityId }: { entityType: "timesheet"
               .sort((a, b) => b.created_at.localeCompare(a.created_at))
               .map((e) => (
                 <li key={e.id} className="text-sm">
-                  <span className="absolute -left-[5px] mt-1.5 size-2.5 rounded-full border-2 border-card bg-primary" aria-hidden />
+                  <span
+                    className="absolute -left-[5px] mt-1.5 size-2.5 rounded-full border-2 border-card bg-primary"
+                    aria-hidden
+                  />
                   <p>
                     <span className="font-medium">{humanize(e.action)}</span>
                     <span className="text-muted-foreground"> · {e.actor_name ?? "System"}</span>

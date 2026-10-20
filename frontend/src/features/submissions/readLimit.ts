@@ -28,14 +28,23 @@ export function describeReadLimit(limit: unknown): string | null {
     parts.push(`Read the first ${plural(pagesRead, "page")}`);
   }
 
-  const skipped = first(o, ["sheets_skipped", "skipped_sheets", "sheets_not_read", "unread_sheets"]);
+  const skipped = first(o, [
+    "sheets_skipped",
+    "skipped_sheets",
+    "sheets_not_read",
+    "unread_sheets",
+  ]);
   const skippedCount = Array.isArray(skipped) ? skipped.length : num(skipped);
   const sheetsRead = num(first(o, ["sheets_read", "read_sheets", "max_sheets", "sheet_limit"]));
   const sheetsTotal = num(first(o, ["total_sheets", "sheets_total", "sheet_count"]));
   const notRead =
-    skippedCount ?? (sheetsRead !== null && sheetsTotal !== null ? Math.max(0, sheetsTotal - sheetsRead) : null);
+    skippedCount ??
+    (sheetsRead !== null && sheetsTotal !== null ? Math.max(0, sheetsTotal - sheetsRead) : null);
   if (notRead) {
-    const names = Array.isArray(skipped) && skipped.every((s) => typeof s === "string") ? ` (${skipped.join(", ")})` : "";
+    const names =
+      Array.isArray(skipped) && skipped.every((s) => typeof s === "string")
+        ? ` (${skipped.join(", ")})`
+        : "";
     parts.push(`${plural(notRead, "sheet")} not read${names}`);
   }
 

@@ -38,7 +38,12 @@ export function MatchEmployeeDialog({
   const [q, setQ] = useState(t.extracted_name ?? "");
   const [chosen, setChosen] = useState<string | null>(null);
   const query = useDebounce(q.trim(), 300);
-  const params = { company_id: t.company_id ?? undefined, q: query || undefined, size: 20, page: 1 };
+  const params = {
+    company_id: t.company_id ?? undefined,
+    q: query || undefined,
+    size: 20,
+    page: 1,
+  };
   const results = useQuery({
     queryKey: qk.employees.list(params),
     queryFn: () => coreApi.listEmployees(params),
@@ -53,7 +58,10 @@ export function MatchEmployeeDialog({
     onSuccess: () => onOpenChange(false),
   });
 
-  const row = (e: Pick<EmployeeRead, "id" | "full_name" | "employee_code"> & Partial<EmployeeRead>, suggested = false) => (
+  const row = (
+    e: Pick<EmployeeRead, "id" | "full_name" | "employee_code"> & Partial<EmployeeRead>,
+    suggested = false,
+  ) => (
     <li key={`${suggested ? "s" : "r"}-${e.id}`}>
       <button
         type="button"
@@ -95,7 +103,8 @@ export function MatchEmployeeDialog({
           <DialogTitle>Match employee</DialogTitle>
           <DialogDescription>
             The sheet says «{t.extracted_name ?? "no name"}»
-            {t.extracted_code ? ` (${t.extracted_code})` : ""}. Pick the employee this timesheet belongs to.
+            {t.extracted_code ? ` (${t.extracted_code})` : ""}. Pick the employee this timesheet
+            belongs to.
           </DialogDescription>
         </DialogHeader>
 
@@ -103,7 +112,9 @@ export function MatchEmployeeDialog({
 
         {candidates.length > 0 ? (
           <section>
-            <h3 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">Suggestions</h3>
+            <h3 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              Suggestions
+            </h3>
             <ul className="grid gap-1.5">
               {candidates.map((c) => {
                 const e = companyEmployees.get(c.id);
@@ -117,11 +128,17 @@ export function MatchEmployeeDialog({
         ) : null}
 
         <section className="grid gap-2">
-          <label htmlFor="match-search" className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          <label
+            htmlFor="match-search"
+            className="text-xs font-medium tracking-wide text-muted-foreground uppercase"
+          >
             Search {t.company_id ? "this company's" : "all"} employees
           </label>
           <div className="relative">
-            <Search className="absolute top-2.5 left-2.5 size-4 text-muted-foreground" aria-hidden />
+            <Search
+              className="absolute top-2.5 left-2.5 size-4 text-muted-foreground"
+              aria-hidden
+            />
             <Input
               id="match-search"
               className="pl-8"
@@ -140,7 +157,9 @@ export function MatchEmployeeDialog({
               No employees found. Check the spelling, or add the employee first.
             </p>
           ) : (
-            <ul className="grid max-h-72 gap-1.5 overflow-y-auto">{results.data.items.map((e) => row(e))}</ul>
+            <ul className="grid max-h-72 gap-1.5 overflow-y-auto">
+              {results.data.items.map((e) => row(e))}
+            </ul>
           )}
         </section>
 

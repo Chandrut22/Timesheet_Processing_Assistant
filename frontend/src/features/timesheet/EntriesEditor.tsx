@@ -11,7 +11,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox, Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { applyFieldErrors } from "@/lib/forms";
 import { daysBetween, formatDayLabel, formatHours, formatWeek, shiftIsoDate } from "@/lib/format";
 import { useTimesheetMutation } from "./useTimesheetMutation";
@@ -39,11 +46,18 @@ function makeSchema(weekStart: string | null) {
       entries.forEach((e, i) => {
         if (!ISO.test(e.work_date)) return;
         if (seen.has(e.work_date)) {
-          ctx.addIssue({ code: "custom", path: ["entries", i, "work_date"], message: "This day is already listed" });
+          ctx.addIssue({
+            code: "custom",
+            path: ["entries", i, "work_date"],
+            message: "This day is already listed",
+          });
         }
         seen.set(e.work_date, i);
       });
-      const dates = entries.map((e) => e.work_date).filter((d) => ISO.test(d)).sort();
+      const dates = entries
+        .map((e) => e.work_date)
+        .filter((d) => ISO.test(d))
+        .sort();
       if (dates.length === 0) return;
       const anchor = weekStart ?? dates[0];
       entries.forEach((e, i) => {
@@ -53,7 +67,9 @@ function makeSchema(weekStart: string | null) {
           ctx.addIssue({
             code: "custom",
             path: ["entries", i, "work_date"],
-            message: weekStart ? `Must be in the week of ${formatWeek(weekStart)}` : "All days must be in one week",
+            message: weekStart
+              ? `Must be in the week of ${formatWeek(weekStart)}`
+              : "All days must be in one week",
           });
         }
       });
@@ -80,7 +96,13 @@ function toValues(t: TimesheetRead): Values {
  * The editable days table. Parent should give it key={…entries…} so it resets
  * when the timesheet changes on the server.
  */
-export function EntriesEditor({ timesheet, readOnly }: { timesheet: TimesheetRead; readOnly: boolean }) {
+export function EntriesEditor({
+  timesheet,
+  readOnly,
+}: {
+  timesheet: TimesheetRead;
+  readOnly: boolean;
+}) {
   const [formError, setFormError] = useState<string | null>(null);
   const form = useForm<Values>({
     resolver: zodResolver(makeSchema(timesheet.week_start)),
@@ -119,13 +141,27 @@ export function EntriesEditor({ timesheet, readOnly }: { timesheet: TimesheetRea
     });
   });
 
-  const total = (watched ?? []).reduce((sum, e) => sum + (Number.isFinite(e?.hours) ? e.hours : 0), 0);
+  const total = (watched ?? []).reduce(
+    (sum, e) => sum + (Number.isFinite(e?.hours) ? e.hours : 0),
+    0,
+  );
   const dirty = form.formState.isDirty;
 
   const addDay = () => {
-    const dates = (watched ?? []).map((e) => e.work_date).filter((d) => ISO.test(d)).sort();
-    const next = dates.length ? shiftIsoDate(dates[dates.length - 1], 1) : (timesheet.week_start ?? "");
-    append({ work_date: next, hours: 0, double_time_marked: false, sheet_holiday: false, note: "" });
+    const dates = (watched ?? [])
+      .map((e) => e.work_date)
+      .filter((d) => ISO.test(d))
+      .sort();
+    const next = dates.length
+      ? shiftIsoDate(dates[dates.length - 1], 1)
+      : (timesheet.week_start ?? "");
+    append({
+      work_date: next,
+      hours: 0,
+      double_time_marked: false,
+      sheet_holiday: false,
+      note: "",
+    });
   };
 
   return (
@@ -183,7 +219,8 @@ export function EntriesEditor({ timesheet, readOnly }: { timesheet: TimesheetRea
               {fields.map((field, i) => {
                 const rowErr = errors?.[i];
                 const date = watched?.[i]?.work_date ?? field.work_date;
-                const calendarHoliday = finalHoliday.get(date) === true && !watched?.[i]?.sheet_holiday;
+                const calendarHoliday =
+                  finalHoliday.get(date) === true && !watched?.[i]?.sheet_holiday;
                 return (
                   <TableRow key={field.id}>
                     <TableCell className="align-top">
@@ -198,12 +235,22 @@ export function EntriesEditor({ timesheet, readOnly }: { timesheet: TimesheetRea
                         />
                       )}
                       {rowErr?.work_date ? (
-                        <p className="mt-1 text-xs whitespace-normal text-destructive">{rowErr.work_date.message}</p>
+                        <p className="mt-1 text-xs whitespace-normal text-destructive">
+                          {rowErr.work_date.message}
+                        </p>
                       ) : (
-                        !readOnly && <p className="mt-1 text-xs text-muted-foreground">{formatDayLabel(date)}</p>
+                        !readOnly && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {formatDayLabel(date)}
+                          </p>
+                        )
                       )}
                       {finalHoliday.get(date) ? (
-                        <Badge variant="info" className="mt-1" title="Final value used for pay (includes calendar holidays)">
+                        <Badge
+                          variant="info"
+                          className="mt-1"
+                          title="Final value used for pay (includes calendar holidays)"
+                        >
                           {calendarHoliday ? "Calendar holiday" : "Holiday"}
                         </Badge>
                       ) : null}
@@ -225,7 +272,9 @@ export function EntriesEditor({ timesheet, readOnly }: { timesheet: TimesheetRea
                         />
                       )}
                       {rowErr?.hours ? (
-                        <p className="mt-1 text-xs whitespace-normal text-destructive">{rowErr.hours.message}</p>
+                        <p className="mt-1 text-xs whitespace-normal text-destructive">
+                          {rowErr.hours.message}
+                        </p>
                       ) : null}
                     </TableCell>
                     <TableCell className="text-center align-top">
@@ -246,11 +295,19 @@ export function EntriesEditor({ timesheet, readOnly }: { timesheet: TimesheetRea
                     </TableCell>
                     <TableCell className="align-top">
                       {readOnly ? (
-                        <span className="whitespace-normal text-muted-foreground">{watched?.[i]?.note || "—"}</span>
+                        <span className="whitespace-normal text-muted-foreground">
+                          {watched?.[i]?.note || "—"}
+                        </span>
                       ) : (
-                        <Input aria-label={`Day ${i + 1} note`} maxLength={255} {...form.register(`entries.${i}.note`)} />
+                        <Input
+                          aria-label={`Day ${i + 1} note`}
+                          maxLength={255}
+                          {...form.register(`entries.${i}.note`)}
+                        />
                       )}
-                      {rowErr?.note ? <p className="mt-1 text-xs text-destructive">{rowErr.note.message}</p> : null}
+                      {rowErr?.note ? (
+                        <p className="mt-1 text-xs text-destructive">{rowErr.note.message}</p>
+                      ) : null}
                     </TableCell>
                     {!readOnly ? (
                       <TableCell className="align-top">

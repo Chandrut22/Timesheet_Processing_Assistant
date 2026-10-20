@@ -24,7 +24,11 @@ import { NativeSelect, Textarea } from "@/components/ui/input";
 import { formatDateTime, humanize } from "@/lib/format";
 
 const schema = z.object({
-  reason: z.string().trim().min(3, "Say why, in at least 3 characters").max(1000, "At most 1000 characters"),
+  reason: z
+    .string()
+    .trim()
+    .min(3, "Say why, in at least 3 characters")
+    .max(1000, "At most 1000 characters"),
   document_id: z.string(),
 });
 type Values = z.infer<typeof schema>;
@@ -39,7 +43,10 @@ export function ReprocessDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
-  const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { reason: "", document_id: "" } });
+  const form = useForm<Values>({
+    resolver: zodResolver(schema),
+    defaultValues: { reason: "", document_id: "" },
+  });
   // Set when the backend answers 409 confirmation_required: some timesheets are
   // already approved. Its message says which; the reviewer can go back, or send
   // the same request again with confirm_approved: true.
@@ -66,7 +73,9 @@ export function ReprocessDialog({
   const needsConfirm = confirm !== null;
   // Any other error (other 409s: already queued, submission ignored) is shown as the backend wrote it.
   const otherError =
-    m.error && !(isApiError(m.error, 409) && m.error.code === "confirmation_required") ? errorMessage(m.error) : null;
+    m.error && !(isApiError(m.error, 409) && m.error.code === "confirmation_required")
+      ? errorMessage(m.error)
+      : null;
 
   const close = (o: boolean) => {
     if (!o) {
@@ -79,17 +88,23 @@ export function ReprocessDialog({
   return (
     <Dialog open={open} onOpenChange={close}>
       <DialogContent>
-        <form onSubmit={form.handleSubmit((v) => m.mutate({ v, confirmApproved: false }))} className="grid gap-4">
+        <form
+          onSubmit={form.handleSubmit((v) => m.mutate({ v, confirmApproved: false }))}
+          className="grid gap-4"
+        >
           <DialogHeader>
             <DialogTitle>Reprocess</DialogTitle>
             <DialogDescription>
-              Run it again with the current companies, employees and rules. Nothing is deleted: earlier timesheets
-              are kept as replaced versions.
+              Run it again with the current companies, employees and rules. Nothing is deleted:
+              earlier timesheets are kept as replaced versions.
             </DialogDescription>
           </DialogHeader>
 
           {confirm ? (
-            <div role="alert" className="grid gap-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-900">
+            <div
+              role="alert"
+              className="grid gap-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-900"
+            >
               <p>{confirm.message}</p>
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -119,7 +134,9 @@ export function ReprocessDialog({
           <fieldset disabled={needsConfirm || m.isPending} className="grid gap-4">
             <Field label="What to reprocess" htmlFor="rp-doc">
               <NativeSelect id="rp-doc" {...form.register("document_id")}>
-                <option value="">The whole {submission.source === "upload" ? "upload" : "email"}</option>
+                <option value="">
+                  The whole {submission.source === "upload" ? "upload" : "email"}
+                </option>
                 {submission.documents.map((d) => (
                   <option key={d.id} value={d.id}>
                     Only {d.filename}
@@ -162,8 +179,15 @@ const RUN_TONE: Record<string, BadgeVariant> = {
   failed: "danger",
 };
 
-export function ReprocessRuns({ runs, documentName }: { runs: ReprocessRunRead[]; documentName: (id: string | null) => string | null }) {
-  if (runs.length === 0) return <p className="text-sm text-muted-foreground">This hasn't been reprocessed.</p>;
+export function ReprocessRuns({
+  runs,
+  documentName,
+}: {
+  runs: ReprocessRunRead[];
+  documentName: (id: string | null) => string | null;
+}) {
+  if (runs.length === 0)
+    return <p className="text-sm text-muted-foreground">This hasn't been reprocessed.</p>;
   return (
     <ul className="space-y-3">
       {[...runs]
@@ -175,10 +199,15 @@ export function ReprocessRuns({ runs, documentName }: { runs: ReprocessRunRead[]
               <span className="font-medium">{r.requested_by_name}</span>
               <span className="text-muted-foreground">· {formatDateTime(r.created_at)}</span>
               {r.completed_at ? (
-                <span className="text-muted-foreground">· finished {formatDateTime(r.completed_at)}</span>
+                <span className="text-muted-foreground">
+                  · finished {formatDateTime(r.completed_at)}
+                </span>
               ) : null}
               <span className="text-muted-foreground">
-                · {r.document_id ? `only ${documentName(r.document_id) ?? "one document"}` : "whole submission"}
+                ·{" "}
+                {r.document_id
+                  ? `only ${documentName(r.document_id) ?? "one document"}`
+                  : "whole submission"}
               </span>
             </div>
             <p className="mt-1 text-sm">“{r.reason}”</p>

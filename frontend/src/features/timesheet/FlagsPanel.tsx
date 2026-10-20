@@ -32,10 +32,15 @@ export function FlagsPanel({ flags }: { flags: FlagRead[] }) {
               groups[sev].map((f, i) => {
                 const other = otherTimesheetId(f);
                 return (
-                  <li key={`${sev}-${f.code}-${i}`} className={cn("rounded-md border border-l-4 px-3 py-2", ROW_TONE[sev])}>
+                  <li
+                    key={`${sev}-${f.code}-${i}`}
+                    className={cn("rounded-md border border-l-4 px-3 py-2", ROW_TONE[sev])}
+                  >
                     <div className="flex flex-wrap items-center gap-2">
                       <SeverityBadge severity={sev} />
-                      <span className="text-xs font-medium text-muted-foreground">{humanize(f.code)}</span>
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {humanize(f.code)}
+                      </span>
                     </div>
                     <p className="mt-1 text-sm">{f.message}</p>
                     {other ? (

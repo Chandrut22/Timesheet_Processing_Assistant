@@ -46,7 +46,11 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const str = (v: unknown, max = 255): string | undefined =>
-  typeof v === "string" && v.trim() ? v.trim().slice(0, max) : typeof v === "number" ? String(v) : undefined;
+  typeof v === "string" && v.trim()
+    ? v.trim().slice(0, max)
+    : typeof v === "number"
+      ? String(v)
+      : undefined;
 const oneOf = <T extends string>(v: unknown, values: readonly T[]): T | undefined =>
   typeof v === "string" && (values as readonly string[]).includes(v) ? (v as T) : undefined;
 const date = (v: unknown) => (typeof v === "string" && ISO_DATE.test(v) ? v : undefined);
