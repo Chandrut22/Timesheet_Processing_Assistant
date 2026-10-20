@@ -5,6 +5,10 @@ Supported formats:
     - Images: PNG, JPG, JPEG, TIFF, BMP, WEBP
     - DOCX
     - XLSX
+    - CSV and TXT (read directly, without Docling: plain_readers.py)
+
+A PDF whose table Docling takes for a picture ("<!-- image -->") gets its own text
+layer added, so the hours still reach the AI (plain_readers.with_pdf_text_layer).
 
 OCR uses RapidOCR with the ONNX Runtime backend.
 """
@@ -25,6 +29,13 @@ from docling.document_converter import (
 )
 
 from src.data.clients.document_limits import ReadLimit, prepare
+from src.data.clients.plain_readers import (
+    PlainReadError,
+    csv_to_markdown,
+    pdf_text_layer,
+    txt_to_text,
+    with_pdf_text_layer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +50,8 @@ SUPPORTED_EXTENSIONS = {
     ".webp",
     ".docx",
     ".xlsx",
+    ".csv",
+    ".txt",
 }
 
 
@@ -116,6 +129,17 @@ def read_document_with_limits(filename: str, data: bytes) -> tuple[str, ReadLimi
             f"Unsupported file type '{extension}'. Supported extensions: {supported}"
         )
 
+    if extension in (".csv", ".txt"):
+        try:
+            text = (
+                csv_to_markdown(data, filename)
+                if extension == ".csv"
+                else txt_to_text(data, filename)
+            )
+        except PlainReadError as exc:
+            raise DocumentReadError(str(exc)) from exc
+        return text, ReadLimit()
+
     prepared = prepare(filename, data)  # may raise DocumentTooLargeError (refuse mode)
 
     try:
@@ -132,6 +156,15 @@ def read_document_with_limits(filename: str, data: bytes) -> tuple[str, ReadLimi
             result = _converter().convert(document_stream, raises_on_error=True)
 
         markdown = result.document.export_to_markdown().strip()
+
+        if extension == ".pdf":
+            # Docling can take a table for a picture and drop its text: add the PDF's own
+            # text layer when it holds numbers (hours, dates) that are missing.
+            layer = pdf_text_layer(prepared.data, prepared.page_range)
+            before = len(markdown)
+            markdown = with_pdf_text_layer(markdown, layer) if markdown else layer
+            if len(markdown) != before:
+                logger.info("Added the PDF text layer for %s (%d characters)", filename, len(layer))
 
         if not markdown:
             raise DocumentReadError(f"No readable text found in '{filename}'.")
