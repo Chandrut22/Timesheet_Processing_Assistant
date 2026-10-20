@@ -25,7 +25,8 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,  # long jobs (OCR, LLM): take one at a time
     broker_connection_retry_on_startup=True,
     timezone="UTC",
-    # Celery beat (service "core-beat") runs the sweeper: lost jobs are queued again.
+    # Celery beat runs the sweeper: lost jobs are queued again. In compose, beat runs
+    # inside the core-worker container (`worker -B`), so run exactly one of those.
     beat_schedule={
         "sweep-lost-work": {
             "task": "core.sweep",

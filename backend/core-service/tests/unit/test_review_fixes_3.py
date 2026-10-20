@@ -73,3 +73,15 @@ def test_confirmation_error_is_a_409_with_its_own_code() -> None:
     error = ConfirmationRequiredError("2 approved timesheet(s) would be replaced")
     assert isinstance(error, ConflictError)
     assert (error.status_code, error.code) == (409, "confirmation_required")
+
+
+def test_classifier_switch_needs_a_real_key() -> None:
+    import pytest
+
+    from src.config.settings import Settings
+
+    assert Settings(_env_file=None).classifier_enabled is False  # off by default
+    for empty in ("", "   "):
+        with pytest.raises(ValueError, match="needs JEV_API_KEY"):
+            Settings(_env_file=None, classifier_enabled=True, jev_api_key=empty)
+    assert Settings(_env_file=None, classifier_enabled=True, jev_api_key="k").classifier_enabled

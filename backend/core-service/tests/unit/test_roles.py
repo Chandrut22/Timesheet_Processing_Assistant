@@ -1,5 +1,6 @@
 """Step 8: two roles. Admin-only routes refuse a reviewer before any work is done,
-and a token carrying an old role (super_admin / viewer) is rejected."""
+reviewers may use the payroll export, and a token carrying an old role
+(super_admin / viewer) is rejected."""
 
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -18,6 +19,7 @@ from src.constants.roles import RoleName
 from src.core.rbac import tokens
 from src.core.rbac.permissions import ADMINS, REVIEWERS
 from src.core.rbac.principal import Principal
+from src.data.clients.postgres import get_session
 
 SOME_ID = uuid.uuid4()
 
@@ -40,10 +42,16 @@ ADMIN_ONLY = [
     ("PATCH", f"/employees/{SOME_ID}", {"full_name": "X"}),
     ("POST", "/holidays", {"holiday_date": "2026-12-25"}),
     ("DELETE", f"/holidays/{SOME_ID}", None),
+]
+
+# The payroll export is a reviewer job too (since Oct 2026), in both file formats.
+REVIEWER_EXPORT = [
     ("GET", f"/exports/preview?company_id={SOME_ID}&week_start=2026-10-05", None),
     ("POST", "/exports", {"company_id": str(SOME_ID), "week_start": "2026-10-05"}),
     ("GET", "/exports", None),
     ("GET", f"/exports/{SOME_ID}", None),
+    ("GET", f"/exports/{SOME_ID}/download", None),
+    ("GET", f"/exports/{SOME_ID}/download?format=xlsx", None),
 ]
 
 
@@ -65,6 +73,35 @@ def test_reviewer_is_refused_on_admin_routes(
 ) -> None:
     response = client_as(RoleName.REVIEWER).request(method, path, json=body)
     assert response.status_code == 403, response.text
+
+
+class _NoDatabase(Exception):
+    """Raised when the route touches the database: reaching it means the role check
+    passed (the session itself is resolved before the role, so it can't raise yet)."""
+
+
+class _UnusableSession:
+    def __getattr__(self, name: str) -> object:
+        raise _NoDatabase(name)
+
+
+@pytest.mark.parametrize(("method", "path", "body"), REVIEWER_EXPORT)
+def test_reviewer_may_use_the_payroll_export(
+    method: str, path: str, body: dict[str, str] | None
+) -> None:
+    client = client_as(RoleName.REVIEWER)
+
+    async def unusable_session() -> _UnusableSession:
+        return _UnusableSession()
+
+    client.app.dependency_overrides[get_session] = unusable_session  # type: ignore[attr-defined]
+    with pytest.raises(_NoDatabase):  # past the role check, stopped at the first query
+        client.request(method, path, json=body)
+
+
+def test_unknown_download_format_is_refused() -> None:
+    response = client_as(RoleName.REVIEWER).get(f"/exports/{SOME_ID}/download?format=pdf")
+    assert response.status_code == 422
 
 
 # --- tokens ------------------------------------------------------------------------

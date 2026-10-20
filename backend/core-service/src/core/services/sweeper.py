@@ -1,5 +1,5 @@
 """The sweeper: finds work that was lost and puts it back in the queue. Runs every
-sweeper_interval_seconds from Celery beat (docker compose service "core-beat").
+sweeper_interval_seconds from Celery beat (in compose: inside core-worker, `worker -B`).
 
 Work gets lost when:
   - a submission was committed but queuing it failed (Redis down for a moment):
