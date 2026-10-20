@@ -6,6 +6,7 @@ submission. Run exactly ONE of these (docker compose service "core-email"):
 
 import asyncio
 import logging
+import time
 
 from imap_tools.errors import MailboxLoginError
 
@@ -14,7 +15,7 @@ from src.core.services.email_intake_service import accept_email, record_failed_e
 from src.data.clients import upload_buffer
 from src.data.clients.postgres import engine
 from src.data.clients.redis import redis_client
-from src.handlers.email.imap_source import FETCH_LIMIT, ImapSource
+from src.handlers.email.imap_source import FETCH_LIMIT, ImapSource, MailConnectionLost
 from src.handlers.email.listener import Cursor, process_new_mail
 from src.observability.logging.setup import configure_logging
 from src.observability.tracing.setup import setup_tracing, shutdown_tracing
@@ -33,10 +34,32 @@ async def _catch_up(source: ImapSource, cursor: Cursor) -> None:
         pass
 
 
+RECONNECT_AFTER_DROP_S = 2  # a working connection dropped: reconnect almost at once
+QUICK_RECONNECT_GAP_S = 60  # ... unless the last quick reconnect was this recent
+MAX_BACKOFF_S = 300
+
+
+def next_delay(
+    exc: BaseException, healthy_before: bool, backoff: int, since_last_quick: float
+) -> int:
+    """Seconds before reconnecting. A dropped connection that was working (healthy) gets
+    a quick reconnect, at most once a minute; anything else (login refused, database or
+    Redis down, drops in a row) waits `backoff`, which grows 5 s, 10 s, ... up to 5 min."""
+    if (
+        isinstance(exc, MailConnectionLost)
+        and healthy_before
+        and since_last_quick >= QUICK_RECONNECT_GAP_S
+    ):
+        return RECONNECT_AFTER_DROP_S
+    return backoff
+
+
 async def run() -> None:
     cursor = Cursor(redis_client)
     backoff = 5
+    last_quick = 0.0  # monotonic time of the last quick reconnect
     while True:
+        healthy = False  # becomes True once connected and caught up
         try:
             source = await asyncio.to_thread(ImapSource().__enter__)
             try:
@@ -48,6 +71,7 @@ async def run() -> None:
                 )
                 backoff = 5
                 await _catch_up(source, cursor)  # mail that came while we were away
+                healthy = True
                 while True:
                     # IDLE: the server tells us when mail arrives. The timeout is a safety
                     # net (and keeps the connection alive; Gmail drops IDLE after ~29 min).
@@ -56,15 +80,25 @@ async def run() -> None:
                     await _catch_up(source, cursor)
             finally:
                 await asyncio.to_thread(source.__exit__, None, None, None)
-        except MailboxLoginError:
+        except MailboxLoginError as exc:
             logger.error(
                 "IMAP login failed. Check IMAP_USER / IMAP_PASSWORD (Gmail: App Password)."
             )
-        except Exception:
+            delay = next_delay(exc, healthy, backoff, time.monotonic() - last_quick)
+        except MailConnectionLost as exc:
+            # One line, no traceback: the network or Gmail closed the connection. Nothing
+            # is lost: after reconnecting, the listener reads everything it missed.
+            logger.warning("Mail server connection lost (%s)", exc)
+            delay = next_delay(exc, healthy, backoff, time.monotonic() - last_quick)
+        except Exception as exc:
             logger.exception("Email listener error")
-        logger.info("Reconnecting in %s s", backoff)
-        await asyncio.sleep(backoff)
-        backoff = min(backoff * 2, 300)
+            delay = next_delay(exc, healthy, backoff, time.monotonic() - last_quick)
+        if delay == RECONNECT_AFTER_DROP_S:
+            last_quick = time.monotonic()
+        else:
+            backoff = min(backoff * 2, MAX_BACKOFF_S)
+        logger.info("Reconnecting in %s s", delay)
+        await asyncio.sleep(delay)
 
 
 async def main() -> None:
