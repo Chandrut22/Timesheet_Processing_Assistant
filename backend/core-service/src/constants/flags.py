@@ -28,6 +28,7 @@ FLAG_SEVERITY: dict[str, Severity] = {
     "duplicate_day": Severity.HIGH,
     "document_truncated": Severity.HIGH,  # the document was too long: pages may be missing
     "document_too_large": Severity.HIGH,  # pages / sheets over the limit were not read
+    "possible_missing_rows": Severity.HIGH,  # the sheet lists more people than were extracted
     # paid twice / to the wrong person
     "duplicate_week": Severity.HIGH,
     "duplicate_file": Severity.HIGH,
