@@ -133,10 +133,16 @@ services:
     image: timesheet-core:latest  # same image as core-service (built once)
     pull_policy: never            # local image only: never try Docker Hub
     # Each worker process loads Docling's models (~1 GB RAM): 2 processes need ~2-3 GB.
+    # -B also runs Celery beat inside this container: every 2 minutes it queues the
+    # sweeper, which re-queues lost work (queue down at upload time, worker died,
+    # scheduled retry lost). So run exactly ONE core-worker container; for more
+    # throughput raise WORKER_CONCURRENCY instead. (Several worker containers: move
+    # beat back to its own service, or the sweeper runs once per container.)
     command:
       [
         "celery", "-A", "src.control.workers.celery_app", "worker",
         "--loglevel=INFO", "--concurrency=${WORKER_CONCURRENCY:-2}", "-Q", "timesheets",
+        "-B", "--schedule=/tmp/celerybeat-schedule",
       ]
     env_file: ./core-service/.env
     environment:
@@ -151,26 +157,6 @@ services:
         condition: service_healthy
       core-service:
         condition: service_healthy  # healthy = core migrations already ran
-    restart: unless-stopped
-
-  core-beat:
-    # Runs the sweeper every 2 minutes: submissions whose job was lost (queue down at
-    # upload time, worker died, scheduled retry lost) are queued again. Run exactly ONE.
-    image: timesheet-core:latest
-    pull_policy: never
-    command:
-      [
-        "celery", "-A", "src.control.workers.celery_app", "beat",
-        "--loglevel=INFO", "--schedule=/tmp/celerybeat-schedule",
-      ]
-    env_file: ./core-service/.env
-    environment:
-      <<: *core-env
-    depends_on:
-      redis:
-        condition: service_healthy
-      core-service:
-        condition: service_healthy
     restart: unless-stopped
 
   core-email:

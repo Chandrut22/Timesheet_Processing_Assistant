@@ -6,9 +6,9 @@ class RoleName(StrEnum):
     table allows only these) and what the access token carries to core-service.
 
     admin    - everything: users, companies, employees, whitelist, holidays,
-               payroll export, plus every reviewer action
+               plus every reviewer action
     reviewer - reviews timesheets: upload, edit hours, match, approve / reject,
-               reprocess
+               reprocess, payroll export (preview, create, download CSV / Excel)
     """
 
     ADMIN = "admin"

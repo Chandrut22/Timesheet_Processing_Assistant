@@ -133,7 +133,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def check_classifier(self) -> "Settings":
-        if self.classifier_enabled and self.jev_api_key is None:
+        key = self.jev_api_key.get_secret_value().strip() if self.jev_api_key else ""
+        if self.classifier_enabled and not key:  # an empty JEV_API_KEY= counts as missing
             raise ValueError("CLASSIFIER_ENABLED=true needs JEV_API_KEY in .env")
         return self
 
