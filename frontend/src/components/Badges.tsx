@@ -36,13 +36,21 @@ const STATE_LABEL: Record<string, string> = {
   awaiting_review: "Awaiting review",
 };
 
-export const IN_PROGRESS_STATES = new Set(["received", "reading", "matching", "rule_checks", "reprocessing"]);
+const IN_PROGRESS_STATES = new Set([
+  "received",
+  "reading",
+  "matching",
+  "rule_checks",
+  "reprocessing",
+]);
 
 export function SubmissionStateBadge({ state }: { state: string }) {
   const busy = IN_PROGRESS_STATES.has(state);
   return (
     <Badge variant={STATE_TONE[state] ?? "secondary"}>
-      {busy ? <span className="size-1.5 animate-pulse rounded-full bg-current" aria-hidden /> : null}
+      {busy ? (
+        <span className="size-1.5 animate-pulse rounded-full bg-current" aria-hidden />
+      ) : null}
       {STATE_LABEL[state] ?? humanize(state)}
     </Badge>
   );
@@ -78,7 +86,10 @@ export function SeverityDot({ severity }: { severity: string | null }) {
   const label = severity ? `${humanize(severity)} severity` : "No flags";
   return (
     <span
-      className={cn("inline-block size-2.5 rounded-full", severity ? DOT[severity] : "bg-emerald-500")}
+      className={cn(
+        "inline-block size-2.5 rounded-full",
+        severity ? DOT[severity] : "bg-emerald-500",
+      )}
       title={label}
       aria-label={label}
       role="img"

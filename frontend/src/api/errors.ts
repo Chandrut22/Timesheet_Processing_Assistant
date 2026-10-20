@@ -41,7 +41,11 @@ export function locToField(loc: unknown): string {
 }
 
 function humanizeField(field: string): string {
-  const last = field.split(".").filter((p) => !/^\d+$/.test(p)).pop() ?? field;
+  const last =
+    field
+      .split(".")
+      .filter((p) => !/^\d+$/.test(p))
+      .pop() ?? field;
   const words = last.replace(/_/g, " ");
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
@@ -118,7 +122,8 @@ async function readBody(data: unknown): Promise<unknown> {
 export async function toApiError(err: unknown): Promise<ApiError> {
   if (err instanceof ApiError) return err;
   if (isAxiosError(err)) {
-    if (!err.response) return new ApiError({ status: 0, message: NETWORK_MESSAGE, code: "network" });
+    if (!err.response)
+      return new ApiError({ status: 0, message: NETWORK_MESSAGE, code: "network" });
     const data = await readBody(err.response.data);
     const headers = err.response.headers as Record<string, unknown> | undefined;
     return buildApiError(err.response.status, data, headers?.["retry-after"]);

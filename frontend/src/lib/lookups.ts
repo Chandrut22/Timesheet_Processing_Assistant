@@ -24,14 +24,18 @@ export function useCompanyMap(): Map<string, CompanyRead> {
   return useMemo(() => new Map((data ?? []).map((c) => [c.id, c])), [data]);
 }
 
-function combineEmployees(results: { data?: { items: EmployeeRead[] } }[]): Map<string, EmployeeRead> {
+function combineEmployees(
+  results: { data?: { items: EmployeeRead[] } }[],
+): Map<string, EmployeeRead> {
   const map = new Map<string, EmployeeRead>();
   for (const r of results) for (const e of r.data?.items ?? []) map.set(e.id, e);
   return map;
 }
 
 /** Employees for each company id given (first 100 per company), merged into one map. */
-export function useEmployeeMap(companyIds: (string | null | undefined)[]): Map<string, EmployeeRead> {
+export function useEmployeeMap(
+  companyIds: (string | null | undefined)[],
+): Map<string, EmployeeRead> {
   const ids = useMemo(
     () => [...new Set(companyIds.filter((x): x is string => !!x))].sort(),
     [companyIds],
@@ -55,14 +59,18 @@ export function timesheetEmployeeName(
   const fromApi = (t as TimesheetRead & MaybeNamed).employee_name;
   if (t.employee_id) {
     const e = employees.get(t.employee_id);
-    if (typeof fromApi === "string" && fromApi) return { name: fromApi, matched: true, code: e?.employee_code ?? null };
+    if (typeof fromApi === "string" && fromApi)
+      return { name: fromApi, matched: true, code: e?.employee_code ?? null };
     if (e) return { name: e.full_name, matched: true, code: e.employee_code };
     return { name: t.extracted_name ?? "Matched employee", matched: true, code: t.extracted_code };
   }
   return { name: t.extracted_name ?? "Unknown", matched: false, code: t.extracted_code };
 }
 
-export function timesheetCompanyName(t: TimesheetRead, companies: Map<string, CompanyRead>): string {
+export function timesheetCompanyName(
+  t: TimesheetRead,
+  companies: Map<string, CompanyRead>,
+): string {
   const fromApi = (t as TimesheetRead & MaybeNamed).company_name;
   if (typeof fromApi === "string" && fromApi) return fromApi;
   if (t.company_id) return companies.get(t.company_id)?.name ?? "Unknown company";

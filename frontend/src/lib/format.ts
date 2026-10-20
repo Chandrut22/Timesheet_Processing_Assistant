@@ -8,7 +8,10 @@ function toDate(value: string | Date | null | undefined): Date | null {
 }
 
 /** 1234.5, 'INR' -> '₹1,234.50'. Null stays null so callers can show "rate missing". */
-export function formatMoney(amount: number | null | undefined, currency?: string | null): string | null {
+export function formatMoney(
+  amount: number | null | undefined,
+  currency?: string | null,
+): string | null {
   if (amount === null || amount === undefined || Number.isNaN(amount)) return null;
   const cur = currency && /^[A-Z]{3}$/.test(currency) ? currency : undefined;
   try {
@@ -95,7 +98,15 @@ export function toIsoDate(d: Date): string {
   return format(d, "yyyy-MM-dd");
 }
 
-export const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+export const WEEKDAYS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
 
 /** Backend weekday (0 = Monday … 6 = Sunday) of an ISO date. */
 export function backendWeekday(isoDate: string): number | null {
