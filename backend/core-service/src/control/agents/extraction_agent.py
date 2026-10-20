@@ -52,11 +52,19 @@ async def extract_timesheets(
     received_at: datetime,
     email_subject: str | None = None,
     email_body: str | None = None,
+    part: tuple[int, int] | None = None,
 ) -> ExtractionResult:
+    """`part` = (n, of) when a big sheet was cut into pieces (chunking.py): this call
+    sees only piece n, and the AI is told so."""
     context = [
         f"File name: {filename}",
         f"Received: {received_at:%Y-%m-%d} ({received_at:%A})",
     ]
+    if part is not None:
+        context.append(
+            f"This is part {part[0]} of {part[1]} of one sheet, cut between people. "
+            "Extract every person in this part; the other parts are read separately."
+        )
     if email_subject:
         context.append(f"Email subject: {email_subject}")
     if email_body:
