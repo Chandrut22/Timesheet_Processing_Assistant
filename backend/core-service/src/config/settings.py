@@ -68,6 +68,13 @@ class Settings(BaseSettings):
     # reported as "too many people in one document" (no 3 x 3 retries). None = provider default.
     llm_max_output_tokens: int | None = 16_000
     # long documents are cut to this before the LLM
+    # Big sheets (many people): cut into pieces of CHUNK_PEOPLE people, one AI call per
+    # piece (at most CHUNK_PARALLEL at a time), answers merged. Only when the document's
+    # tables list more than CHUNK_ABOVE_PEOPLE people; smaller ones go in one call.
+    chunking_enabled: bool = True
+    chunk_above_people: int = Field(default=25, ge=1)
+    chunk_people: int = Field(default=15, ge=1, le=100)
+    chunk_parallel: int = Field(default=2, ge=1, le=8)
 
     # --- review ---
     auto_approve_enabled: bool = True
@@ -80,7 +87,11 @@ class Settings(BaseSettings):
     imap_user: str | None = None
     imap_password: SecretStr | None = None  # Gmail: an App Password, never the real one
     imap_folder: str = "INBOX"
-    email_idle_timeout: int = 300  # seconds in IDLE before a safety re-check
+    # Seconds in one IDLE round before ending it and checking again. Kept short: an idle
+    # connection can be closed silently by a router / NAT / Docker Desktop well before
+    # Gmail's own ~29 min limit, and the next round would then fail with SSLEOFError.
+    email_idle_timeout: int = 120
+    imap_timeout_s: int = 60  # any other IMAP call (fetch, logout) gives up after this
     email_start_from: Literal["new", "backfill"] = "new"  # first run: only new mail, or recent too
     email_backfill_days: int = 2
     email_require_sender_auth: bool = True  # our mail server must have verified SPF/DKIM/DMARC
