@@ -47,7 +47,9 @@ from src.core.services.attachment_classifier import (
     describe,
 )
 from src.core.services.audit import record_event
+from src.core.services.chunking import Piece, merge_results, split_for_extraction
 from src.core.services.company_matcher import CompanyRecord, decide_company
+from src.core.services.document_tables import PersonRows, count_people, missing_rows_flag
 from src.core.services.email_intake_service import BODY_FILENAME
 from src.core.services.employee_matcher import (
     EmployeeRecord,
@@ -86,9 +88,15 @@ from src.observability.tracing.spans import (
     pipeline_span,
     set_attributes,
 )
+from src.schemas.extraction import ExtractionResult
 from src.utils.text import db_safe
 
 logger = logging.getLogger(__name__)
+
+
+class _PieceSkipped(Exception):
+    """A piece not sent to the AI because another piece of the same document failed."""
+
 
 CLAIMABLE = (SubmissionStatus.RECEIVED, SubmissionStatus.FAILED)
 
@@ -567,6 +575,72 @@ class ProcessingService:
         document.error = f"Not a timesheet (classifier: {found}). Reprocess to extract it anyway."
         return True
 
+    async def _extract_pieces(
+        self,
+        submission: Submission,
+        document: Document,
+        pieces: list[Piece],
+        parts: list[dict[str, Any]],
+    ) -> ExtractionResult:
+        """One AI call per piece, at most CHUNK_PARALLEL at a time, answers merged. If a
+        piece fails, the pieces still waiting are skipped and the error is raised as is
+        (so it is classified and retried like any extraction failure): no partial set of
+        timesheets is ever saved. `parts` collects one line per piece for the step log."""
+        gate = asyncio.Semaphore(settings.chunk_parallel)
+        failed = asyncio.Event()
+        total = len(pieces)
+
+        async def one(number: int, piece: Piece) -> ExtractionResult:
+            async with gate:
+                if failed.is_set():
+                    raise _PieceSkipped
+                watch = Stopwatch()
+                try:
+                    with pipeline_span(
+                        "ai.extract",
+                        characters=len(piece.text),
+                        truncated=len(piece.text) > settings.llm_max_input_chars,
+                        model=settings.llm_model,
+                        part=number if total > 1 else None,
+                        parts=total if total > 1 else None,
+                        people=piece.people or None,
+                    ) as span:
+                        result = await extract_timesheets(
+                            document_text=piece.text,
+                            filename=document.filename,
+                            received_at=submission.received_at,
+                            email_subject=submission.subject,
+                            email_body=submission.body_text,
+                            part=(number, total) if total > 1 else None,
+                        )
+                        span.set_attribute("timesheets", len(result.timesheets))
+                except BaseException:
+                    failed.set()
+                    parts.append(
+                        {"part": number, "people": piece.people, "ms": watch.ms, "result": "error"}
+                    )
+                    raise
+                parts.append(
+                    {
+                        "part": number,
+                        "people": piece.people,
+                        "ms": watch.ms,
+                        "timesheets": len(result.timesheets),
+                    }
+                )
+                return result
+
+        outcomes = await asyncio.gather(
+            *(one(n, p) for n, p in enumerate(pieces, start=1)), return_exceptions=True
+        )
+        parts.sort(key=lambda p: int(p["part"]))
+        errors = [o for o in outcomes if isinstance(o, BaseException)]
+        real = [e for e in errors if not isinstance(e, _PieceSkipped)]
+        if real or errors:
+            raise (real or errors)[0]
+        results = [o for o in outcomes if isinstance(o, ExtractionResult)]
+        return results[0] if total == 1 else merge_results(results)
+
     async def _extract(
         self, submission: Submission, document: Document, company: Company | None
     ) -> None:
@@ -574,26 +648,29 @@ class ProcessingService:
         if await self._classified_as_not_timesheet(submission, document):
             return  # the optional classifier is sure this is not a timesheet: no AI call
         watch = Stopwatch()
+        text = document.extracted_text or ""
+        # Big sheets are cut into pieces of CHUNK_PEOPLE people (see chunking.py);
+        # everything else is one piece, exactly as before.
+        pieces = (
+            split_for_extraction(
+                text,
+                people_per_piece=settings.chunk_people,
+                above_people=settings.chunk_above_people,
+            )
+            if settings.chunking_enabled
+            else [Piece(text, 0)]
+        )
+        people = count_people(text)  # None = no table with a name / code column
+        parts: list[dict[str, Any]] = []
         step_input = {
             "file": document.filename,
-            "characters": len(document.extracted_text or ""),
-            "truncated": len(document.extracted_text or "") > settings.llm_max_input_chars,
+            "characters": len(text),
+            "truncated": any(len(p.text) > settings.llm_max_input_chars for p in pieces),
+            "people_in_tables": people.total if people is not None else None,
+            "parts": len(pieces),
         }
         try:
-            with pipeline_span(
-                "ai.extract",
-                characters=step_input["characters"],
-                truncated=step_input["truncated"],
-                model=settings.llm_model,
-            ) as span:
-                result = await extract_timesheets(
-                    document_text=document.extracted_text or "",
-                    filename=document.filename,
-                    received_at=submission.received_at,
-                    email_subject=submission.subject,
-                    email_body=submission.body_text,
-                )
-                span.set_attribute("timesheets", len(result.timesheets))
+            result = await self._extract_pieces(submission, document, pieces, parts)
         except Exception as exc:
             # Usually temporary (model down, timeout): log the step, then let the whole
             # submission fail so it can be retried or reprocessed.
@@ -606,11 +683,26 @@ class ProcessingService:
                 message=f"Could not extract timesheet details from {document.filename}: "
                 "the AI model did not answer or returned invalid data.",
                 input=step_input,
+                output={"parts": parts} if len(pieces) > 1 else {},
                 error_details=repr(exc),
                 duration_ms=watch.ms,
             )
             await self.session.commit()
             raise
+
+        missing_flag = None
+        missing: list[PersonRows] = []
+        if people is not None and result.timesheets:
+            found = [(t.employee_code, t.employee_name) for t in result.timesheets]
+            missing = people.missing(found)
+            if missing:
+                missing_flag = missing_rows_flag(people, missing)
+        counts: dict[str, Any] = {
+            "people_in_tables": people.total if people is not None else None,
+            "people_missing": len(missing),
+        }
+        if len(pieces) > 1:
+            counts["parts"] = parts
 
         if not result.timesheets:
             document.error = "No timesheet found in this document."
@@ -622,7 +714,7 @@ class ProcessingService:
                 result=StepResult.WARNING,
                 message=f"{document.filename} is not a timesheet",
                 input=step_input,
-                output={"timesheets": 0},
+                output={"timesheets": 0, **counts},
                 duration_ms=watch.ms,
             )
             return
@@ -631,10 +723,17 @@ class ProcessingService:
             submission_id=submission.id,
             document_id=document.id,
             step=StepName.EXTRACT,
-            result=StepResult.SUCCESS,
-            message=f"Found {len(result.timesheets)} timesheet(s) in {document.filename}",
+            result=StepResult.WARNING if missing_flag else StepResult.SUCCESS,
+            message=f"Found {len(result.timesheets)} timesheet(s) in {document.filename}"
+            + (f" in {len(pieces)} parts" if len(pieces) > 1 else "")
+            + (
+                f"; {counts['people_missing']} of {people.total} people on the sheet missing"
+                if missing_flag and people is not None
+                else ""
+            ),
             input=step_input,
             output={
+                **counts,
                 "timesheets": [
                     {
                         "employee_name": t.employee_name,
@@ -644,7 +743,7 @@ class ProcessingService:
                         "confidence": t.confidence,
                     }
                     for t in result.timesheets
-                ]
+                ],
             },
             duration_ms=watch.ms,
         )
@@ -652,7 +751,7 @@ class ProcessingService:
         companies = await self._company_records()
         sender = companies.get(submission.company_id) if submission.company_id else None
         is_email_body = document.filename == BODY_FILENAME
-        truncated_flag = truncation_flag(document.extracted_text or "")
+        truncated_flag = truncation_flag(text) if step_input["truncated"] else None
         size_flag = too_large_flag(document.read_limit)  # pages / sheets not read
 
         # 1. Which company and which employee is each timesheet for?
@@ -672,7 +771,11 @@ class ProcessingService:
             )
             for timesheet in build_timesheets(extracted, ctx):  # one per week
                 match_started = now_ns()
-                extra = [f for f in (decision.flag, truncated_flag, size_flag) if f is not None]
+                extra = [
+                    f
+                    for f in (decision.flag, truncated_flag, size_flag, missing_flag)
+                    if f is not None
+                ]
                 if extra:
                     timesheet.flags = [*timesheet.flags, *extra]
                 timesheet.version = version
