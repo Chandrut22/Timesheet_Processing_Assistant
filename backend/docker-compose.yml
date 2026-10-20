@@ -77,11 +77,29 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # --- frontend --------------------------------------------------------------
+
+  frontend:
+    build: ../frontend
+    ports:
+      - "80:8080"
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      core-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
+    restart: unless-stopped
+
   # --- auth-service ---------------------------------------------------------
 
   auth-service:
     build: ./auth-service
-    # Migrate, then start. If the migration fails, the container stops (and restarts).
     command: ["sh", "-c", "alembic upgrade head && exec uvicorn src.main:app --host 0.0.0.0 --port 8001"]
     env_file: ./auth-service/.env
     environment: *auth-env
