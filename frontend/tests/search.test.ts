@@ -11,7 +11,13 @@ describe("review queue URL", () => {
   });
 
   it("drops bad values instead of sending them", () => {
-    const s = parseReviewSearch({ status: "nope", severity: "high", page: "0", company_id: "x", min_conf: 80 });
+    const s = parseReviewSearch({
+      status: "nope",
+      severity: "high",
+      page: "0",
+      company_id: "x",
+      min_conf: 80,
+    });
     expect(s.status).toBeUndefined();
     expect(s.severity).toBe("high");
     expect(s.page).toBeUndefined();

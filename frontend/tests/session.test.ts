@@ -6,7 +6,8 @@ const fake = vi.hoisted(() => ({
   mode: "ok" as Mode,
   refreshCalls: 0,
   fail(mode: Mode) {
-    if (mode === "down") throw { isAxiosError: true, message: "Network Error", response: undefined };
+    if (mode === "down")
+      throw { isAxiosError: true, message: "Network Error", response: undefined };
     const status = mode === "refused" ? 401 : 500;
     throw { isAxiosError: true, message: "fail", response: { status, data: {}, headers: {} } };
   },
@@ -15,7 +16,9 @@ const fake = vi.hoisted(() => ({
       fake.refreshCalls += 1;
       await new Promise((r) => setTimeout(r, 10));
       if (fake.mode !== "ok") fake.fail(fake.mode);
-      return { data: { access_token: `tok${fake.refreshCalls}`, token_type: "bearer", expires_in: 900 } };
+      return {
+        data: { access_token: `tok${fake.refreshCalls}`, token_type: "bearer", expires_in: 900 },
+      };
     }
     return { data: {} };
   },
@@ -26,7 +29,10 @@ const fake = vi.hoisted(() => ({
 
 vi.mock("axios", async (importOriginal) => {
   const actual = await importOriginal<typeof import("axios")>();
-  return { ...actual, default: { ...actual.default, create: () => ({ post: fake.post, get: fake.get }) } };
+  return {
+    ...actual,
+    default: { ...actual.default, create: () => ({ post: fake.post, get: fake.get }) },
+  };
 });
 
 const session = await import("../src/api/session");

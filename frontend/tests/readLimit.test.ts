@@ -11,13 +11,17 @@ describe("describeReadLimit", () => {
 
   it("describes pages, sheets and rows", () => {
     expect(describeReadLimit({ pages_read: 50, total_pages: 100 })).toBe("Read pages 1–50 of 100");
-    expect(describeReadLimit({ sheets_skipped: ["Feb", "Mar"] })).toBe("2 sheets not read (Feb, Mar)");
+    expect(describeReadLimit({ sheets_skipped: ["Feb", "Mar"] })).toBe(
+      "2 sheets not read (Feb, Mar)",
+    );
     expect(describeReadLimit({ sheets_read: 3, total_sheets: 5 })).toBe("2 sheets not read");
     expect(describeReadLimit({ rows_read: 500, total_rows: 900 })).toBe("Read 500 of 900 rows");
   });
 
   it("passes a plain message through", () => {
-    expect(describeReadLimit("Only the first 50 pages were read")).toBe("Only the first 50 pages were read");
+    expect(describeReadLimit("Only the first 50 pages were read")).toBe(
+      "Only the first 50 pages were read",
+    );
     expect(describeReadLimit({ message: "Trimmed" })).toBe("Trimmed");
   });
 });
