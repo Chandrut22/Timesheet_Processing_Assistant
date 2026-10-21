@@ -10,8 +10,13 @@
 #   cd backend
 #   docker compose up -d --build
 #
-# Needs backend/.env with POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB,
-# auth-service/.env and core-service/.env, and auth-service/keys/ (JWT key pair).
+# Needs backend/.env with POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB and
+# REDIS_PASSWORD, auth-service/.env and core-service/.env, and auth-service/keys/.
+#
+# This base file publishes only the frontend (port 80) and Jaeger's UI. The APIs,
+# Postgres and Redis are reachable only inside Docker. docker-compose.override.yml
+# (loaded automatically by "docker compose up") adds their host ports for local
+# development. On a server, skip it: docker compose -f docker-compose.yml up -d
 
 name: timesheet
 
@@ -25,10 +30,14 @@ x-otel-env: &otel-env
   OTEL_ENABLED: ${OTEL_ENABLED:-true}
   OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
 
+# Redis requires a password (REDIS_PASSWORD in backend/.env; letters and digits only,
+# because it sits inside the URL).
+x-redis-url: &redis-url redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in backend/.env}@redis:6379/0
+
 x-auth-env: &auth-env
   <<: *otel-env
   DATABASE_URL: *db-url
-  REDIS_URL: redis://redis:6379/0
+  REDIS_URL: *redis-url
   JWT_PRIVATE_KEY_PATH: /app/keys/jwt_private.pem
   JWT_PUBLIC_KEY_PATH: /app/keys/jwt_public.pem
   OTEL_SERVICE_NAME: auth-service
@@ -36,7 +45,7 @@ x-auth-env: &auth-env
 x-core-env: &core-env
   <<: *otel-env
   DATABASE_URL: *db-url
-  REDIS_URL: redis://redis:6379/0
+  REDIS_URL: *redis-url
   JWT_PUBLIC_KEY_PATH: /app/keys/jwt_public.pem
   UPLOAD_DIR: /data/uploads  # the shared "uploads" volume (files waiting for the worker)
 
@@ -49,8 +58,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in backend/.env}
       POSTGRES_DB: ${POSTGRES_DB:-timesheet_db}
-    ports:
-      - "5433:5432"  # 5432 is taken by the Windows PostgreSQL service
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -65,9 +72,15 @@ services:
     # Redis only holds the job queue, sessions, codes and counters (no files), so a small
     # memory cap is plenty. noeviction: when full, writes fail loudly instead of Redis
     # silently dropping queued jobs or sign-in sessions.
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
-    ports:
-      - "6380:6379"
+    # --requirepass: every client must send REDIS_PASSWORD (the services get it in REDIS_URL).
+    command:
+      [
+        "redis-server", "--appendonly", "yes", "--maxmemory", "256mb",
+        "--maxmemory-policy", "noeviction",
+        "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD in backend/.env}",
+      ]
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD}  # lets the healthcheck's redis-cli sign in
     volumes:
       - redisdata:/data
     healthcheck:
@@ -105,8 +118,6 @@ services:
     environment: *auth-env
     volumes:
       - ./auth-service/keys:/app/keys:ro  # private + public key (only auth signs tokens)
-    ports:
-      - "8001:8001"
     depends_on:
       postgres:
         condition: service_healthy
@@ -132,8 +143,6 @@ services:
       # ONLY the public key: core verifies tokens, it can never create them
       - ./auth-service/keys/jwt_public.pem:/app/keys/jwt_public.pem:ro
       - uploads:/data/uploads  # uploaded files wait here for the worker
-    ports:
-      - "8002:8002"
     depends_on:
       postgres:
         condition: service_healthy
