@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query, status
 
 from src.api.rest.dependencies import Admin, CurrentPrincipal, PaginationDep, SessionDep
+from src.api.rest.routes.importing import add_import_routes
 from src.core.services.company_service import CompanyService
 from src.schemas.common import Page
 from src.schemas.company import (
@@ -79,3 +80,6 @@ async def remove_whitelist(
     company_id: uuid.UUID, entry_id: uuid.UUID, session: SessionDep, _: Admin
 ) -> None:
     await CompanyService(session).remove_whitelist(company_id, entry_id)
+
+
+add_import_routes(router, "companies")  # GET /companies/import/template, POST /companies/import

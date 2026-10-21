@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query, status
 
 from src.api.rest.dependencies import Admin, CurrentPrincipal, SessionDep
+from src.api.rest.routes.importing import add_import_routes
 from src.core.services.holiday_service import HolidayService
 from src.schemas.holiday import HolidayCreate, HolidayRead
 
@@ -29,3 +30,6 @@ async def create_holiday(body: HolidayCreate, session: SessionDep, _: Admin) -> 
 @router.delete("/{holiday_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_holiday(holiday_id: uuid.UUID, session: SessionDep, _: Admin) -> None:
     await HolidayService(session).delete(holiday_id)
+
+
+add_import_routes(router, "holidays")  # GET /holidays/import/template, POST /holidays/import
