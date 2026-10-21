@@ -5,7 +5,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.api.middleware.auth import AuthMiddleware
 from src.api.middleware.error_handlers import register_exception_handlers
+from src.api.middleware.rate_limit import Limit, RateLimitMiddleware
 from src.api.rest.routes import (
     audit,
     companies,
@@ -19,7 +21,8 @@ from src.api.rest.routes import (
     uploads,
 )
 from src.config.settings import settings
-from src.core.rbac.tokens import public_key
+from src.core.rbac.principal import Principal
+from src.core.rbac.tokens import decode_access_token, public_key
 from src.data.clients import upload_buffer
 from src.data.clients.postgres import engine
 from src.data.clients.redis import redis_client
@@ -59,10 +62,36 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url="/docs" if settings.docs_enabled else None,
     redoc_url=None,
+    openapi_url="/openapi.json" if settings.docs_enabled else None,
 )
 register_exception_handlers(app)
 # Tracing (only if OTEL_ENABLED): requests, SQL, Redis, and the queued Celery jobs.
 setup_tracing(app=app, engine=engine, celery=True)
+# Middleware order: Starlette runs the LAST added first (outermost), so requests pass
+# CORS -> auth -> rate limit -> routes. CORS is outermost, so a 401 or 429 still carries
+# the CORS headers the browser needs to read it; auth runs before the rate limit, so the
+# limit can count per signed-in user.
+app.add_middleware(
+    RateLimitMiddleware,
+    redis=redis_client,
+    prefix="core",
+    limits={
+        "upload": Limit.parse(settings.rate_limit_upload),
+        "export": Limit.parse(settings.rate_limit_export),
+        "default": Limit.parse(settings.rate_limit_default),
+    },
+    enabled=settings.rate_limit_enabled,
+    fail_open=settings.rate_limit_fail_open,
+    trusted_proxy_hops=settings.trusted_proxy_hops,
+    exempt_paths=settings.rate_limit_exempt_paths,
+    identify=lambda principal: str(principal.id) if isinstance(principal, Principal) else None,
+)
+app.add_middleware(
+    AuthMiddleware,
+    verify=decode_access_token,
+    public_paths=settings.auth_public_paths,
+    docs_enabled=settings.docs_enabled,
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,

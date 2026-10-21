@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Query, status
+from fastapi import Depends, HTTPException, Query, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,8 +33,15 @@ UNAUTHORIZED = HTTPException(
 
 
 async def get_principal(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
 ) -> Principal:
+    """The caller verified by the auth middleware (request.state.principal): the token
+    is not decoded a second time. Without the middleware (an app built in a test) the
+    token is verified here instead, so a route is never open by accident."""
+    principal = getattr(request.state, "principal", None)
+    if isinstance(principal, Principal):
+        return principal
     if credentials is None:
         raise UNAUTHORIZED
     try:

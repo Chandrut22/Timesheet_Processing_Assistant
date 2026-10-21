@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query, status
 
 from src.api.rest.dependencies import Admin, CurrentPrincipal, PaginationDep, SessionDep
+from src.api.rest.routes.importing import add_import_routes
 from src.core.services.employee_service import EmployeeService
 from src.schemas.common import Page
 from src.schemas.employee import EmployeeCreate, EmployeeRead, EmployeeUpdate
@@ -48,3 +49,6 @@ async def update_employee(
     employee_id: uuid.UUID, body: EmployeeUpdate, session: SessionDep, _: Admin
 ) -> EmployeeRead:
     return EmployeeRead.model_validate(await EmployeeService(session).update(employee_id, body))
+
+
+add_import_routes(router, "employees")  # GET /employees/import/template, POST /employees/import
