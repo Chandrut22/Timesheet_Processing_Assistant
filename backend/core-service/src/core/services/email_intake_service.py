@@ -41,6 +41,7 @@ from src.data.models import Document, Submission
 from src.data.repositories.company_repository import WhitelistRepository
 from src.handlers.email.parser import Attachment, ParsedEmail
 from src.observability.tracing.spans import pipeline_span, set_attributes
+from src.utils.file_checks import check_file
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,13 @@ def _document_for(attachment: Attachment) -> tuple[Document, bool]:
     elif attachment.is_inline and extension in IMAGE_EXTENSIONS:
         reason = "Inline image skipped (logo or email signature)."
     else:
-        reason = skip_reason(extension, len(data))
+        reason = skip_reason(extension, len(data)) or check_file(
+            filename,
+            extension,
+            data,
+            max_uncompressed_mb=settings.max_uncompressed_mb,
+            max_ratio=settings.max_compression_ratio,
+        )
 
     document = Document(
         filename=filename,

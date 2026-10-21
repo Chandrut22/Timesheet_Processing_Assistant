@@ -24,6 +24,7 @@ from src.data.clients import upload_buffer
 from src.data.models import Document, Submission
 from src.data.repositories.company_repository import CompanyRepository
 from src.observability.tracing.spans import set_attributes
+from src.utils.file_checks import check_file
 from src.utils.text import db_safe
 
 
@@ -71,7 +72,15 @@ class UploadService:
                 raise ValidationFailedError(f"'{filename}' is empty.")
 
             extension = PurePath(filename).suffix.lower()
-            reason = skip_reason(extension, len(data))
+            # Supported type? Then: does the content match the extension, and is a
+            # DOCX / XLSX safe to unpack? A mismatch is recorded, never read.
+            reason = skip_reason(extension, len(data)) or check_file(
+                filename,
+                extension,
+                data,
+                max_uncompressed_mb=settings.max_uncompressed_mb,
+                max_ratio=settings.max_compression_ratio,
+            )
             document = Document(
                 filename=filename,
                 content_type=SUPPORTED_EXTENSIONS.get(

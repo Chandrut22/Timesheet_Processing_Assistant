@@ -10,7 +10,7 @@ from src.data.models import AuditEvent
 def record_event(
     session: AsyncSession,
     *,
-    entity_type: Literal["timesheet", "submission", "export"],
+    entity_type: Literal["timesheet", "submission", "export", "import"],
     entity_id: uuid.UUID,
     action: str,
     actor: Principal | None = None,
