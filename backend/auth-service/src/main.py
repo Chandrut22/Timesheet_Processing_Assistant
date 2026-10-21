@@ -8,11 +8,13 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
+from src.api.middleware.auth import AuthMiddleware
+from src.api.middleware.rate_limit import Limit, RateLimitMiddleware
 from src.api.rest.dependencies import SessionDep
 from src.api.rest.routes import auth, users
 from src.config.settings import settings
 from src.core.exceptions import AppError
-from src.core.security import private_key, public_key
+from src.core.security import decode_access_token, private_key, public_key
 from src.data.clients.postgres import engine
 from src.data.clients.redis import redis_client
 from src.data.seed_data import run_seed
@@ -45,10 +47,44 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     shutdown_tracing()
 
 
-app = FastAPI(title=settings.app_name, lifespan=lifespan)
+app = FastAPI(
+    title=settings.app_name,
+    lifespan=lifespan,
+    # Off unless DOCS_ENABLED=true: a deployed service does not publish its API map.
+    docs_url="/docs" if settings.docs_enabled else None,
+    redoc_url="/redoc" if settings.docs_enabled else None,
+    openapi_url="/openapi.json" if settings.docs_enabled else None,
+)
 setup_tracing(app=app, engine=engine)  # only if OTEL_ENABLED
 # allow_credentials: the refresh token is an httpOnly cookie, so the frontend calls
 # /auth/refresh and /auth/logout with credentials: "include".
+# Middleware order: Starlette runs the LAST added first (outermost), so requests pass
+# CORS -> auth -> rate limit -> routes. CORS is outermost, so a 401 or 429 still carries
+# the CORS headers the browser needs to read it; auth runs before the rate limit, so the
+# limit can count per signed-in user.
+app.add_middleware(
+    RateLimitMiddleware,
+    redis=redis_client,
+    prefix="auth",
+    limits={
+        "strict": Limit.parse(settings.rate_limit_strict),
+        "upload": Limit.parse(settings.rate_limit_upload),
+        "default": Limit.parse(settings.rate_limit_default),
+    },
+    enabled=settings.rate_limit_enabled,
+    fail_open=settings.rate_limit_fail_open,
+    trusted_proxy_hops=settings.trusted_proxy_hops,
+    exempt_paths=settings.rate_limit_exempt_paths,
+    identify=lambda claims: (
+        str(claims.get("sub")) if isinstance(claims, dict) else None
+    ),
+)
+app.add_middleware(
+    AuthMiddleware,
+    verify=decode_access_token,
+    public_paths=settings.auth_public_paths,
+    docs_enabled=settings.docs_enabled,
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
