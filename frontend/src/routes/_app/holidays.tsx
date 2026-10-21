@@ -28,6 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ImportButton } from "@/features/import/ImportDialog";
 import { applyFieldErrors } from "@/lib/forms";
 import { formatDayLabel } from "@/lib/format";
 import { useCompanyMap } from "@/lib/lookups";
@@ -103,6 +104,14 @@ function HolidaysPage() {
       <PageHeader
         title="Holidays"
         description="Hours worked on these days are paid at the holiday rate. A holiday with no company applies to all of them."
+        actions={
+          isAdmin ? (
+            <ImportButton
+              resource="holidays"
+              onImported={() => void queryClient.invalidateQueries({ queryKey: qk.holidays.all })}
+            />
+          ) : null
+        }
       />
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
