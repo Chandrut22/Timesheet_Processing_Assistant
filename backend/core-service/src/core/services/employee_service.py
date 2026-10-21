@@ -39,6 +39,14 @@ class EmployeeService:
         )
 
     async def create(self, data: EmployeeCreate) -> Employee:
+        employee = await self.add_new(data)
+        await commit_or_conflict(self.session, DUPLICATE)
+        await self.session.refresh(employee)
+        return employee
+
+    async def add_new(self, data: EmployeeCreate) -> Employee:
+        """Every rule of create(), without the commit (the bulk import commits once for a
+        whole file)."""
         company = await self.companies.get(data.company_id)
         if company is None:
             raise ValidationFailedError("Company not found.")
@@ -48,7 +56,7 @@ class EmployeeService:
         email = data.email.lower() if data.email else None
         await self._ensure_unique(data.company_id, data.employee_code, email)
 
-        employee = await self.employees.add(
+        return await self.employees.add(
             Employee(
                 company_id=data.company_id,
                 employee_code=data.employee_code,
@@ -59,12 +67,16 @@ class EmployeeService:
                 assignment_end=data.assignment_end,
             )
         )
+
+    async def update(self, employee_id: uuid.UUID, data: EmployeeUpdate) -> Employee:
+        employee = await self.get(employee_id)
+        await self.apply_changes(employee, data)
         await commit_or_conflict(self.session, DUPLICATE)
         await self.session.refresh(employee)
         return employee
 
-    async def update(self, employee_id: uuid.UUID, data: EmployeeUpdate) -> Employee:
-        employee = await self.get(employee_id)
+    async def apply_changes(self, employee: Employee, data: EmployeeUpdate) -> None:
+        """Every rule of update(), without the commit (used by the bulk import)."""
         changes = data.model_dump(exclude_unset=True)
 
         code = changes.get("employee_code")
@@ -92,10 +104,7 @@ class EmployeeService:
             and employee.assignment_end < employee.assignment_start
         ):
             raise ValidationFailedError("assignment_end cannot be before assignment_start.")
-
-        await commit_or_conflict(self.session, DUPLICATE)
-        await self.session.refresh(employee)
-        return employee
+        await self.session.flush()
 
     async def _ensure_unique(
         self,
