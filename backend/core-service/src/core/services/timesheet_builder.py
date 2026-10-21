@@ -4,7 +4,13 @@ Pure function: no database, no LLM. The pay rules (regular / overtime / double t
 holiday) run afterwards in pay_rules.recalculate(); here every hour starts as 'regular'.
 
 Payroll works per employee per week, so a sheet listing days from more than one week
-is split into one timesheet per week (build_timesheets)."""
+is split into one timesheet per week (build_timesheets).
+
+A sheet that gives only a weekly total per person ("Chandru 40 h", no days) becomes a
+timesheet with no days whose hours are that total (flag weekly_total_only; the pay rules
+then apply the weekly limit only, see pay_rules.apply_weekly_total). Its week is the one
+written on the sheet, or else the last full week before the email arrived (flag
+week_assumed). It is never approved automatically."""
 
 import uuid
 from dataclasses import dataclass
@@ -14,6 +20,7 @@ from typing import Any
 
 from src.config.settings import settings
 from src.constants.timesheet_status import TimesheetStatus
+from src.core.services.pay_rules import WEEK_ASSUMED_FLAG, WEEKLY_TOTAL_FLAG
 from src.data.models import Timesheet, TimesheetEntry
 from src.schemas.extraction import ExtractedTimesheet
 from src.utils.dates import date_in_week, start_of_week, weekday_index
@@ -71,6 +78,15 @@ def _base_week(extracted: ExtractedTimesheet, ctx: BuildContext) -> tuple[date |
     return base, True
 
 
+def _total_week(extracted: ExtractedTimesheet, ctx: BuildContext) -> tuple[date, bool]:
+    """The week of a weekly-total-only sheet: (first day, assumed?). The week written on
+    the sheet, else the last full week before the email arrived (timesheets are sent
+    after the week)."""
+    if extracted.week_start is not None:
+        return start_of_week(extracted.week_start, ctx.week_start_day), False
+    return start_of_week(ctx.received_on, ctx.week_start_day) - timedelta(days=7), True
+
+
 def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timesheet:
     flags = [_flag("model_issue", issue) for issue in extracted.issues]
     base, assumed = _base_week(extracted, ctx)
@@ -120,12 +136,33 @@ def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timeshe
         flags.append(
             _flag("undated_days", f"{undated} day(s) had no readable date and were skipped.")
         )
-    if not entries:
-        flags.append(_flag("no_entries", "No hours could be read from this timesheet."))
-
     ordered = sorted(entries.values(), key=lambda e: e.work_date)
     total = sum((e.hours for e in ordered), Decimal("0"))
     stated = _hours(extracted.stated_total) if extracted.stated_total is not None else None
+    # Only a weekly total, no days ("Chandru 40 h"): the total is the hours.
+    weekly_only = not ordered and stated is not None and stated > 0
+    total_week: date | None = None
+    if weekly_only:
+        assert stated is not None
+        total, (total_week, week_assumed) = stated, _total_week(extracted, ctx)
+        flags.append(
+            _flag(
+                WEEKLY_TOTAL_FLAG,
+                f"The sheet gives only a weekly total ({stated} h), no daily hours. Overtime "
+                "comes from the weekly limit only; daily overtime, double time and holidays "
+                "could not be applied. Add the days if you know them.",
+            )
+        )
+        if week_assumed:
+            flags.append(
+                _flag(
+                    WEEK_ASSUMED_FLAG,
+                    f"No dates on the sheet or in the email: used the last full week before "
+                    f"it arrived (starting {total_week}). Change the week if it is wrong.",
+                )
+            )
+    elif not ordered:
+        flags.append(_flag("no_entries", "No hours could be read from this timesheet."))
     if stated is not None and ordered and stated != total:
         flags.append(
             _flag("total_mismatch", f"Sheet says {stated} h; the days add up to {total} h.")
@@ -136,13 +173,15 @@ def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timeshe
         if extracted.email_stated_total is not None and not ctx.is_email_body
         else None
     )
-    if ordered:
+    if ordered or weekly_only:
         conflict = conflicting_hours_flag(email_total, stated if stated is not None else total)
         if conflict:
             flags.append(conflict)
 
     week_start = (
-        start_of_week(ordered[0].work_date, ctx.week_start_day) if ordered else extracted.week_start
+        start_of_week(ordered[0].work_date, ctx.week_start_day)
+        if ordered
+        else total_week or extracted.week_start
     )
     read_confidence = Decimal(str(round(extracted.confidence, 2)))
 

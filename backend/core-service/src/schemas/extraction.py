@@ -31,10 +31,14 @@ class ExtractedTimesheet(BaseModel):
         default=None, description="First day of the period (YYYY-MM-DD) if written; otherwise null"
     )
     days: list[ExtractedDay] = Field(
-        default_factory=list, description="One item per day that has hours"
+        default_factory=list,
+        description="One item per day that has hours. Empty when the sheet gives only a "
+        "total for the period (never split a total into days)",
     )
     stated_total: float | None = Field(
-        default=None, description="Total hours written on the sheet, if any"
+        default=None,
+        description="Total hours written on the sheet for this person, if any (also when "
+        "it is the only number given)",
     )
     email_stated_total: float | None = Field(
         default=None,

@@ -16,6 +16,7 @@ from src.schemas.review import (
     EntriesUpdate,
     MatchRequest,
     RejectRequest,
+    WeekUpdate,
 )
 from src.schemas.timesheet import TimesheetRead
 from src.schemas.timesheet_filters import TimesheetListQuery
@@ -82,6 +83,15 @@ async def update_entries(
     timesheet_id: uuid.UUID, body: EntriesUpdate, session: SessionDep, actor: Reviewer
 ) -> TimesheetRead:
     timesheet = await ReviewService(session).update_entries(timesheet_id, body, actor)
+    return TimesheetRead.model_validate(timesheet)
+
+
+@router.patch("/{timesheet_id}/week")
+async def set_week(
+    timesheet_id: uuid.UUID, body: WeekUpdate, session: SessionDep, actor: Reviewer
+) -> TimesheetRead:
+    """Move a weekly-total timesheet (no days) to another week."""
+    timesheet = await ReviewService(session).set_week(timesheet_id, body.week_start, actor)
     return TimesheetRead.model_validate(timesheet)
 
 

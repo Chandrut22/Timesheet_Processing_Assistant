@@ -3,6 +3,14 @@ from datetime import date, timedelta
 _WEEKDAYS = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
 
 
+_DAY_NAMES = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+
+
+def weekday_name(index: int) -> str:
+    """0 -> 'Monday' (the company's week_start numbering)."""
+    return _DAY_NAMES[index % 7]
+
+
 def weekday_index(name: str | None) -> int | None:
     """'Mon', 'monday', 'MON.' -> 0. Unknown -> None."""
     if not name:
