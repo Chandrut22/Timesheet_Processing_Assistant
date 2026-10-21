@@ -9,51 +9,56 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './../routes/__root'
-import { Route as AuthRouteImport } from './../routes/_auth'
 import { Route as AppRouteImport } from './../routes/_app'
-import { Route as AuthLoginRouteImport } from './../routes/_auth/login'
-import { Route as AuthForgotPasswordRouteImport } from './../routes/_auth/forgot-password'
-import { Route as AuthResetPasswordRouteImport } from './../routes/_auth/reset-password'
+import { Route as AuthRouteImport } from './../routes/_auth'
 import { Route as AppIndexRouteImport } from './../routes/_app/index'
+import { Route as AppAccountRouteImport } from './../routes/_app/account'
+import { Route as AppEmployeesRouteImport } from './../routes/_app/employees'
+import { Route as AppExportRouteImport } from './../routes/_app/export'
+import { Route as AppHolidaysRouteImport } from './../routes/_app/holidays'
 import { Route as AppReviewRouteImport } from './../routes/_app/review'
 import { Route as AppUploadRouteImport } from './../routes/_app/upload'
-import { Route as AppExportRouteImport } from './../routes/_app/export'
-import { Route as AppEmployeesRouteImport } from './../routes/_app/employees'
-import { Route as AppHolidaysRouteImport } from './../routes/_app/holidays'
+import { Route as AuthForgotPasswordRouteImport } from './../routes/_auth/forgot-password'
+import { Route as AuthLoginRouteImport } from './../routes/_auth/login'
+import { Route as AuthResetPasswordRouteImport } from './../routes/_auth/reset-password'
 import { Route as AppAdminUsersRouteImport } from './../routes/_app/admin.users'
-import { Route as AppAccountRouteImport } from './../routes/_app/account'
-import { Route as AppSubmissionsIndexRouteImport } from './../routes/_app/submissions.index'
-import { Route as AppSubmissionsSubmissionIdRouteImport } from './../routes/_app/submissions.$submissionId'
 import { Route as AppCompaniesIndexRouteImport } from './../routes/_app/companies.index'
 import { Route as AppCompaniesCompanyIdRouteImport } from './../routes/_app/companies.$companyId'
+import { Route as AppSubmissionsIndexRouteImport } from './../routes/_app/submissions.index'
+import { Route as AppSubmissionsSubmissionIdRouteImport } from './../routes/_app/submissions.$submissionId'
 import { Route as AppTimesheetsTimesheetIdRouteImport } from './../routes/_app/timesheets.$timesheetId'
 
-const AuthRoute = AuthRouteImport.update({
-  id: '/_auth',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AppRoute = AppRouteImport.update({
   id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthLoginRoute = AuthLoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
-  id: '/forgot-password',
-  path: '/forgot-password',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
-  getParentRoute: () => AuthRoute,
+const AuthRoute = AuthRouteImport.update({
+  id: '/_auth',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAccountRoute = AppAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEmployeesRoute = AppEmployeesRouteImport.update({
+  id: '/employees',
+  path: '/employees',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppExportRoute = AppExportRouteImport.update({
+  id: '/export',
+  path: '/export',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppHolidaysRoute = AppHolidaysRouteImport.update({
+  id: '/holidays',
+  path: '/holidays',
   getParentRoute: () => AppRoute,
 } as any)
 const AppReviewRoute = AppReviewRouteImport.update({
@@ -66,39 +71,24 @@ const AppUploadRoute = AppUploadRouteImport.update({
   path: '/upload',
   getParentRoute: () => AppRoute,
 } as any)
-const AppExportRoute = AppExportRouteImport.update({
-  id: '/export',
-  path: '/export',
-  getParentRoute: () => AppRoute,
+const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => AuthRoute,
 } as any)
-const AppEmployeesRoute = AppEmployeesRouteImport.update({
-  id: '/employees',
-  path: '/employees',
-  getParentRoute: () => AppRoute,
+const AuthLoginRoute = AuthLoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => AuthRoute,
 } as any)
-const AppHolidaysRoute = AppHolidaysRouteImport.update({
-  id: '/holidays',
-  path: '/holidays',
-  getParentRoute: () => AppRoute,
+const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => AuthRoute,
 } as any)
 const AppAdminUsersRoute = AppAdminUsersRouteImport.update({
   id: '/admin/users',
   path: '/admin/users',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppAccountRoute = AppAccountRouteImport.update({
-  id: '/account',
-  path: '/account',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppSubmissionsIndexRoute = AppSubmissionsIndexRouteImport.update({
-  id: '/submissions/',
-  path: '/submissions/',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppSubmissionsSubmissionIdRoute = AppSubmissionsSubmissionIdRouteImport.update({
-  id: '/submissions/$submissionId',
-  path: '/submissions/$submissionId',
   getParentRoute: () => AppRoute,
 } as any)
 const AppCompaniesIndexRoute = AppCompaniesIndexRouteImport.update({
@@ -111,126 +101,138 @@ const AppCompaniesCompanyIdRoute = AppCompaniesCompanyIdRouteImport.update({
   path: '/companies/$companyId',
   getParentRoute: () => AppRoute,
 } as any)
-const AppTimesheetsTimesheetIdRoute = AppTimesheetsTimesheetIdRouteImport.update({
-  id: '/timesheets/$timesheetId',
-  path: '/timesheets/$timesheetId',
+const AppSubmissionsIndexRoute = AppSubmissionsIndexRouteImport.update({
+  id: '/submissions/',
+  path: '/submissions/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSubmissionsSubmissionIdRoute =
+  AppSubmissionsSubmissionIdRouteImport.update({
+    id: '/submissions/$submissionId',
+    path: '/submissions/$submissionId',
+    getParentRoute: () => AppRoute,
+  } as any)
+const AppTimesheetsTimesheetIdRoute =
+  AppTimesheetsTimesheetIdRouteImport.update({
+    id: '/timesheets/$timesheetId',
+    path: '/timesheets/$timesheetId',
+    getParentRoute: () => AppRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
-  '/login': typeof AuthLoginRoute
-  '/forgot-password': typeof AuthForgotPasswordRoute
-  '/reset-password': typeof AuthResetPasswordRoute
   '/': typeof AppIndexRoute
+  '/account': typeof AppAccountRoute
+  '/employees': typeof AppEmployeesRoute
+  '/export': typeof AppExportRoute
+  '/holidays': typeof AppHolidaysRoute
   '/review': typeof AppReviewRoute
   '/upload': typeof AppUploadRoute
-  '/export': typeof AppExportRoute
-  '/employees': typeof AppEmployeesRoute
-  '/holidays': typeof AppHolidaysRoute
+  '/forgot-password': typeof AuthForgotPasswordRoute
+  '/login': typeof AuthLoginRoute
+  '/reset-password': typeof AuthResetPasswordRoute
   '/admin/users': typeof AppAdminUsersRoute
-  '/account': typeof AppAccountRoute
-  '/submissions/': typeof AppSubmissionsIndexRoute
-  '/submissions/$submissionId': typeof AppSubmissionsSubmissionIdRoute
-  '/companies/': typeof AppCompaniesIndexRoute
   '/companies/$companyId': typeof AppCompaniesCompanyIdRoute
+  '/submissions/$submissionId': typeof AppSubmissionsSubmissionIdRoute
   '/timesheets/$timesheetId': typeof AppTimesheetsTimesheetIdRoute
+  '/companies/': typeof AppCompaniesIndexRoute
+  '/submissions/': typeof AppSubmissionsIndexRoute
 }
 export interface FileRoutesByTo {
-  '/login': typeof AuthLoginRoute
-  '/forgot-password': typeof AuthForgotPasswordRoute
-  '/reset-password': typeof AuthResetPasswordRoute
   '/': typeof AppIndexRoute
+  '/account': typeof AppAccountRoute
+  '/employees': typeof AppEmployeesRoute
+  '/export': typeof AppExportRoute
+  '/holidays': typeof AppHolidaysRoute
   '/review': typeof AppReviewRoute
   '/upload': typeof AppUploadRoute
-  '/export': typeof AppExportRoute
-  '/employees': typeof AppEmployeesRoute
-  '/holidays': typeof AppHolidaysRoute
+  '/forgot-password': typeof AuthForgotPasswordRoute
+  '/login': typeof AuthLoginRoute
+  '/reset-password': typeof AuthResetPasswordRoute
   '/admin/users': typeof AppAdminUsersRoute
-  '/account': typeof AppAccountRoute
-  '/submissions': typeof AppSubmissionsIndexRoute
-  '/submissions/$submissionId': typeof AppSubmissionsSubmissionIdRoute
-  '/companies': typeof AppCompaniesIndexRoute
   '/companies/$companyId': typeof AppCompaniesCompanyIdRoute
+  '/submissions/$submissionId': typeof AppSubmissionsSubmissionIdRoute
   '/timesheets/$timesheetId': typeof AppTimesheetsTimesheetIdRoute
+  '/companies': typeof AppCompaniesIndexRoute
+  '/submissions': typeof AppSubmissionsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/_auth': typeof AuthRouteWithChildren
-  '/_auth/login': typeof AuthLoginRoute
-  '/_auth/forgot-password': typeof AuthForgotPasswordRoute
-  '/_auth/reset-password': typeof AuthResetPasswordRoute
-  '/_app/': typeof AppIndexRoute
+  '/_app/account': typeof AppAccountRoute
+  '/_app/employees': typeof AppEmployeesRoute
+  '/_app/export': typeof AppExportRoute
+  '/_app/holidays': typeof AppHolidaysRoute
   '/_app/review': typeof AppReviewRoute
   '/_app/upload': typeof AppUploadRoute
-  '/_app/export': typeof AppExportRoute
-  '/_app/employees': typeof AppEmployeesRoute
-  '/_app/holidays': typeof AppHolidaysRoute
+  '/_auth/forgot-password': typeof AuthForgotPasswordRoute
+  '/_auth/login': typeof AuthLoginRoute
+  '/_auth/reset-password': typeof AuthResetPasswordRoute
+  '/_app/': typeof AppIndexRoute
   '/_app/admin/users': typeof AppAdminUsersRoute
-  '/_app/account': typeof AppAccountRoute
-  '/_app/submissions/': typeof AppSubmissionsIndexRoute
-  '/_app/submissions/$submissionId': typeof AppSubmissionsSubmissionIdRoute
-  '/_app/companies/': typeof AppCompaniesIndexRoute
   '/_app/companies/$companyId': typeof AppCompaniesCompanyIdRoute
+  '/_app/submissions/$submissionId': typeof AppSubmissionsSubmissionIdRoute
   '/_app/timesheets/$timesheetId': typeof AppTimesheetsTimesheetIdRoute
+  '/_app/companies/': typeof AppCompaniesIndexRoute
+  '/_app/submissions/': typeof AppSubmissionsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/login'
-    | '/forgot-password'
-    | '/reset-password'
     | '/'
+    | '/account'
+    | '/employees'
+    | '/export'
+    | '/holidays'
     | '/review'
     | '/upload'
-    | '/export'
-    | '/employees'
-    | '/holidays'
+    | '/forgot-password'
+    | '/login'
+    | '/reset-password'
     | '/admin/users'
-    | '/account'
-    | '/submissions/'
-    | '/submissions/$submissionId'
-    | '/companies/'
     | '/companies/$companyId'
+    | '/submissions/$submissionId'
     | '/timesheets/$timesheetId'
+    | '/companies/'
+    | '/submissions/'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/login'
-    | '/forgot-password'
-    | '/reset-password'
     | '/'
+    | '/account'
+    | '/employees'
+    | '/export'
+    | '/holidays'
     | '/review'
     | '/upload'
-    | '/export'
-    | '/employees'
-    | '/holidays'
+    | '/forgot-password'
+    | '/login'
+    | '/reset-password'
     | '/admin/users'
-    | '/account'
-    | '/submissions'
-    | '/submissions/$submissionId'
-    | '/companies'
     | '/companies/$companyId'
+    | '/submissions/$submissionId'
     | '/timesheets/$timesheetId'
+    | '/companies'
+    | '/submissions'
   id:
     | '__root__'
     | '/_app'
     | '/_auth'
-    | '/_auth/login'
-    | '/_auth/forgot-password'
-    | '/_auth/reset-password'
-    | '/_app/'
+    | '/_app/account'
+    | '/_app/employees'
+    | '/_app/export'
+    | '/_app/holidays'
     | '/_app/review'
     | '/_app/upload'
-    | '/_app/export'
-    | '/_app/employees'
-    | '/_app/holidays'
+    | '/_auth/forgot-password'
+    | '/_auth/login'
+    | '/_auth/reset-password'
+    | '/_app/'
     | '/_app/admin/users'
-    | '/_app/account'
-    | '/_app/submissions/'
-    | '/_app/submissions/$submissionId'
-    | '/_app/companies/'
     | '/_app/companies/$companyId'
+    | '/_app/submissions/$submissionId'
     | '/_app/timesheets/$timesheetId'
+    | '/_app/companies/'
+    | '/_app/submissions/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -243,175 +245,175 @@ declare module '@tanstack/react-router' {
     '/_app': {
       id: '/_app'
       path: ''
-      fullPath: ''
+      fullPath: '/'
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_auth': {
       id: '/_auth'
       path: ''
-      fullPath: ''
+      fullPath: '/'
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/_auth/login': {
-      id: '/_auth/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof AuthLoginRouteImport
-      parentRoute: typeof AuthRouteImport
-    }
-    '/_auth/forgot-password': {
-      id: '/_auth/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/forgot-password'
-      preLoaderRoute: typeof AuthForgotPasswordRouteImport
-      parentRoute: typeof AuthRouteImport
-    }
-    '/_auth/reset-password': {
-      id: '/_auth/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
-      preLoaderRoute: typeof AuthResetPasswordRouteImport
-      parentRoute: typeof AuthRouteImport
     }
     '/_app/': {
       id: '/_app/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
-      parentRoute: typeof AppRouteImport
-    }
-    '/_app/review': {
-      id: '/_app/review'
-      path: '/review'
-      fullPath: '/review'
-      preLoaderRoute: typeof AppReviewRouteImport
-      parentRoute: typeof AppRouteImport
-    }
-    '/_app/upload': {
-      id: '/_app/upload'
-      path: '/upload'
-      fullPath: '/upload'
-      preLoaderRoute: typeof AppUploadRouteImport
-      parentRoute: typeof AppRouteImport
-    }
-    '/_app/export': {
-      id: '/_app/export'
-      path: '/export'
-      fullPath: '/export'
-      preLoaderRoute: typeof AppExportRouteImport
-      parentRoute: typeof AppRouteImport
-    }
-    '/_app/employees': {
-      id: '/_app/employees'
-      path: '/employees'
-      fullPath: '/employees'
-      preLoaderRoute: typeof AppEmployeesRouteImport
-      parentRoute: typeof AppRouteImport
-    }
-    '/_app/holidays': {
-      id: '/_app/holidays'
-      path: '/holidays'
-      fullPath: '/holidays'
-      preLoaderRoute: typeof AppHolidaysRouteImport
-      parentRoute: typeof AppRouteImport
-    }
-    '/_app/admin/users': {
-      id: '/_app/admin/users'
-      path: '/admin/users'
-      fullPath: '/admin/users'
-      preLoaderRoute: typeof AppAdminUsersRouteImport
-      parentRoute: typeof AppRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/account': {
       id: '/_app/account'
       path: '/account'
       fullPath: '/account'
       preLoaderRoute: typeof AppAccountRouteImport
-      parentRoute: typeof AppRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/_app/submissions/': {
-      id: '/_app/submissions/'
-      path: '/submissions/'
-      fullPath: '/submissions/'
-      preLoaderRoute: typeof AppSubmissionsIndexRouteImport
-      parentRoute: typeof AppRouteImport
+    '/_app/employees': {
+      id: '/_app/employees'
+      path: '/employees'
+      fullPath: '/employees'
+      preLoaderRoute: typeof AppEmployeesRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/_app/submissions/$submissionId': {
-      id: '/_app/submissions/$submissionId'
-      path: '/submissions/$submissionId'
-      fullPath: '/submissions/$submissionId'
-      preLoaderRoute: typeof AppSubmissionsSubmissionIdRouteImport
-      parentRoute: typeof AppRouteImport
+    '/_app/export': {
+      id: '/_app/export'
+      path: '/export'
+      fullPath: '/export'
+      preLoaderRoute: typeof AppExportRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/holidays': {
+      id: '/_app/holidays'
+      path: '/holidays'
+      fullPath: '/holidays'
+      preLoaderRoute: typeof AppHolidaysRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/review': {
+      id: '/_app/review'
+      path: '/review'
+      fullPath: '/review'
+      preLoaderRoute: typeof AppReviewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/upload': {
+      id: '/_app/upload'
+      path: '/upload'
+      fullPath: '/upload'
+      preLoaderRoute: typeof AppUploadRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_auth/forgot-password': {
+      id: '/_auth/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof AuthForgotPasswordRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/login': {
+      id: '/_auth/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof AuthLoginRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/reset-password': {
+      id: '/_auth/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof AuthResetPasswordRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_app/admin/users': {
+      id: '/_app/admin/users'
+      path: '/admin/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AppAdminUsersRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/companies/': {
       id: '/_app/companies/'
-      path: '/companies/'
+      path: '/companies'
       fullPath: '/companies/'
       preLoaderRoute: typeof AppCompaniesIndexRouteImport
-      parentRoute: typeof AppRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/companies/$companyId': {
       id: '/_app/companies/$companyId'
       path: '/companies/$companyId'
       fullPath: '/companies/$companyId'
       preLoaderRoute: typeof AppCompaniesCompanyIdRouteImport
-      parentRoute: typeof AppRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/submissions/': {
+      id: '/_app/submissions/'
+      path: '/submissions'
+      fullPath: '/submissions/'
+      preLoaderRoute: typeof AppSubmissionsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/submissions/$submissionId': {
+      id: '/_app/submissions/$submissionId'
+      path: '/submissions/$submissionId'
+      fullPath: '/submissions/$submissionId'
+      preLoaderRoute: typeof AppSubmissionsSubmissionIdRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/timesheets/$timesheetId': {
       id: '/_app/timesheets/$timesheetId'
       path: '/timesheets/$timesheetId'
       fullPath: '/timesheets/$timesheetId'
       preLoaderRoute: typeof AppTimesheetsTimesheetIdRouteImport
-      parentRoute: typeof AppRouteImport
+      parentRoute: typeof AppRoute
     }
   }
 }
 
 interface AppRouteChildren {
-  AppIndexRoute: typeof AppIndexRoute
+  AppAccountRoute: typeof AppAccountRoute
+  AppEmployeesRoute: typeof AppEmployeesRoute
+  AppExportRoute: typeof AppExportRoute
+  AppHolidaysRoute: typeof AppHolidaysRoute
   AppReviewRoute: typeof AppReviewRoute
   AppUploadRoute: typeof AppUploadRoute
-  AppExportRoute: typeof AppExportRoute
-  AppEmployeesRoute: typeof AppEmployeesRoute
-  AppHolidaysRoute: typeof AppHolidaysRoute
+  AppIndexRoute: typeof AppIndexRoute
   AppAdminUsersRoute: typeof AppAdminUsersRoute
-  AppAccountRoute: typeof AppAccountRoute
-  AppSubmissionsIndexRoute: typeof AppSubmissionsIndexRoute
-  AppSubmissionsSubmissionIdRoute: typeof AppSubmissionsSubmissionIdRoute
-  AppCompaniesIndexRoute: typeof AppCompaniesIndexRoute
   AppCompaniesCompanyIdRoute: typeof AppCompaniesCompanyIdRoute
+  AppSubmissionsSubmissionIdRoute: typeof AppSubmissionsSubmissionIdRoute
   AppTimesheetsTimesheetIdRoute: typeof AppTimesheetsTimesheetIdRoute
+  AppCompaniesIndexRoute: typeof AppCompaniesIndexRoute
+  AppSubmissionsIndexRoute: typeof AppSubmissionsIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
-  AppIndexRoute: AppIndexRoute,
+  AppAccountRoute: AppAccountRoute,
+  AppEmployeesRoute: AppEmployeesRoute,
+  AppExportRoute: AppExportRoute,
+  AppHolidaysRoute: AppHolidaysRoute,
   AppReviewRoute: AppReviewRoute,
   AppUploadRoute: AppUploadRoute,
-  AppExportRoute: AppExportRoute,
-  AppEmployeesRoute: AppEmployeesRoute,
-  AppHolidaysRoute: AppHolidaysRoute,
+  AppIndexRoute: AppIndexRoute,
   AppAdminUsersRoute: AppAdminUsersRoute,
-  AppAccountRoute: AppAccountRoute,
-  AppSubmissionsIndexRoute: AppSubmissionsIndexRoute,
-  AppSubmissionsSubmissionIdRoute: AppSubmissionsSubmissionIdRoute,
-  AppCompaniesIndexRoute: AppCompaniesIndexRoute,
   AppCompaniesCompanyIdRoute: AppCompaniesCompanyIdRoute,
+  AppSubmissionsSubmissionIdRoute: AppSubmissionsSubmissionIdRoute,
   AppTimesheetsTimesheetIdRoute: AppTimesheetsTimesheetIdRoute,
+  AppCompaniesIndexRoute: AppCompaniesIndexRoute,
+  AppSubmissionsIndexRoute: AppSubmissionsIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 interface AuthRouteChildren {
-  AuthLoginRoute: typeof AuthLoginRoute
   AuthForgotPasswordRoute: typeof AuthForgotPasswordRoute
+  AuthLoginRoute: typeof AuthLoginRoute
   AuthResetPasswordRoute: typeof AuthResetPasswordRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
-  AuthLoginRoute: AuthLoginRoute,
   AuthForgotPasswordRoute: AuthForgotPasswordRoute,
+  AuthLoginRoute: AuthLoginRoute,
   AuthResetPasswordRoute: AuthResetPasswordRoute,
 }
 

@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/table";
 import { CompanyForm, type CompanyFormValues } from "@/features/companies/CompanyForm";
 import { toCompanyBody } from "@/features/companies/company-utils";
+import { ImportButton } from "@/features/import/ImportDialog";
 import { DebouncedInput } from "@/features/review/DebouncedInput";
 import { WEEKDAYS } from "@/lib/format";
 
@@ -79,9 +80,17 @@ function CompaniesPage() {
         description="Client companies, their pay rates and rules, and who may send their timesheets."
         actions={
           isAdmin ? (
-            <Button onClick={() => setCreating(true)}>
-              <Plus /> New company
-            </Button>
+            <>
+              <ImportButton
+                resource="companies"
+                onImported={() =>
+                  void queryClient.invalidateQueries({ queryKey: qk.companies.all })
+                }
+              />
+              <Button onClick={() => setCreating(true)}>
+                <Plus /> New company
+              </Button>
+            </>
           ) : null
         }
       />

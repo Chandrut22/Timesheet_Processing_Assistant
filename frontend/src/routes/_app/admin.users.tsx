@@ -37,6 +37,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ImportButton } from "@/features/import/ImportDialog";
 import { DebouncedInput } from "@/features/review/DebouncedInput";
 import { applyFieldErrors } from "@/lib/forms";
 import { formatDate, formatRelative } from "@/lib/format";
@@ -87,9 +88,15 @@ function UsersPage() {
         title="Users"
         description="People who can sign in. Reviewers check timesheets; admins also export payroll and manage setup."
         actions={
-          <Button onClick={() => setCreating(true)}>
-            <Plus /> New user
-          </Button>
+          <>
+            <ImportButton
+              resource="users"
+              onImported={() => void queryClient.invalidateQueries({ queryKey: qk.users.all })}
+            />
+            <Button onClick={() => setCreating(true)}>
+              <Plus /> New user
+            </Button>
+          </>
         }
       />
       <Card className="mb-4 grid gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4">

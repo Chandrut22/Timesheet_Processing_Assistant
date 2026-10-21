@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/table";
 import { EmployeeForm, type EmployeeFormValues } from "@/features/employees/EmployeeForm";
 import { toEmployeeCreate, toEmployeeUpdate } from "@/features/employees/employee-utils";
+import { ImportButton } from "@/features/import/ImportDialog";
 import { DebouncedInput } from "@/features/review/DebouncedInput";
 import { formatDate } from "@/lib/format";
 import { useCompanyMap } from "@/lib/lookups";
@@ -95,9 +96,17 @@ function EmployeesPage() {
         description="People placed at client companies. Timesheets are matched to them."
         actions={
           isAdmin ? (
-            <Button onClick={() => setEditing("new")}>
-              <Plus /> New employee
-            </Button>
+            <>
+              <ImportButton
+                resource="employees"
+                onImported={() =>
+                  void queryClient.invalidateQueries({ queryKey: qk.employees.all })
+                }
+              />
+              <Button onClick={() => setEditing("new")}>
+                <Plus /> New employee
+              </Button>
+            </>
           ) : null
         }
       />
