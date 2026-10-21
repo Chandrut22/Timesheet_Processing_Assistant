@@ -124,7 +124,7 @@ async def find_and_mark(session: AsyncSession, now: datetime) -> list[Requeue]:
     )
     found += [
         Requeue(i, "The scheduled retry did not run; queued it again.", token)
-        for i, token in result.tuples().all()
+        for i, token in result.all()
     ]
     return found
 
