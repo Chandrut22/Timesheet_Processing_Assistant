@@ -40,6 +40,16 @@ class UserService:
 
     async def create(self, data: UserCreate) -> User:
         """Only admins get here (route guard); they may create admins or reviewers."""
+        user = await self.add_new(data)
+        await self.session.commit()
+        await self.session.refresh(user, ["role"])
+        return user
+
+    async def add_new(
+        self, data: UserCreate, *, password_hash: str | None = None
+    ) -> User:
+        """The rules for a new user, without committing (the bulk import commits once
+        for the whole file, and passes a hash it made off the event loop)."""
         email = data.email.strip().lower()
         if await self.users.get_by_email(email) is not None:
             raise ConflictError("A user with this email already exists.")
@@ -51,12 +61,10 @@ class UserService:
             User(
                 name=data.name,
                 email=email,
-                password_hash=hash_password(data.password),
+                password_hash=password_hash or hash_password(data.password),
                 role_id=role.id,
             )
         )
-        await self.session.commit()
-        await self.session.refresh(user, ["role"])
         return user
 
     async def update(self, user_id: uuid.UUID, data: UserUpdate, actor: User) -> User:
