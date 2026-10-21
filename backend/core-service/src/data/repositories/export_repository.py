@@ -75,4 +75,4 @@ class ExportRepository(BaseRepository[ExportBatch]):
             .where(Timesheet.company_id == company_id, Timesheet.week_start == week_start)
             .group_by(Timesheet.status)
         )
-        return {status: count for status, count in result.tuples().all()}
+        return {status: count for status, count in result.all()}
