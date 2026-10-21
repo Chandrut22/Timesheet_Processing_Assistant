@@ -26,6 +26,7 @@ export class ApiError extends Error {
 export const NETWORK_MESSAGE = "Can't reach the server. Check your connection and try again.";
 export const SERVER_MESSAGE = "Something went wrong on our side. Please try again.";
 export const FORBIDDEN_MESSAGE = "You don't have permission to do that.";
+export const BUSY_MESSAGE = "The service is busy. Please try again in a few seconds.";
 
 type ValidationItem = { loc?: unknown; msg?: unknown };
 
@@ -69,16 +70,28 @@ export function buildApiError(status: number, data: unknown, retryAfterHeader?: 
   const code = typeof body.code === "string" ? body.code : null;
   const detail = body.detail;
 
+  // The rate limiter could not count (Redis down, RATE_LIMIT_FAIL_OPEN=false).
+  if (status === 503 && code === "rate_limit_unavailable") {
+    return new ApiError({
+      status,
+      message: BUSY_MESSAGE,
+      code,
+      retryAfter: parseRetryAfter(retryAfterHeader),
+    });
+  }
   if (status >= 500) return new ApiError({ status, message: SERVER_MESSAGE, code });
 
   if (status === 429) {
+    // "rate_limited": the per-endpoint limit (any screen). Otherwise a sign-in or
+    // reset-code lockout from auth-service, which is about attempts.
+    const what = code === "rate_limited" ? "Too many requests" : "Too many attempts";
     const retryAfter = parseRetryAfter(retryAfterHeader);
     const message =
       retryAfter !== null
-        ? `Too many attempts. Try again in ${retryAfter} seconds.`
+        ? `${what}. Try again in ${retryAfter} ${retryAfter === 1 ? "second" : "seconds"}.`
         : typeof detail === "string"
           ? detail
-          : "Too many attempts. Please wait a moment and try again.";
+          : `${what}. Please wait a moment and try again.`;
     return new ApiError({ status, message, code, retryAfter });
   }
 
