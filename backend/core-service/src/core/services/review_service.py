@@ -3,7 +3,7 @@
 Every change re-runs the pay rules and duplicate checks, and writes an audit event."""
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -16,7 +16,14 @@ from src.core.rbac.principal import Principal
 from src.core.services.activity_log import refresh_state
 from src.core.services.audit import record_event
 from src.core.services.employee_matcher import MatchResult, apply_match, to_record
-from src.core.services.pay_rules import recalculate, rules_from_company
+from src.core.services.pay_rules import (
+    WEEK_ASSUMED_FLAG,
+    WEEKLY_TOTAL_FLAG,
+    has_hours,
+    recalculate,
+    rules_from_company,
+    weekly_total,
+)
 from src.core.services.timesheet_builder import conflicting_hours_flag
 from src.core.services.timesheet_validation import (
     check_assignment,
@@ -27,7 +34,7 @@ from src.core.services.timesheet_validation import (
 from src.data.models import Company, Document, Employee, Timesheet, TimesheetEntry
 from src.data.repositories.holiday_repository import HolidayRepository
 from src.schemas.review import BulkItemResult, BulkResult, EntriesUpdate
-from src.utils.dates import start_of_week
+from src.utils.dates import start_of_week, weekday_name
 
 # Flags about the extracted days: stale once a reviewer sets the days by hand.
 ENTRY_FLAG_CODES = frozenset(
@@ -39,6 +46,9 @@ ENTRY_FLAG_CODES = frozenset(
         "no_entries",
         "total_mismatch",
         "conflicting_hours",
+        # A weekly-total timesheet becomes a normal one once the reviewer enters days.
+        WEEKLY_TOTAL_FLAG,
+        WEEK_ASSUMED_FLAG,
     }
 )
 # Company flags raised at extraction: settled once a reviewer picks the employee.
@@ -239,6 +249,42 @@ class ReviewService:
         )
         return await self._save(timesheet, actor)
 
+    async def set_week(
+        self, timesheet_id: uuid.UUID, week_start: date, actor: Principal
+    ) -> Timesheet:
+        """Move a weekly-total timesheet (no days) to another week, e.g. when the week
+        was assumed. A timesheet with days moves with its days (update_entries)."""
+        timesheet = await self._get(timesheet_id)
+        self._ensure_editable(timesheet)
+        if weekly_total(timesheet) is None:
+            raise ValidationFailedError(
+                "Only a timesheet with a weekly total and no days can be moved to another "
+                "week. For one with days, change the days."
+            )
+        company = await self._company(timesheet)
+        week_start_day = company.week_start if company else 0
+        if start_of_week(week_start, week_start_day) != week_start:
+            raise ValidationFailedError(
+                f"Weeks start on {weekday_name(week_start_day)} for this company: pick a "
+                f"{weekday_name(week_start_day)}."
+            )
+        before = timesheet.week_start
+        timesheet.week_start = week_start
+        timesheet.flags = [
+            f for f in timesheet.flags or [] if f.get("code") != WEEK_ASSUMED_FLAG
+        ]  # the reviewer chose it: no longer an assumption
+        await self._recompute(timesheet)  # pay, and the duplicate check for the new week
+        self._back_to_review(timesheet)
+        record_event(
+            self.session,
+            entity_type="timesheet",
+            entity_id=timesheet.id,
+            action="week_changed",
+            actor=actor,
+            details={"before": str(before) if before else None, "after": str(week_start)},
+        )
+        return await self._save(timesheet, actor)
+
     async def recalculate(self, timesheet_id: uuid.UUID, actor: Principal) -> Timesheet:
         """Run the pay rules again with the company's CURRENT rules, rates and holidays,
         e.g. after a missing rate was added. An approved timesheet whose hours or pay
@@ -276,7 +322,7 @@ class ReviewService:
             )
         if timesheet.employee_id is None:
             raise ValidationFailedError("Match an employee before approving.")
-        if not timesheet.entries:
+        if not has_hours(timesheet):  # days, or a weekly total
             raise ValidationFailedError("A timesheet without hours cannot be approved.")
         if not is_priced(timesheet):
             raise ValidationFailedError(

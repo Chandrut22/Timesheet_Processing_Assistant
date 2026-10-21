@@ -26,6 +26,10 @@ Rules:
 3. Convert times like 7:30 or 7h30 to decimal hours (7.5). If start and end times are given,
    compute the hours, minus any break shown.
 4. Keep every daily entry separate.
+4b. Some sheets list only a total per person for the period ("Chandru - 40 h"), with no
+   daily hours. Then leave "days" empty and put that total in stated_total. Never split
+   a total into days. If the period is written ("week of 12 Oct", "w/e 18/10"), put its
+   first day in week_start; otherwise leave week_start null.
 5. Use dates written on the sheet. If only weekday names are given, leave work_date null
    and fill weekday.
 6. Preserve the reported total exactly as written (stated_total). If the EMAIL BODY states

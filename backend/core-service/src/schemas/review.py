@@ -30,6 +30,12 @@ class EntriesUpdate(BaseModel):
         return value
 
 
+class WeekUpdate(BaseModel):
+    """The first day of the week (it must be the company's week-start day)."""
+
+    week_start: date
+
+
 class MatchRequest(BaseModel):
     employee_id: uuid.UUID
 

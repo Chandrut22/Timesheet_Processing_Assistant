@@ -12,6 +12,10 @@ Then for each week (the company's week; a sheet is normally one week, but the ca
 applied per week so a multi-week list can never get one week's limit):
   4. Regular hours above weekly_ot_after become overtime, taken from the LATEST
      days first (the hours that pushed the week over the limit).
+A sheet that gives only a weekly TOTAL per person (no daily hours, flag
+"weekly_total_only") has no days to split: its total is regular up to weekly_ot_after,
+the rest overtime (apply_weekly_total). Daily overtime, double time and holidays need
+days, so they can't apply; a reviewer can add the days, and then the rules above run.
 Then the money:
   5. amount = hours x the company's rate for that pay code, rounded to 2 decimals.
      gross = the four amounts added up. No company -> no amounts.
@@ -28,6 +32,10 @@ from src.utils.dates import start_of_week
 
 ZERO = Decimal("0")
 CENT = Decimal("0.01")
+
+# Flags the timesheet builder sets for a sheet that gives only a weekly total.
+WEEKLY_TOTAL_FLAG = "weekly_total_only"
+WEEK_ASSUMED_FLAG = "week_assumed"
 
 # Flags this module owns: removed and recomputed on every recalculation.
 RULE_FLAG_CODES = frozenset(
@@ -161,6 +169,33 @@ def apply_pay_rules(days: Sequence[DayInput], rules: PayRules = DEFAULT_RULES) -
     return PayResult(days=splits)
 
 
+def apply_weekly_total(
+    total: Decimal, week_start: date, rules: PayRules = DEFAULT_RULES
+) -> PayResult:
+    """Pure: a weekly total with no days. Regular up to the weekly limit, the rest
+    overtime (42 h with a 40 h limit -> 40 regular + 2 overtime)."""
+    regular = min(total, rules.weekly_ot_after).quantize(CENT)
+    return PayResult(
+        days=[DaySplit(work_date=week_start, regular=regular, overtime=total - regular)]
+    )
+
+
+def weekly_total(timesheet: Timesheet) -> Decimal | None:
+    """The hours of a weekly-total-only timesheet, or None for a normal one. Only while
+    it has no days: once a reviewer enters days, the days are the hours."""
+    if timesheet.entries or timesheet.week_start is None:
+        return None
+    if not any(f.get("code") == WEEKLY_TOTAL_FLAG for f in timesheet.flags or []):
+        return None
+    total = timesheet.stated_total
+    return total if total is not None and total > ZERO else None
+
+
+def has_hours(timesheet: Timesheet) -> bool:
+    """Days with hours, or a weekly total (what approval and auto-approval look at)."""
+    return bool(timesheet.entries) or weekly_total(timesheet) is not None
+
+
 def _amount(hours: Decimal, rate: Decimal | None) -> Decimal | None:
     if hours == ZERO:
         return ZERO.quantize(CENT)  # no hours -> nothing to pay, rate or not
@@ -235,13 +270,17 @@ def recalculate(
     for entry in timesheet.entries:
         entry.is_holiday = bool(entry.sheet_holiday) or entry.work_date in holidays
 
-    result = apply_pay_rules(
-        [
-            DayInput(e.work_date, e.hours, e.double_time_marked, e.is_holiday)
-            for e in timesheet.entries
-        ],
-        rules,
-    )
+    total = weekly_total(timesheet)
+    if total is not None and timesheet.week_start is not None:
+        result = apply_weekly_total(total, timesheet.week_start, rules)
+    else:
+        result = apply_pay_rules(
+            [
+                DayInput(e.work_date, e.hours, e.double_time_marked, e.is_holiday)
+                for e in timesheet.entries
+            ],
+            rules,
+        )
     timesheet.regular_hours = result.regular
     timesheet.overtime_hours = result.overtime
     timesheet.double_time_hours = result.double_time
