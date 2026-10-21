@@ -19,6 +19,7 @@ from io import BytesIO
 from typing import Any
 
 from src.config.settings import settings
+from src.utils.file_checks import zip_bomb_reason
 
 
 class DocumentTooLargeError(Exception):
@@ -137,6 +138,17 @@ def prepare(filename: str, data: bytes) -> Prepared:
     """Check the size and cut the document down if needed. Raises DocumentTooLargeError
     in refuse mode. Other formats (images, DOCX) pass through unchanged."""
     extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if extension in ("docx", "xlsx"):
+        # Second line of defence (intake already checked): never hand a zip bomb to a
+        # reader, even for a document that reached the worker another way.
+        reason = zip_bomb_reason(
+            filename,
+            data,
+            max_uncompressed_mb=settings.max_uncompressed_mb,
+            max_ratio=settings.max_compression_ratio,
+        )
+        if reason is not None:
+            raise DocumentTooLargeError(reason)
     if extension == "pdf":
         return _prepare_pdf(filename, data)
     if extension == "xlsx":
