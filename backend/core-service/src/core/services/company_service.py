@@ -41,15 +41,26 @@ class CompanyService:
         return await self.companies.search(q=q, is_active=is_active, page=page, size=size)
 
     async def create(self, data: CompanyCreate) -> Company:
-        if await self.companies.get_by_name(data.name) is not None:
-            raise ConflictError(DUPLICATE_NAME)
-        company = await self.companies.add(Company(**data.model_dump()))
+        company = await self.add_new(data)
         await commit_or_conflict(self.session, DUPLICATE_NAME)
         await self.session.refresh(company)
         return company
 
+    async def add_new(self, data: CompanyCreate) -> Company:
+        """Every rule of create(), without the commit (used by the bulk import)."""
+        if await self.companies.get_by_name(data.name) is not None:
+            raise ConflictError(DUPLICATE_NAME)
+        return await self.companies.add(Company(**data.model_dump()))
+
     async def update(self, company_id: uuid.UUID, data: CompanyUpdate) -> Company:
         company = await self.get(company_id)
+        await self.apply_changes(company, data)
+        await commit_or_conflict(self.session, DUPLICATE_NAME)
+        await self.session.refresh(company)  # reload updated_at (set by the database)
+        return company
+
+    async def apply_changes(self, company: Company, data: CompanyUpdate) -> None:
+        """Every rule of update(), without the commit (used by the bulk import)."""
         changes = data.model_dump(exclude_unset=True)
 
         new_name = changes.get("name")
@@ -83,9 +94,7 @@ class CompanyService:
         _check_double_time(
             company.daily_ot_after, company.double_time_after, company.double_time_rate
         )
-        await commit_or_conflict(self.session, DUPLICATE_NAME)
-        await self.session.refresh(company)  # reload updated_at (set by the database)
-        return company
+        await self.session.flush()
 
     # --- whitelist ---------------------------------------------------------
 

@@ -11,6 +11,14 @@ from src.data.repositories.base import BaseRepository
 class HolidayRepository(BaseRepository[Holiday]):
     model = Holiday
 
+    async def find(self, company_id: uuid.UUID | None, holiday_date: date) -> Holiday | None:
+        """The holiday on this date for this company (None = the one for all companies)."""
+        query = select(Holiday).where(Holiday.holiday_date == holiday_date)
+        query = query.where(
+            Holiday.company_id.is_(None) if company_id is None else Holiday.company_id == company_id
+        )
+        return (await self.session.scalars(query.limit(1))).first()
+
     async def exists(self, company_id: uuid.UUID | None, holiday_date: date) -> bool:
         company_filter = (
             Holiday.company_id.is_(None) if company_id is None else Holiday.company_id == company_id
