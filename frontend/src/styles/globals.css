@@ -111,4 +111,123 @@
   .animate-content-in {
     animation: none;
   }
+  /* Two classes: wins over the .auth-bg-blob animation declared further down. */
+  .auth-bg .auth-bg-blob {
+    animation: none;
+  }
+}
+
+/* --- Auth pages background (features/auth/AuthBackground.tsx) ---------------------
+   Token colours only (color-mix with transparent), so it follows the theme. Motion:
+   transform only, CSS only. Three blurred elements at most. */
+.auth-bg-mesh {
+  background-color: var(--color-background);
+  background-image:
+    radial-gradient(
+      60rem 40rem at 0% 0%,
+      color-mix(in oklab, var(--color-primary) 15%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      50rem 36rem at 100% 0%,
+      color-mix(in oklab, var(--color-sidebar) 12%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      70rem 30rem at 50% 100%,
+      color-mix(in oklab, var(--color-accent) 90%, transparent),
+      transparent 75%
+    );
+}
+.auth-bg-grid {
+  background-image:
+    linear-gradient(
+      to right,
+      color-mix(in oklab, var(--color-foreground) 5%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--color-foreground) 5%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 40px 40px;
+  -webkit-mask-image: radial-gradient(ellipse at center, black 25%, transparent 75%);
+  mask-image: radial-gradient(ellipse at center, black 25%, transparent 75%);
+}
+.auth-bg-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(72px);
+  opacity: 0.32;
+  will-change: transform;
+  animation: auth-drift 32s ease-in-out infinite alternate;
+}
+.auth-bg-blob-1 {
+  top: -12%;
+  left: -10%;
+  width: clamp(16rem, 38vw, 34rem);
+  height: clamp(16rem, 38vw, 34rem);
+  background: color-mix(in oklab, var(--color-primary) 70%, transparent);
+  animation-duration: 34s;
+}
+.auth-bg-blob-2 {
+  right: -8%;
+  bottom: -14%;
+  width: clamp(14rem, 34vw, 30rem);
+  height: clamp(14rem, 34vw, 30rem);
+  background: color-mix(in oklab, var(--color-ring) 60%, transparent);
+  animation-duration: 28s;
+  animation-delay: -9s;
+}
+.auth-bg-blob-3 {
+  top: 8%;
+  right: 12%;
+  width: clamp(10rem, 22vw, 20rem);
+  height: clamp(10rem, 22vw, 20rem);
+  /* Navy leaning blue: plain navy blurs into grey on the light background. */
+  background: color-mix(in oklab, var(--color-sidebar) 55%, var(--color-primary));
+  opacity: 0.22;
+  animation-duration: 40s;
+  animation-delay: -18s;
+}
+@keyframes auth-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(4vw, 3vh, 0) scale(1.08);
+  }
+}
+.auth-bg-motif {
+  color: var(--color-primary);
+  opacity: 0.07;
+}
+/* Small screens: less blur (cheaper); the SVG motif is already hidden below sm. */
+@media (max-width: 639px) {
+  .auth-bg-blob {
+    filter: blur(40px);
+  }
+}
+/* Dark theme (if enabled): quieter, so the card stays the focal point. */
+.dark .auth-bg-blob {
+  opacity: 0.18;
+}
+.dark .auth-bg-grid {
+  opacity: 0.6;
+}
+.dark .auth-bg-motif {
+  opacity: 0.05;
+}
+/* No backdrop-filter: a solid card, so text contrast never depends on the background. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .auth-card {
+    background-color: var(--color-card);
+  }
+}
+/* Windows high contrast and similar: decoration off. */
+@media (forced-colors: active) {
+  .auth-bg {
+    display: none;
+  }
 }
