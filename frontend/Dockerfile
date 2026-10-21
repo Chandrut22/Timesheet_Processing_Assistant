@@ -10,7 +10,7 @@ RUN if [ ! -f package-lock.json ]; then \
       echo "ERROR: frontend/package-lock.json is missing. Run 'npm install' in frontend/ and commit package-lock.json, then build again." >&2; \
       exit 1; \
     fi
-RUN npm ci --legacy-peer-deps
+RUN npm ci
 
 COPY . .
 
