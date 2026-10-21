@@ -18,7 +18,25 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     environment: str = "dev"
     log_level: str = "INFO"
-    docs_enabled: bool = True
+    # API docs (/docs, /openapi.json). Off by default so a deployed service does not
+    # publish its full API map; DOCS_ENABLED=true in .env for local development.
+    docs_enabled: bool = False
+    # Paths anyone may call without a token (the auth middleware denies everything else).
+    # The API docs are added automatically when DOCS_ENABLED=true; OPTIONS always passes.
+    auth_public_paths: list[str] = ["/health", "/health/db", "/health/redis"]
+
+    # --- rate limiting (src/api/middleware/rate_limit.py) ---
+    # "requests/window_seconds" per route class; counted per user (or per IP when not
+    # signed in). Classes come from the ROUTE_CLASSES table in the middleware.
+    rate_limit_enabled: bool = True
+    rate_limit_fail_open: bool = True  # Redis down: let requests through (False: 503)
+    rate_limit_upload: str = Field(default="20/60", pattern=r"^\d+/\d+$")
+    rate_limit_export: str = Field(default="30/60", pattern=r"^\d+/\d+$")
+    rate_limit_default: str = Field(default="300/60", pattern=r"^\d+/\d+$")
+    rate_limit_exempt_paths: list[str] = ["/health", "/health/db", "/health/redis"]
+    # How many proxies in front of the API we trust to write X-Forwarded-For (nginx = 1).
+    # 0 = always use the socket address (set 0 when clients reach the API directly).
+    trusted_proxy_hops: int = Field(default=1, ge=0, le=5)
 
     # --- database: shared timesheet_db, this service owns the "core" schema ---
     database_url: str = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5433/timesheet_db"
@@ -43,6 +61,15 @@ class Settings(BaseSettings):
     # read them; then they are deleted. A shared Docker volume in compose. Never in Redis.
     upload_dir: Path = Path("data/uploads")
     upload_buffer_ttl_hours: int = 72  # a file not read by then is deleted (sweeper)
+    # DOCX / XLSX are zip packages: refuse one that unpacks to more than this, or that is
+    # compressed more than MAX_COMPRESSION_RATIO to 1 (how zip bombs look). Checked from
+    # the zip's directory before any reader opens the file (src/utils/file_checks.py).
+    max_uncompressed_mb: int = Field(default=100, ge=1)
+    max_compression_ratio: int = Field(default=100, ge=10)
+    # Bulk import of employees / companies / holidays (CSV or XLSX, admins only).
+    max_import_mb: int = Field(default=5, ge=1, le=50)
+    max_import_rows: int = Field(default=5000, ge=1)
+    import_report_rows: int = Field(default=200, ge=10)  # row details in the response
     # Big files: counted BEFORE reading (reading is the slow part, and the AI only sees
     # the first LLM_MAX_INPUT_CHARS anyway). Hidden and empty Excel sheets are never read.
     max_pages: int = Field(default=50, ge=1)  # PDF pages read

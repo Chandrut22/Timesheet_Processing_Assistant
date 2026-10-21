@@ -1,65 +1,13 @@
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  Building2,
-  CalendarDays,
-  ClipboardCheck,
-  FileSpreadsheet,
-  Inbox,
-  LayoutDashboard,
-  LogOut,
-  Upload,
-  UserCog,
-  Users,
-  CircleUser,
-  type LucideIcon,
-} from "lucide-react";
+import { CircleUser, LogOut } from "lucide-react";
 import type { ReactNode } from "react";
 import { logout } from "@/api/session";
 import { useUser } from "@/auth/useSession";
+import { navFor } from "@/components/nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-type NavItem = {
-  to:
-    | "/"
-    | "/review"
-    | "/submissions"
-    | "/upload"
-    | "/export"
-    | "/companies"
-    | "/employees"
-    | "/holidays"
-    | "/admin/users"
-    | "/account";
-  label: string;
-  icon: LucideIcon;
-  adminOnly?: boolean;
-  exact?: boolean;
-};
-
-const NAV: { heading: string; items: NavItem[] }[] = [
-  {
-    heading: "Work",
-    items: [
-      { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
-      { to: "/review", label: "Review queue", icon: ClipboardCheck },
-      { to: "/submissions", label: "Submissions", icon: Inbox },
-      { to: "/upload", label: "Upload", icon: Upload },
-      { to: "/export", label: "Payroll export", icon: FileSpreadsheet, adminOnly: true },
-    ],
-  },
-  {
-    heading: "Setup",
-    items: [
-      { to: "/companies", label: "Companies", icon: Building2 },
-      { to: "/employees", label: "Employees", icon: Users },
-      { to: "/holidays", label: "Holidays", icon: CalendarDays },
-      { to: "/admin/users", label: "Users", icon: UserCog, adminOnly: true },
-    ],
-  },
-];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const user = useUser();
@@ -72,10 +20,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     queryClient.clear();
   };
 
-  const sections = NAV.map((s) => ({
-    ...s,
-    items: s.items.filter((i) => !i.adminOnly || isAdmin),
-  }));
+  const sections = navFor(user.role);
 
   return (
     <div className="flex min-h-dvh">

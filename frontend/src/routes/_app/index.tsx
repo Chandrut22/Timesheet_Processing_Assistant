@@ -4,7 +4,7 @@ import { OctagonAlert, CircleCheck, ClipboardCheck, MailWarning } from "lucide-r
 import type { ReactNode } from "react";
 import { coreApi, type SubmissionListParams, type TimesheetListParams } from "@/api/core";
 import { qk } from "@/api/queryKeys";
-import { useIsAdmin, useUser } from "@/auth/useSession";
+import { useUser } from "@/auth/useSession";
 import { SourceIcon, SubmissionStateBadge } from "@/components/Badges";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/States";
@@ -44,10 +44,9 @@ function useSubmissionCount(params: SubmissionListParams) {
 
 function DashboardPage() {
   const user = useUser();
-  const isAdmin = useIsAdmin();
   const needsReview = useTimesheetCount({ status: ["needs_review"] });
   const high = useTimesheetCount({ status: ["needs_review"], severity: ["high"] });
-  const approved = useTimesheetCount({ status: ["approved"] }, isAdmin);
+  const approved = useTimesheetCount({ status: ["approved"] });
   const failed = useSubmissionCount({ status: "failed" });
   const recentParams = { page: 1, size: 10 };
   const recent = useQuery({
@@ -88,15 +87,13 @@ function DashboardPage() {
             </Link>
           }
         />
-        {isAdmin ? (
-          <StatCard
-            label="Approved, waiting for export"
-            query={approved}
-            icon={<CircleCheck />}
-            tone="success"
-            link={<Link to="/export">Go to payroll export</Link>}
-          />
-        ) : null}
+        <StatCard
+          label="Approved, waiting for export"
+          query={approved}
+          icon={<CircleCheck />}
+          tone="success"
+          link={<Link to="/export">Go to payroll export</Link>}
+        />
         <StatCard
           label="Failed emails"
           query={failed}

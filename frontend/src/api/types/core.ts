@@ -43,6 +43,8 @@ export type SubmissionSource = z.infer<typeof SubmissionSourceSchema>;
 export type TimesheetSort = z.infer<typeof TimesheetSortSchema>;
 export type SortOrder = z.infer<typeof SortOrderSchema>;
 export type SeverityFilter = z.infer<typeof SeverityFilterSchema>;
+/** File format of a payroll export download (GET /exports/{id}/download?format=). */
+export type ExportFormat = "csv" | "xlsx";
 
 // --- responses ----------------------------------------------------------------------
 export type PrincipalRead = z.infer<typeof PrincipalReadSchema>;

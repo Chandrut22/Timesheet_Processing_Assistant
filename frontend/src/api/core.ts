@@ -30,6 +30,7 @@ import type {
   EmployeeUpdate,
   EntryInput,
   ExportBatchRead,
+  ExportFormat,
   HolidayCreate,
   SeverityFilter,
   SortOrder,
@@ -218,14 +219,27 @@ export const coreApi = {
     ),
   listExports: (params: ExportListParams) =>
     data(ExportBatchPageSchema, http.get("/api/exports", { params: cleanParams(params) })),
-  downloadExport: async (batch: Pick<ExportBatchRead, "id" | "filename">) => {
+  /** Saves the payroll sheet as CSV (default) or Excel. Both hold the same rows. */
+  downloadExport: async (
+    batch: Pick<ExportBatchRead, "id" | "filename">,
+    format: ExportFormat = "csv",
+  ) => {
     const res = await http.get<Blob>(`/api/exports/${batch.id}/download`, {
+      params: { format },
       responseType: "blob",
     });
     const name =
-      filenameFromDisposition(res.headers["content-disposition"]) ||
-      batch.filename ||
-      `payroll-${batch.id}.csv`;
+      filenameFromDisposition(res.headers["content-disposition"]) || exportFileName(batch, format);
     saveBlob(res.data, name);
   },
 };
+
+/** The name to save a download under when the server sends none: the batch's file
+ * name with the extension of the chosen format ("payroll_acme_2026-09-07_ab12cd34.xlsx"). */
+export function exportFileName(
+  batch: Pick<ExportBatchRead, "id" | "filename">,
+  format: ExportFormat,
+): string {
+  const base = (batch.filename || `payroll-${batch.id}`).replace(/\.(csv|xlsx)$/i, "");
+  return `${base}.${format}`;
+}
