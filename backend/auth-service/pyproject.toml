@@ -12,6 +12,8 @@ dependencies = [
     "asyncpg>=0.32.0",
     "email-validator>=2.3.0",
     "fastapi[standard]>=0.143.0",
+    "httpx2>=2.15.1",
+    "openpyxl>=3.1.5",
     "opentelemetry-api==1.44.0",
     "opentelemetry-exporter-otlp-proto-http==1.44.0",
     "opentelemetry-instrumentation-fastapi==0.65b0",
@@ -28,6 +30,8 @@ dependencies = [
 [dependency-groups]
 dev = [
     "mypy>=2.4.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
     "ruff>=0.17.0",
 ]
 
@@ -44,10 +48,16 @@ warn_unused_ignores = true
 exclude = ["src/data/migrations/versions/"]
 
 [[tool.mypy.overrides]]
-module = ["asyncpg.*"]
+module = ["asyncpg.*", "openpyxl.*"]
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]
 init_forbid_extra = true
 init_typed = true
 warn_required_dynamic_aliases = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]  # so the tests can import src.* (pytest does not add it by itself)
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
