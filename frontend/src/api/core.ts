@@ -103,6 +103,9 @@ export const coreApi = {
   getTimesheet: (id: string) => data(TimesheetReadSchema, http.get(`/api/timesheets/${id}`)),
   updateEntries: (id: string, entries: EntryInput[]) =>
     data(TimesheetReadSchema, http.patch(`/api/timesheets/${id}/entries`, { entries })),
+  /** Move a weekly-total timesheet (no days) to another week (a company week-start day). */
+  setWeek: (id: string, weekStart: string) =>
+    data(TimesheetReadSchema, http.patch(`/api/timesheets/${id}/week`, { week_start: weekStart })),
   matchEmployee: (id: string, employeeId: string) =>
     data(
       TimesheetReadSchema,
