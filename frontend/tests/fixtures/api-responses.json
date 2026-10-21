@@ -1,0 +1,682 @@
+{
+  "_comment": "Real responses captured from core-service and auth-service (test data), trimmed to two items per list. Refresh them when a schema changes: see README, Keeping types in sync.",
+  "core": {
+    "me": {
+      "id": "6f1c2a7e-3d4b-4e5f-8a9b-0c1d2e3f4a5b",
+      "role": "admin",
+      "name": "Ada Admin",
+      "email": "ada@example.com"
+    },
+    "timesheetPage": {
+      "items": [
+        {
+          "id": "59dc75a8-c941-4d44-9ca2-eb20e2f13357",
+          "submission_id": "b54ae7b9-4279-4007-954e-b1527fa697a1",
+          "document_id": "11443e7d-c363-4080-918a-41cce20bb275",
+          "company_id": "07a378ff-51c7-4a04-89a9-b771d31b3280",
+          "employee_id": "1556d059-2d34-4653-919f-0d8681ad2969",
+          "extracted_name": "Ravi Kumar",
+          "extracted_code": "E002",
+          "extracted_company_name": null,
+          "week_start": "2026-06-01",
+          "status": "approved",
+          "version": 1,
+          "reprocess_run_id": null,
+          "superseded_by_id": null,
+          "regular_hours": 40.0,
+          "overtime_hours": 0.0,
+          "double_time_hours": 0.0,
+          "holiday_hours": 0.0,
+          "total_hours": 40.0,
+          "stated_total": null,
+          "email_stated_total": null,
+          "currency": "INR",
+          "hourly_rate": 450.0,
+          "overtime_rate": 675.0,
+          "double_time_rate": 900.0,
+          "holiday_rate": 900.0,
+          "regular_amount": 18000.0,
+          "overtime_amount": 0.0,
+          "double_time_amount": 0.0,
+          "holiday_amount": 0.0,
+          "gross_amount": 18000.0,
+          "read_confidence": 0.97,
+          "confidence": 0.97,
+          "match_method": "code",
+          "match_reason": "Matched Ravi Kumar (E002) by employee code 'E002' (match confidence 1.00).",
+          "flags": [],
+          "severity": null,
+          "notes": null,
+          "reviewed_by_name": null,
+          "reviewed_at": "2026-10-20T16:21:34.822684Z",
+          "created_at": "2026-10-20T16:21:34.780228Z",
+          "entries": [
+            {
+              "id": "bad0f6b3-bfaa-4c5d-8903-37ff1e31cc4b",
+              "work_date": "2026-06-01",
+              "hours": 8.0,
+              "is_holiday": false,
+              "sheet_holiday": false,
+              "double_time_marked": false,
+              "note": null
+            },
+            {
+              "id": "c5931064-1149-4210-8f15-49365312e5b5",
+              "work_date": "2026-06-02",
+              "hours": 8.0,
+              "is_holiday": false,
+              "sheet_holiday": false,
+              "double_time_marked": false,
+              "note": null
+            }
+          ]
+        },
+        {
+          "id": "e2efabe8-89d3-4fca-b8ec-5579989d7760",
+          "submission_id": "b54ae7b9-4279-4007-954e-b1527fa697a1",
+          "document_id": "11443e7d-c363-4080-918a-41cce20bb275",
+          "company_id": "07a378ff-51c7-4a04-89a9-b771d31b3280",
+          "employee_id": "f68d4353-d6f6-471c-8429-f3bbc1276c7e",
+          "extracted_name": "Grace Okoye",
+          "extracted_code": "E001",
+          "extracted_company_name": null,
+          "week_start": "2026-06-01",
+          "status": "approved",
+          "version": 1,
+          "reprocess_run_id": null,
+          "superseded_by_id": null,
+          "regular_hours": 40.0,
+          "overtime_hours": 5.0,
+          "double_time_hours": 0.0,
+          "holiday_hours": 0.0,
+          "total_hours": 45.0,
+          "stated_total": null,
+          "email_stated_total": null,
+          "currency": "INR",
+          "hourly_rate": 450.0,
+          "overtime_rate": 675.0,
+          "double_time_rate": 900.0,
+          "holiday_rate": 900.0,
+          "regular_amount": 18000.0,
+          "overtime_amount": 3375.0,
+          "double_time_amount": 0.0,
+          "holiday_amount": 0.0,
+          "gross_amount": 21375.0,
+          "read_confidence": 0.97,
+          "confidence": 0.97,
+          "match_method": "code",
+          "match_reason": "Matched Grace Okoye (E001) by employee code 'E001' (match confidence 1.00).",
+          "flags": [],
+          "severity": null,
+          "notes": null,
+          "reviewed_by_name": null,
+          "reviewed_at": "2026-10-20T16:21:34.818869Z",
+          "created_at": "2026-10-20T16:21:34.780228Z",
+          "entries": [
+            {
+              "id": "bc9151ec-48d8-43c7-84b5-a71615c93064",
+              "work_date": "2026-06-01",
+              "hours": 9.0,
+              "is_holiday": false,
+              "sheet_holiday": false,
+              "double_time_marked": false,
+              "note": null
+            },
+            {
+              "id": "ab70cbb6-a76c-4950-91e0-809176c70959",
+              "work_date": "2026-06-02",
+              "hours": 9.0,
+              "is_holiday": false,
+              "sheet_holiday": false,
+              "double_time_marked": false,
+              "note": null
+            }
+          ]
+        }
+      ],
+      "total": 2,
+      "page": 1,
+      "size": 2
+    },
+    "timesheet": {
+      "id": "59dc75a8-c941-4d44-9ca2-eb20e2f13357",
+      "submission_id": "b54ae7b9-4279-4007-954e-b1527fa697a1",
+      "document_id": "11443e7d-c363-4080-918a-41cce20bb275",
+      "company_id": "07a378ff-51c7-4a04-89a9-b771d31b3280",
+      "employee_id": "1556d059-2d34-4653-919f-0d8681ad2969",
+      "extracted_name": "Ravi Kumar",
+      "extracted_code": "E002",
+      "extracted_company_name": null,
+      "week_start": "2026-06-01",
+      "status": "approved",
+      "version": 1,
+      "reprocess_run_id": null,
+      "superseded_by_id": null,
+      "regular_hours": 40.0,
+      "overtime_hours": 0.0,
+      "double_time_hours": 0.0,
+      "holiday_hours": 0.0,
+      "total_hours": 40.0,
+      "stated_total": null,
+      "email_stated_total": null,
+      "currency": "INR",
+      "hourly_rate": 450.0,
+      "overtime_rate": 675.0,
+      "double_time_rate": 900.0,
+      "holiday_rate": 900.0,
+      "regular_amount": 18000.0,
+      "overtime_amount": 0.0,
+      "double_time_amount": 0.0,
+      "holiday_amount": 0.0,
+      "gross_amount": 18000.0,
+      "read_confidence": 0.97,
+      "confidence": 0.97,
+      "match_method": "code",
+      "match_reason": "Matched Ravi Kumar (E002) by employee code 'E002' (match confidence 1.00).",
+      "flags": [],
+      "severity": null,
+      "notes": null,
+      "reviewed_by_name": null,
+      "reviewed_at": "2026-10-20T16:21:34.822684Z",
+      "created_at": "2026-10-20T16:21:34.780228Z",
+      "entries": [
+        {
+          "id": "bad0f6b3-bfaa-4c5d-8903-37ff1e31cc4b",
+          "work_date": "2026-06-01",
+          "hours": 8.0,
+          "is_holiday": false,
+          "sheet_holiday": false,
+          "double_time_marked": false,
+          "note": null
+        },
+        {
+          "id": "c5931064-1149-4210-8f15-49365312e5b5",
+          "work_date": "2026-06-02",
+          "hours": 8.0,
+          "is_holiday": false,
+          "sheet_holiday": false,
+          "double_time_marked": false,
+          "note": null
+        }
+      ]
+    },
+    "submissionPage": {
+      "items": [
+        {
+          "id": "b54ae7b9-4279-4007-954e-b1527fa697a1",
+          "source": "upload",
+          "status": "processed",
+          "state": "approved",
+          "state_reason": null,
+          "company_id": "07a378ff-51c7-4a04-89a9-b771d31b3280",
+          "sender_email": null,
+          "subject": null,
+          "uploaded_by_id": null,
+          "uploaded_by_name": null,
+          "received_at": "2026-10-20T16:21:34.722900Z",
+          "processed_at": "2026-10-20T16:21:34.838039Z",
+          "error": null,
+          "attempts": 1,
+          "retry_at": null,
+          "documents": [
+            {
+              "id": "11443e7d-c363-4080-918a-41cce20bb275",
+              "filename": "t.pdf",
+              "content_type": "x",
+              "size_bytes": 5,
+              "sha256": "517f5df91559068a151c0d1e699b29a789133c740192acf05c6b121d25c15c29",
+              "status": "parsed",
+              "error": null,
+              "read_limit": null,
+              "created_at": "2026-10-20T16:21:34.635427Z"
+            }
+          ]
+        }
+      ],
+      "total": 1,
+      "page": 1,
+      "size": 2
+    },
+    "timeline": {
+      "submission": {
+        "id": "b54ae7b9-4279-4007-954e-b1527fa697a1",
+        "source": "upload",
+        "status": "processed",
+        "state": "approved",
+        "state_reason": null,
+        "company_id": "07a378ff-51c7-4a04-89a9-b771d31b3280",
+        "sender_email": null,
+        "subject": null,
+        "uploaded_by_id": null,
+        "uploaded_by_name": null,
+        "received_at": "2026-10-20T16:21:34.722900Z",
+        "processed_at": "2026-10-20T16:21:34.838039Z",
+        "error": null,
+        "attempts": 1,
+        "retry_at": null,
+        "documents": [
+          {
+            "id": "11443e7d-c363-4080-918a-41cce20bb275",
+            "filename": "t.pdf",
+            "content_type": "x",
+            "size_bytes": 5,
+            "sha256": "517f5df91559068a151c0d1e699b29a789133c740192acf05c6b121d25c15c29",
+            "status": "parsed",
+            "error": null,
+            "read_limit": null,
+            "created_at": "2026-10-20T16:21:34.635427Z"
+          }
+        ]
+      },
+      "states": [
+        {
+          "id": "8594bba6-f34c-4e1e-8ed7-ed781448554f",
+          "from_state": "received",
+          "to_state": "reading",
+          "reason": null,
+          "actor_name": null,
+          "created_at": "2026-10-20T16:21:34.771596Z"
+        },
+        {
+          "id": "8015d68e-c57a-4005-97cf-b651452c37c5",
+          "from_state": "reading",
+          "to_state": "matching",
+          "reason": null,
+          "actor_name": null,
+          "created_at": "2026-10-20T16:21:34.781638Z"
+        }
+      ],
+      "steps": [
+        {
+          "id": "b6ba82e7-e71d-4f3c-ab88-a35170b65636",
+          "step": "extract",
+          "result": "success",
+          "message": "Found 2 timesheet(s) in t.pdf",
+          "document_id": "11443e7d-c363-4080-918a-41cce20bb275",
+          "timesheet_id": null,
+          "input": {
+            "file": "t.pdf",
+            "parts": 1,
+            "truncated": false,
+            "characters": 5,
+            "people_in_tables": null
+          },
+          "output": {
+            "timesheets": [
+              {
+                "days": 5,
+                "confidence": 0.97,
+                "stated_total": null,
+                "employee_code": "E001",
+                "employee_name": "Grace Okoye"
+              },
+              {
+                "days": 5,
+                "confidence": 0.97,
+                "stated_total": null,
+                "employee_code": "E002",
+                "employee_name": "Ravi Kumar"
+              }
+            ],
+            "people_missing": 0,
+            "people_in_tables": null
+          },
+          "error_details": null,
+          "duration_ms": 0,
+          "reprocess_run_id": null,
+          "trace_id": null,
+          "created_at": "2026-10-20T16:21:34.782100Z"
+        },
+        {
+          "id": "69732598-b798-4122-ba59-dc57d61a41b3",
+          "step": "match",
+          "result": "success",
+          "message": "Matched Grace Okoye (E001) by employee code 'E001' (match confidence 1.00).",
+          "document_id": "11443e7d-c363-4080-918a-41cce20bb275",
+          "timesheet_id": "e2efabe8-89d3-4fca-b8ec-5579989d7760",
+          "input": {
+            "code": "E001",
+            "name": "Grace Okoye",
+            "sender_company": "ExCo",
+            "company_written": null
+          },
+          "output": {
+            "method": "code",
+            "company": "ExCo",
+            "employee": "Grace Okoye",
+            "candidates": [],
+            "confidence": 0.97,
+            "employee_id": "f68d4353-d6f6-471c-8429-f3bbc1276c7e"
+          },
+          "error_details": null,
+          "duration_ms": 19,
+          "reprocess_run_id": null,
+          "trace_id": null,
+          "created_at": "2026-10-20T16:21:34.805551Z"
+        }
+      ],
+      "audit": [
+        {
+          "id": "2a95914c-6118-4501-9e63-dffcc29f8348",
+          "entity_type": "timesheet",
+          "entity_id": "59dc75a8-c941-4d44-9ca2-eb20e2f13357",
+          "action": "auto_approved",
+          "actor_id": null,
+          "actor_name": null,
+          "details": {
+            "flags": [],
+            "confidence": 0.97,
+            "match_method": "code"
+          },
+          "created_at": "2026-10-20T16:21:34.780228Z"
+        },
+        {
+          "id": "dd1ecaee-77cc-47e7-817f-2c8cbcdb4087",
+          "entity_type": "timesheet",
+          "entity_id": "e2efabe8-89d3-4fca-b8ec-5579989d7760",
+          "action": "auto_approved",
+          "actor_id": null,
+          "actor_name": null,
+          "details": {
+            "flags": [],
+            "confidence": 0.97,
+            "match_method": "code"
+          },
+          "created_at": "2026-10-20T16:21:34.780228Z"
+        }
+      ],
+      "reprocess_runs": []
+    },
+    "companyPage": {
+      "items": [
+        {
+          "id": "07a378ff-51c7-4a04-89a9-b771d31b3280",
+          "name": "ExCo",
+          "aliases": [],
+          "hourly_rate": 450.0,
+          "overtime_rate": 675.0,
+          "double_time_rate": 900.0,
+          "holiday_rate": 900.0,
+          "currency": "INR",
+          "daily_ot_after": 8.0,
+          "weekly_ot_after": 40.0,
+          "double_time_after": null,
+          "week_start": 0,
+          "is_active": true,
+          "created_at": "2026-10-20T16:21:34.635427Z",
+          "updated_at": "2026-10-20T16:21:34.635427Z"
+        }
+      ],
+      "total": 1,
+      "page": 1,
+      "size": 2
+    },
+    "employeePage": {
+      "items": [
+        {
+          "id": "f68d4353-d6f6-471c-8429-f3bbc1276c7e",
+          "company_id": "07a378ff-51c7-4a04-89a9-b771d31b3280",
+          "employee_code": "E001",
+          "full_name": "Grace Okoye",
+          "email": null,
+          "aliases": [],
+          "assignment_start": null,
+          "assignment_end": null,
+          "is_active": true,
+          "created_at": "2026-10-20T16:21:34.635427Z",
+          "updated_at": "2026-10-20T16:21:34.635427Z"
+        },
+        {
+          "id": "1556d059-2d34-4653-919f-0d8681ad2969",
+          "company_id": "07a378ff-51c7-4a04-89a9-b771d31b3280",
+          "employee_code": "E002",
+          "full_name": "Ravi Kumar",
+          "email": null,
+          "aliases": [],
+          "assignment_start": null,
+          "assignment_end": null,
+          "is_active": true,
+          "created_at": "2026-10-20T16:21:34.635427Z",
+          "updated_at": "2026-10-20T16:21:34.635427Z"
+        }
+      ],
+      "total": 2,
+      "page": 1,
+      "size": 2
+    },
+    "holidays": [
+      {
+        "id": "c4cd004d-23b9-46e3-8939-883e12f8bb93",
+        "company_id": "07a378ff-51c7-4a04-89a9-b771d31b3280",
+        "holiday_date": "2031-01-01",
+        "name": "New Year's Day",
+        "created_at": "2026-10-20T16:28:16.492399Z"
+      }
+    ],
+    "whitelist": [],
+    "exportPage": {
+      "items": [
+        {
+          "id": "c59d9636-8f28-44df-8d1d-d56193b818cb",
+          "company_id": "07a378ff-51c7-4a04-89a9-b771d31b3280",
+          "company_name": "ExCo",
+          "week_start": "2026-06-01",
+          "week_end": "2026-06-07",
+          "row_count": 2,
+          "regular_hours": 80.0,
+          "overtime_hours": 5.0,
+          "double_time_hours": 0.0,
+          "holiday_hours": 0.0,
+          "currency": "INR",
+          "regular_amount": 36000.0,
+          "overtime_amount": 3375.0,
+          "double_time_amount": 0.0,
+          "holiday_amount": 0.0,
+          "gross_amount": 39375.0,
+          "filename": "payroll_exco_2026-06-01_c59d9636.csv",
+          "created_by_name": "Ada Admin",
+          "created_at": "2026-10-20T16:28:16.561812Z"
+        }
+      ],
+      "total": 1,
+      "page": 1,
+      "size": 2
+    },
+    "exportPreview": {
+      "company_id": "07a378ff-51c7-4a04-89a9-b771d31b3280",
+      "company_name": "ExCo",
+      "week_start": "2026-06-01",
+      "week_end": "2026-06-07",
+      "currency": "INR",
+      "rows": [
+        {
+          "timesheet_id": "e2efabe8-89d3-4fca-b8ec-5579989d7760",
+          "employee_id": "f68d4353-d6f6-471c-8429-f3bbc1276c7e",
+          "employee_code": "E001",
+          "employee_name": "Grace Okoye",
+          "regular_hours": 40.0,
+          "overtime_hours": 5.0,
+          "double_time_hours": 0.0,
+          "holiday_hours": 0.0,
+          "total_hours": 45.0,
+          "currency": "INR",
+          "hourly_rate": 450.0,
+          "overtime_rate": 675.0,
+          "double_time_rate": 900.0,
+          "holiday_rate": 900.0,
+          "regular_amount": 18000.0,
+          "overtime_amount": 3375.0,
+          "double_time_amount": 0.0,
+          "holiday_amount": 0.0,
+          "gross_amount": 21375.0,
+          "approved_by": null,
+          "approved_at": "2026-10-20T16:21:34.818869Z"
+        },
+        {
+          "timesheet_id": "59dc75a8-c941-4d44-9ca2-eb20e2f13357",
+          "employee_id": "1556d059-2d34-4653-919f-0d8681ad2969",
+          "employee_code": "E002",
+          "employee_name": "Ravi Kumar",
+          "regular_hours": 40.0,
+          "overtime_hours": 0.0,
+          "double_time_hours": 0.0,
+          "holiday_hours": 0.0,
+          "total_hours": 40.0,
+          "currency": "INR",
+          "hourly_rate": 450.0,
+          "overtime_rate": 675.0,
+          "double_time_rate": 900.0,
+          "holiday_rate": 900.0,
+          "regular_amount": 18000.0,
+          "overtime_amount": 0.0,
+          "double_time_amount": 0.0,
+          "holiday_amount": 0.0,
+          "gross_amount": 18000.0,
+          "approved_by": null,
+          "approved_at": "2026-10-20T16:21:34.822684Z"
+        }
+      ],
+      "totals": {
+        "rows": 2,
+        "regular_hours": 80.0,
+        "overtime_hours": 5.0,
+        "double_time_hours": 0.0,
+        "holiday_hours": 0.0,
+        "total_hours": 85.0,
+        "regular_amount": 36000.0,
+        "overtime_amount": 3375.0,
+        "double_time_amount": 0.0,
+        "holiday_amount": 0.0,
+        "gross_amount": 39375.0,
+        "unpriced": 0
+      },
+      "pending_review": 0,
+      "rejected": 0,
+      "already_exported": 0,
+      "problems": []
+    },
+    "exportBatch": {
+      "id": "c59d9636-8f28-44df-8d1d-d56193b818cb",
+      "company_id": "07a378ff-51c7-4a04-89a9-b771d31b3280",
+      "company_name": "ExCo",
+      "week_start": "2026-06-01",
+      "week_end": "2026-06-07",
+      "row_count": 2,
+      "regular_hours": 80.0,
+      "overtime_hours": 5.0,
+      "double_time_hours": 0.0,
+      "holiday_hours": 0.0,
+      "currency": "INR",
+      "regular_amount": 36000.0,
+      "overtime_amount": 3375.0,
+      "double_time_amount": 0.0,
+      "holiday_amount": 0.0,
+      "gross_amount": 39375.0,
+      "filename": "payroll_exco_2026-06-01_c59d9636.csv",
+      "created_by_name": "Ada Admin",
+      "created_at": "2026-10-20T16:28:16.561812Z"
+    },
+    "importReport": {
+      "resource": "holidays",
+      "file_name": "holidays.csv",
+      "dry_run": true,
+      "committed": false,
+      "on_error": "skip",
+      "on_duplicate": "error",
+      "total_rows": 2,
+      "created": 1,
+      "updated": 0,
+      "skipped": 0,
+      "failed": 1,
+      "warnings": [],
+      "rows": [
+        {
+          "row": 3,
+          "status": "failed",
+          "errors": [
+            {
+              "column": "holiday_date",
+              "message": "Input should be a valid date or datetime, invalid character in year"
+            }
+          ],
+          "warnings": []
+        },
+        {
+          "row": 2,
+          "status": "created",
+          "errors": [],
+          "warnings": []
+        }
+      ],
+      "rows_omitted": 0
+    }
+  },
+  "auth": {
+    "userPage": {
+      "items": [
+        {
+          "id": "2819c480-6a1c-414f-a156-d962d535e1dd",
+          "name": "Hal",
+          "email": "hal@example.com",
+          "role": "reviewer",
+          "is_active": true,
+          "last_login_at": null,
+          "created_at": "2026-10-20T16:17:30.776535Z"
+        },
+        {
+          "id": "66ed191e-1002-426b-8cab-1a0c04264a8e",
+          "name": "ada",
+          "email": "ada@example.com",
+          "role": "admin",
+          "is_active": true,
+          "last_login_at": null,
+          "created_at": "2026-10-20T16:17:30.602023Z"
+        }
+      ],
+      "total": 2,
+      "page": 1,
+      "size": 2
+    },
+    "importReport": {
+      "resource": "users",
+      "file_name": "users.csv",
+      "dry_run": true,
+      "committed": false,
+      "on_error": "skip",
+      "on_duplicate": "error",
+      "total_rows": 2,
+      "created": 1,
+      "updated": 0,
+      "skipped": 0,
+      "failed": 1,
+      "warnings": [],
+      "rows": [
+        {
+          "row": 3,
+          "status": "failed",
+          "errors": [
+            {
+              "column": "email",
+              "message": "value is not a valid email address: An email address must have an @-sign."
+            },
+            {
+              "column": "role",
+              "message": "Input should be 'admin' or 'reviewer'"
+            }
+          ],
+          "warnings": []
+        },
+        {
+          "row": 2,
+          "status": "created",
+          "errors": [],
+          "warnings": []
+        }
+      ],
+      "rows_omitted": 0
+    },
+    "message": {
+      "message": "If an account exists for this email, a 6-digit code has been sent to it."
+    }
+  }
+}
