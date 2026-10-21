@@ -1,9 +1,9 @@
 """Things routes ask for with Depends(...): a DB session, the current user, a role check."""
 
 from collections.abc import Awaitable, Callable
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,14 +28,29 @@ UNAUTHORIZED = HTTPException(
 )
 
 
-async def get_current_user(
-    session: SessionDep,
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
-) -> User:
+def _claims(
+    request: Request, credentials: HTTPAuthorizationCredentials | None
+) -> dict[str, Any]:
+    """The token claims the auth middleware verified (request.state.principal); without
+    the middleware (an app built in a test) the token is verified here instead."""
+    claims = getattr(request.state, "principal", None)
+    if isinstance(claims, dict):
+        return claims
     if credentials is None:
         raise UNAUTHORIZED
     try:
-        user_id = user_id_from(decode_access_token(credentials.credentials))
+        return decode_access_token(credentials.credentials)
+    except InvalidTokenError:
+        raise UNAUTHORIZED from None
+
+
+async def get_current_user(
+    request: Request,
+    session: SessionDep,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+) -> User:
+    try:
+        user_id = user_id_from(_claims(request, credentials))
     except InvalidTokenError:
         raise UNAUTHORIZED from None
 
