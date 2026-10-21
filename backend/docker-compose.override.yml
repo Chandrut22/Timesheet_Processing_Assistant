@@ -1,0 +1,23 @@
+# Local development only: publishes the APIs, Postgres and Redis on your machine.
+# "docker compose up" loads this file automatically next to docker-compose.yml.
+# On a server, leave it out:  docker compose -f docker-compose.yml up -d
+#
+# Host ports (the Vite dev server, Postman and the test scripts use them):
+#   8001 auth-service, 8002 core-service, 5433 Postgres, 6380 Redis
+
+services:
+  postgres:
+    ports:
+      - "5433:5432"  # 5432 is often taken by a local PostgreSQL service
+
+  redis:
+    ports:
+      - "6380:6379"  # needs REDIS_PASSWORD, e.g. redis://:<password>@127.0.0.1:6380/0
+
+  auth-service:
+    ports:
+      - "8001:8001"
+
+  core-service:
+    ports:
+      - "8002:8002"
