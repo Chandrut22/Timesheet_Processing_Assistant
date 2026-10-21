@@ -3,7 +3,10 @@ import { buildApiError, FORBIDDEN_MESSAGE, locToField, SERVER_MESSAGE } from "..
 
 describe("buildApiError", () => {
   it("shows the backend's own message for app errors", () => {
-    const e = buildApiError(409, { detail: "This timesheet is already approved.", code: "conflict" });
+    const e = buildApiError(409, {
+      detail: "This timesheet is already approved.",
+      code: "conflict",
+    });
     expect(e.status).toBe(409);
     expect(e.code).toBe("conflict");
     expect(e.message).toBe("This timesheet is already approved.");
@@ -50,7 +53,9 @@ describe("buildApiError", () => {
   });
 
   it("never shows technical text for 5xx, and a plain message for 403", () => {
-    expect(buildApiError(500, { detail: "Traceback (most recent call last)…" }).message).toBe(SERVER_MESSAGE);
+    expect(buildApiError(500, { detail: "Traceback (most recent call last)…" }).message).toBe(
+      SERVER_MESSAGE,
+    );
     expect(buildApiError(403, { detail: "Forbidden" }).message).toBe(FORBIDDEN_MESSAGE);
   });
 

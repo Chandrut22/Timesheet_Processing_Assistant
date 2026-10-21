@@ -63,7 +63,9 @@ describe("http client", () => {
 
   it("on 401 refreshes once and retries with the new token", async () => {
     useAdapter((c) =>
-      String(c.headers.get("Authorization")) === "Bearer new" ? { status: 200, data: { ok: true } } : { status: 401, data: {} },
+      String(c.headers.get("Authorization")) === "Bearer new"
+        ? { status: 200, data: { ok: true } }
+        : { status: 401, data: {} },
     );
     const res = await http.get("/api/timesheets");
     expect(res.data).toEqual({ ok: true });
@@ -87,7 +89,9 @@ describe("http client", () => {
 
   it("never refreshes for the login call itself", async () => {
     useAdapter(() => ({ status: 401, data: { detail: "Wrong email or password" } }));
-    await expect(http.post("/auth/login", {})).rejects.toMatchObject({ message: "Wrong email or password" });
+    await expect(http.post("/auth/login", {})).rejects.toMatchObject({
+      message: "Wrong email or password",
+    });
     expect(state.refreshCalls).toBe(0);
   });
 

@@ -14,7 +14,9 @@ describe("client helpers", () => {
     expect(filenameFromDisposition('attachment; filename="payroll-acme-2026-10-12.csv"')).toBe(
       "payroll-acme-2026-10-12.csv",
     );
-    expect(filenameFromDisposition("attachment; filename*=UTF-8''pay%20roll.csv")).toBe("pay roll.csv");
+    expect(filenameFromDisposition("attachment; filename*=UTF-8''pay%20roll.csv")).toBe(
+      "pay roll.csv",
+    );
     expect(filenameFromDisposition(undefined)).toBeNull();
   });
 });
