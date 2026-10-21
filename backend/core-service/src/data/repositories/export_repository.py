@@ -34,8 +34,9 @@ class ExportRepository(BaseRepository[ExportBatch]):
     ) -> list[tuple[Timesheet, Employee]]:
         """Approved, not yet exported timesheets of one company and week, with their employee.
 
-        lock=True takes a row lock (SELECT ... FOR UPDATE OF timesheets): if two admins
-        export the same week at once, the second waits, then finds nothing left."""
+        lock=True takes a row lock (SELECT ... FOR UPDATE OF timesheets): if two people
+        export the same week at once, the second waits, then finds nothing left
+        (tests/integration/test_export_reviewer.py)."""
         query = (
             select(Timesheet, Employee)
             .join(Employee, Employee.id == Timesheet.employee_id)

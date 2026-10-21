@@ -42,6 +42,13 @@ ADMIN_ONLY = [
     ("PATCH", f"/employees/{SOME_ID}", {"full_name": "X"}),
     ("POST", "/holidays", {"holiday_date": "2026-12-25"}),
     ("DELETE", f"/holidays/{SOME_ID}", None),
+    # Bulk import (Task 8) stays admin-only, also now that reviewers export.
+    ("GET", "/companies/import/template", None),
+    ("POST", "/companies/import", None),
+    ("GET", "/employees/import/template", None),
+    ("POST", "/employees/import", None),
+    ("GET", "/holidays/import/template", None),
+    ("POST", "/holidays/import", None),
 ]
 
 # The payroll export is a reviewer job too (since Oct 2026), in both file formats.

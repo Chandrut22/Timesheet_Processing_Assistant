@@ -1,13 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Download, FileSpreadsheet } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileSpreadsheet } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { coreApi } from "@/api/core";
 import { errorMessage } from "@/api/errors";
 import type { CompanyRead, ExportBatchRead, ExportPreview } from "@/api/models";
 import { qk } from "@/api/queryKeys";
-import { requireAdmin } from "@/auth/requireAdmin";
 import { CompanySelect } from "@/components/CompanySelect";
 import { FormError } from "@/components/Field";
 import { Money } from "@/components/Money";
@@ -25,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { DownloadButtons } from "@/features/export/DownloadButtons";
 import {
   backendWeekday,
   formatDateTime,
@@ -38,8 +38,8 @@ import { useCompanyMap } from "@/lib/lookups";
 
 type ExportSearch = { company_id?: string; week?: string };
 
+// Admins and reviewers: no role guard (the API's export routes allow both).
 export const Route = createFileRoute("/_app/export")({
-  beforeLoad: requireAdmin,
   validateSearch: (s: Record<string, unknown>): ExportSearch => ({
     company_id: typeof s.company_id === "string" && s.company_id ? s.company_id : undefined,
     week: typeof s.week === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s.week) ? s.week : undefined,
@@ -67,7 +67,7 @@ function ExportPage() {
     <>
       <PageHeader
         title="Payroll export"
-        description="Create the weekly payroll sheet (CSV) for one client company from its approved timesheets."
+        description="Create the weekly payroll sheet for one client company from its approved timesheets, then download it as CSV or Excel."
       />
 
       <Card className="mb-4">
@@ -186,7 +186,7 @@ function PreviewSection({ company, week }: { company: CompanyRead; week: string 
             <Money amount={created.gross_amount} currency={created.currency} /> gross. Its
             timesheets are now marked exported.
           </span>
-          <DownloadButton batch={created} />
+          <DownloadButtons batch={created} />
         </Banner>
       ) : null}
 
@@ -402,35 +402,6 @@ function Warnings({ p }: { p: ExportPreview }) {
   );
 }
 
-function DownloadButton({
-  batch,
-  size = "sm",
-}: {
-  batch: ExportBatchRead;
-  size?: "sm" | "default";
-}) {
-  const [busy, setBusy] = useState(false);
-  return (
-    <Button
-      variant="outline"
-      size={size}
-      disabled={busy}
-      onClick={async () => {
-        setBusy(true);
-        try {
-          await coreApi.downloadExport(batch);
-        } catch (err) {
-          toast.error(errorMessage(err));
-        } finally {
-          setBusy(false);
-        }
-      }}
-    >
-      <Download /> {busy ? "Downloading…" : "Download CSV"}
-    </Button>
-  );
-}
-
 function History({ companyId }: { companyId?: string }) {
   const [page, setPage] = useState(1);
   const params = { company_id: companyId, page, size: 10 };
@@ -467,7 +438,7 @@ function History({ companyId }: { companyId?: string }) {
                 <TableHead className="text-right">Rows</TableHead>
                 <TableHead className="text-right">Gross</TableHead>
                 <TableHead>Created</TableHead>
-                <TableHead>File</TableHead>
+                <TableHead>Download</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -486,7 +457,7 @@ function History({ companyId }: { companyId?: string }) {
                     ) : null}
                   </TableCell>
                   <TableCell>
-                    <DownloadButton batch={b} />
+                    <DownloadButtons batch={b} />
                   </TableCell>
                 </TableRow>
               ))}
