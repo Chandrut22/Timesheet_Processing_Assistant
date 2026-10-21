@@ -1,3 +1,9 @@
+// THE HTTP CLIENT. Every request the app makes goes through `http` below: screens and
+// hooks call the typed functions in src/api/*.ts, never axios, fetch() or
+// XMLHttpRequest directly. ESLint enforces this (eslint.config.js: no-restricted-globals
+// / -properties / -imports). Two deliberate exceptions, both in src/api: session.ts uses
+// a bare axios instance for login / refresh / logout (no interceptors, so a refresh can
+// never trigger another refresh), and errors.ts uses axios only to recognise its errors.
 import axios, { type InternalAxiosRequestConfig } from "axios";
 import { toApiError } from "./errors";
 import { getAccessToken, refreshAccessToken } from "./session";
