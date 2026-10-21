@@ -20,6 +20,11 @@ export function hasFlag(flags: FlagRead[], ...codes: string[]): boolean {
   return flags.some((f) => codes.includes(f.code));
 }
 
+/** The sheet gave only a weekly total (no daily hours) and no days were entered yet. */
+export function isWeeklyTotal(t: { entries: unknown[]; flags: FlagRead[] }): boolean {
+  return t.entries.length === 0 && hasFlag(t.flags, "weekly_total_only");
+}
+
 /** Pulls employee candidates from a flag's extra keys, whatever shape they arrive in. */
 export function flagCandidates(flags: FlagRead[]): { id: string; label: string | null }[] {
   const out = new Map<string, string | null>();

@@ -2,6 +2,7 @@ import { Mail, Upload } from "lucide-react";
 import type { FlagRead } from "@/api/models";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { humanize } from "@/lib/format";
+import { IN_PROGRESS_STATES } from "@/lib/submissionStates";
 import { sortFlags } from "@/lib/severity";
 import { cn } from "@/lib/utils";
 
@@ -35,14 +36,6 @@ const STATE_LABEL: Record<string, string> = {
   rule_checks: "Checking rules",
   awaiting_review: "Awaiting review",
 };
-
-const IN_PROGRESS_STATES = new Set([
-  "received",
-  "reading",
-  "matching",
-  "rule_checks",
-  "reprocessing",
-]);
 
 export function SubmissionStateBadge({ state }: { state: string }) {
   const busy = IN_PROGRESS_STATES.has(state);

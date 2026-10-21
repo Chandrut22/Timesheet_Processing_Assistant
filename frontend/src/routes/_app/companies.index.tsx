@@ -1,8 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+
 import { coreApi } from "@/api/core";
 import { errorMessage } from "@/api/errors";
 import { qk } from "@/api/queryKeys";
@@ -36,22 +37,27 @@ import { ImportButton } from "@/features/import/ImportDialog";
 import { DebouncedInput } from "@/features/review/DebouncedInput";
 import { WEEKDAYS } from "@/lib/format";
 
-export const Route = createFileRoute("/_app/companies/")({ component: CompaniesPage });
+export const Route = createFileRoute("/_app/companies/")({
+  component: CompaniesPage,
+});
 
 function CompaniesPage() {
   const isAdmin = useIsAdmin();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
   const [q, setQ] = useState("");
   const [active, setActive] = useState<"" | "true" | "false">("true");
   const [page, setPage] = useState(1);
   const [creating, setCreating] = useState(false);
+
   const params = {
     q: q || undefined,
     is_active: active === "" ? undefined : active === "true",
     page,
     size: 25,
   };
+
   const list = useQuery({
     queryKey: qk.companies.list(params),
     queryFn: () => coreApi.listCompanies(params),
@@ -61,10 +67,16 @@ function CompaniesPage() {
   const create = useMutation({
     mutationFn: (v: CompanyFormValues) => coreApi.createCompany(toCompanyBody(v)),
     meta: { silentError: true },
+
     onSuccess: (c) => {
       toast.success(`${c.name} created. Next, add the email addresses it sends timesheets from.`);
-      void queryClient.invalidateQueries({ queryKey: qk.companies.all });
+
+      void queryClient.invalidateQueries({
+        queryKey: qk.companies.all,
+      });
+
       setCreating(false);
+
       void navigate({
         to: "/companies/$companyId",
         params: { companyId: c.id },
@@ -84,19 +96,25 @@ function CompaniesPage() {
               <ImportButton
                 resource="companies"
                 onImported={() =>
-                  void queryClient.invalidateQueries({ queryKey: qk.companies.all })
+                  void queryClient.invalidateQueries({
+                    queryKey: qk.companies.all,
+                  })
                 }
               />
+
               <Button onClick={() => setCreating(true)}>
-                <Plus /> New company
+                <Plus />
+                New company
               </Button>
             </>
           ) : null
         }
       />
+
       <Card className="mb-4 flex flex-wrap items-end gap-3 p-4">
         <div className="grid w-full max-w-xs gap-1.5">
           <Label htmlFor="co-q">Search</Label>
+
           <DebouncedInput
             id="co-q"
             type="search"
@@ -108,8 +126,10 @@ function CompaniesPage() {
             }}
           />
         </div>
+
         <div className="grid w-40 gap-1.5">
           <Label htmlFor="co-active">Show</Label>
+
           <NativeSelect
             id="co-active"
             value={active}
@@ -127,7 +147,7 @@ function CompaniesPage() {
 
       <Card>
         {list.isPending ? (
-          <TableSkeleton rows={6} cols={6} />
+          <TableSkeleton rows={6} cols={isAdmin ? 8 : 7} />
         ) : list.isError ? (
           <div className="p-4">
             <ErrorState error={list.error} onRetry={() => void list.refetch()} />
@@ -136,7 +156,7 @@ function CompaniesPage() {
           <div className="p-4">
             <EmptyState
               title="No companies found"
-              hint={isAdmin ? "Create the first one with “New company”." : undefined}
+              hint={isAdmin ? 'Create the first one with "New company".' : undefined}
             />
           </div>
         ) : (
@@ -151,8 +171,11 @@ function CompaniesPage() {
                   <TableHead>Overtime after</TableHead>
                   <TableHead>Week starts</TableHead>
                   <TableHead>Status</TableHead>
+
+                  {isAdmin && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
+
               <TableBody>
                 {list.data.items.map((c) => (
                   <TableRow key={c.id}>
@@ -164,34 +187,60 @@ function CompaniesPage() {
                       >
                         {c.name}
                       </Link>
-                      {c.aliases.length ? (
+
+                      {c.aliases.length > 0 && (
                         <span className="block max-w-64 truncate text-xs text-muted-foreground">
                           {c.aliases.join(", ")}
                         </span>
-                      ) : null}
+                      )}
                     </TableCell>
+
                     <TableCell className="text-right">
                       <Money amount={c.hourly_rate} currency={c.currency} />
                     </TableCell>
+
                     <TableCell className="text-right">
                       <Money amount={c.overtime_rate} currency={c.currency} />
                     </TableCell>
+
                     <TableCell className="text-right">
                       <Money amount={c.holiday_rate} currency={c.currency} />
                     </TableCell>
+
                     <TableCell className="tabular">
                       {c.daily_ot_after} h/day · {c.weekly_ot_after} h/week
                     </TableCell>
+
                     <TableCell>{WEEKDAYS[c.week_start]}</TableCell>
+
                     <TableCell>
                       <Badge variant={c.is_active ? "success" : "muted"}>
                         {c.is_active ? "Active" : "Inactive"}
                       </Badge>
                     </TableCell>
+
+                    {isAdmin && (
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Edit ${c.name}`}
+                          onClick={() =>
+                            void navigate({
+                              to: "/companies/$companyId",
+                              params: { companyId: c.id },
+                            })
+                          }
+                        >
+                          <Pencil />
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+
             <Pagination page={page} size={25} total={list.data.total} onPage={setPage} />
           </>
         )}
@@ -199,18 +248,23 @@ function CompaniesPage() {
 
       <Dialog
         open={creating}
-        onOpenChange={(o) => {
-          if (!o) create.reset();
-          setCreating(o);
+        onOpenChange={(open) => {
+          if (!open) {
+            create.reset();
+          }
+
+          setCreating(open);
         }}
       >
         <DialogContent wide>
           <DialogHeader>
             <DialogTitle>New company</DialogTitle>
+
             <DialogDescription>
               Pay rates are required. You can change them later.
             </DialogDescription>
           </DialogHeader>
+
           <CompanyForm
             submitLabel="Create company"
             onSubmit={(v) => create.mutateAsync(v)}

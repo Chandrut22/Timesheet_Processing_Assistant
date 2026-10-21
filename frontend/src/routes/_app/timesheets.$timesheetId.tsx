@@ -18,6 +18,7 @@ import { HistoryPanel } from "@/features/timesheet/HistoryPanel";
 import { MatchEmployeeDialog } from "@/features/timesheet/MatchEmployeeDialog";
 import { PayBreakdown } from "@/features/timesheet/PayBreakdown";
 import { useTimesheetMutation } from "@/features/timesheet/useTimesheetMutation";
+import { WeeklyTotalPanel } from "@/features/timesheet/WeeklyTotalPanel";
 import { formatDateTime, formatHours, formatPercent, formatWeek, humanize } from "@/lib/format";
 import {
   timesheetCompanyName,
@@ -25,7 +26,7 @@ import {
   useCompanyMap,
   useEmployeeMap,
 } from "@/lib/lookups";
-import { hasFlag } from "@/lib/severity";
+import { hasFlag, isWeeklyTotal } from "@/lib/severity";
 
 export const Route = createFileRoute("/_app/timesheets/$timesheetId")({
   component: TimesheetDetailPage,
@@ -138,6 +139,14 @@ function TimesheetDetail({ t, back }: { t: TimesheetRead; back: ReactNode }) {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
+          {isWeeklyTotal(t) ? (
+            <WeeklyTotalPanel
+              key={t.week_start ?? ""}
+              t={t}
+              weekStartDay={t.company_id ? companies.get(t.company_id)?.week_start : undefined}
+              readOnly={readOnly}
+            />
+          ) : null}
           <EntriesEditor key={JSON.stringify(t.entries)} timesheet={t} readOnly={readOnly} />
           {showCompare ? <ComparePanel t={t} /> : null}
           <HistoryPanel entityType="timesheet" entityId={t.id} />
