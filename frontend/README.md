@@ -16,7 +16,6 @@ docker compose up -d                # in the backend folder
 # 2. Frontend
 cd frontend
 npm install                         # first time: then commit package-lock.json
-npm run gen:api                     # regenerate API types from both /openapi.json files
 npm run dev                         # http://localhost:5173
 ```
 
@@ -45,7 +44,13 @@ docker compose up -d
   rebuild with `docker compose build frontend`. Vite bakes it in at build time.
 - **After frontend changes:** run `docker compose build frontend && docker compose up -d frontend`.
 - **Development:** `npm run dev` on :5173 still works as before, with the Vite proxy and hot reload.
-  Ports 8001 and 8002 stay published for Postman and tests.
+  Ports 8001 and 8002 are published by `backend/docker-compose.override.yml`, which Docker Compose loads
+  automatically on a dev machine; a deployment runs `docker compose -f docker-compose.yml up -d` and
+  publishes only the frontend.
+- **nginx** (`nginx.conf`) sends a Content-Security-Policy and the other security headers on every
+  response, replaces `X-Forwarded-For` with the real client address (the services rate-limit by it), and
+  adds a per-IP rate limit in front of the services' own (`limit_req`). HSTS is there as a comment: turn it
+  on once the site is served over HTTPS.
 
 The `frontend` service itself is in `docker-compose.frontend.yml`; paste it into
 `backend/docker-compose.yml`.
@@ -88,9 +93,52 @@ arg. Each processing step that has a `trace_id` then shows "Open trace".
 - App errors (400/404/409/422 with `{detail, code}`) show `detail` as the backend wrote it.
 - FastAPI 422 lists appear next to the matching form fields.
 - 403 shows "You don't have permission".
-- 429 uses `Retry-After`.
+- 429 uses `Retry-After`: "Too many requests. Try again in 12 seconds." for the per-endpoint rate limit
+  (`code: "rate_limited"`), "Too many attempts…" for a sign-in or reset-code lockout.
+- A 503 with `code: "rate_limit_unavailable"` (the rate limiter can't reach Redis and is set to fail
+  closed) says the service is busy.
 - 5xx and network errors show a plain message with a retry button.
-- Only network errors and 5xx are retried automatically.
+- Only network errors and 5xx are retried automatically; never a 4xx, and never a 429 (a retry would
+  only use up the next window).
+
+**One HTTP client.** Every request goes through the axios instance in `src/api/client.ts`; screens call
+the functions in `src/api/*.ts`. ESLint refuses `fetch()`, `XMLHttpRequest`, other HTTP libraries (ky,
+ofetch, node-fetch, superagent, …) anywhere in `src/`, and axios itself outside `src/api/`.
+
+## Keeping types in sync
+
+The API types are **written by hand**, next to zod schemas that describe the same responses:
+
+| File | What |
+|---|---|
+| `src/api/schemas/{common,auth,core}.ts` | zod schemas of what each service **sends** |
+| `src/api/types/{common,auth,core}.ts` | the TypeScript types: responses `z.infer` from the schemas (so the two can't disagree), request bodies written out |
+| `src/api/models.ts` | re-exports all of them; screens import from here |
+
+In `npm run dev` and in tests, every JSON response is checked against its schema (`checkResponse` in
+`schemas/common.ts`). If the backend sends something the types don't describe, the call fails with an
+error that names the endpoint and the field, in the console and on screen, instead of an `undefined`
+deep inside a component. Production builds skip the check and return the response unchanged.
+
+When you change a backend response model (a Pydantic `*Read` class, or `ImportReport`):
+
+1. Change the matching schema in `src/api/schemas/` (field name, type, `.nullable()` for `X | None`,
+   `.nullish()` when the field may be absent). Hours and money are sent as JSON numbers.
+2. If it is a request body (`*Create`, `*Update`, `EntryInput`), change the type in `src/api/types/`.
+3. Refresh `tests/fixtures/api-responses.json` with a real response for that endpoint (from `/docs` with
+   `DOCS_ENABLED=true`, or the browser's network tab), then `npm test`: `tests/schemas.test.ts` checks
+   every fixture against its schema.
+4. `npm run typecheck` shows every screen the change affects.
+
+## Bulk import
+
+Admins get an **Import** button on Users, Employees, Companies and Holidays
+(`src/features/import/ImportDialog.tsx`). Download the template, fill it in (CSV or the first sheet of an
+XLSX), then **Check file**: a dry run that writes nothing and lists each row as created / updated /
+skipped / failed, with the column of every problem. **Import** then sends the same file for real. Two
+choices: whether one bad row stops the whole file (default) or only that row, and what to do with a
+record that already exists (report it, skip it, or update it; users can't be updated from a file). New
+users get the welcome email with their password; a blank password gets a random one.
 
 ## Screens
 
@@ -103,10 +151,10 @@ arg. Each processing step that has a `trace_id` then shows "Open trace".
 | `/submissions`, `/submissions/:id` | all | Inbox with live polling; detail with documents (including how much of a large file was read), timesheets (refreshed once more when processing ends), a merged timeline (expand a step for input/output/errors, "Open trace" when tracing is set up), reprocess (with "Replace anyway" when approved timesheets would be replaced) and its runs |
 | `/upload` | all | Drag and drop up to 10 files of 15 MB each, then follow the new submission live |
 | `/export` | admin | Week picker locked to the company's week start; preview; `problems[]` block the export; create; history; CSV download |
-| `/companies`, `/companies/:id` | read: all, edit: admin | Rates, rules, week start, active flag; allowed senders (whitelist) |
-| `/employees` | read: all, edit: admin | Filter, add, edit |
-| `/holidays` | read: all, edit: admin | Global or per company, by year |
-| `/admin/users` | admin | Create, change role, deactivate/reactivate, set a password |
+| `/companies`, `/companies/:id` | read: all, edit: admin | Rates, rules, week start, active flag; allowed senders (whitelist); import from a file |
+| `/employees` | read: all, edit: admin | Filter, add, edit, import from a file |
+| `/holidays` | read: all, edit: admin | Global or per company, by year; import from a file |
+| `/admin/users` | admin | Create, change role, deactivate/reactivate, set a password, import from a file |
 | `/account` | all | Profile, change password |
 
 Reviewers never see Export or Users, and admin routes redirect them (`beforeLoad`). The backend checks
@@ -126,14 +174,15 @@ everything again anyway.
 
 ```
 src/
-  api/          client.ts (axios + refresh + errors), session.ts, core.ts, auth.ts, models.ts, queryKeys.ts, types/
+  api/          client.ts (axios + refresh + errors), session.ts, core.ts, auth.ts, imports.ts, models.ts,
+                queryKeys.ts, schemas/ (zod), types/
   auth/         useSession, requireAdmin
   components/   AppShell, badges, states, pagination, fields, ui/ (button, dialog, table, …)
-  features/     review/, timesheet/, submissions/, companies/, employees/
+  features/     review/, timesheet/, submissions/, companies/, employees/, import/
   lib/          format.ts, lookups.ts (company / employee names), severity.ts, forms.ts
   routes/       file routes: _auth/* (public), _app/* (signed in)
   app/          router, query client, providers, routeTree.gen.ts (generated by the router plugin)
-tests/          Vitest
+tests/          Vitest (*.test.ts in Node; *.test.tsx component tests in jsdom), fixtures/
 ```
 
 ## Notes and known gaps
