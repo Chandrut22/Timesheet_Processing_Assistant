@@ -27,6 +27,22 @@ describe("buildApiError", () => {
     );
   });
 
+  it("says 'requests' for the per-endpoint rate limit", () => {
+    const e = buildApiError(429, { detail: "x", code: "rate_limited" }, "17");
+    expect(e.code).toBe("rate_limited");
+    expect(e.retryAfter).toBe(17);
+    expect(e.message).toBe("Too many requests. Try again in 17 seconds.");
+    expect(buildApiError(429, { code: "rate_limited" }, "1").message).toBe(
+      "Too many requests. Try again in 1 second.",
+    );
+  });
+
+  it("explains a 503 from the rate limiter instead of 'something went wrong'", () => {
+    const e = buildApiError(503, { detail: "x", code: "rate_limit_unavailable" }, "5");
+    expect(e.message).toBe("The service is busy. Please try again in a few seconds.");
+    expect(e.retryAfter).toBe(5);
+  });
+
   it("uses Retry-After for 429", () => {
     const e = buildApiError(429, { detail: "Slow down" }, "42");
     expect(e.retryAfter).toBe(42);
