@@ -28,7 +28,7 @@ x-db-url: &db-url postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PAS
 # Set OTEL_ENABLED=false in backend/.env to switch it off; nothing else changes.
 x-otel-env: &otel-env
   OTEL_ENABLED: ${OTEL_ENABLED:-true}
-  OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+  # OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
 
 # Redis requires a password (REDIS_PASSWORD in backend/.env; letters and digits only,
 # because it sits inside the URL).
@@ -90,17 +90,17 @@ services:
       retries: 10
     restart: unless-stopped
 
-  # --- frontend --------------------------------------------------------------
+    # --- public entry point: nginx (serves the built React app, proxies the APIs) ----
 
-  frontend:
-    build: ../frontend
+  nginx:
+    build:
+      context: ..                              # repo root: the image also builds ../frontend
+      dockerfile: backend/nginx/Dockerfile
+      args:
+        VITE_JAEGER_URL: ${VITE_JAEGER_URL:-http://localhost:16686}
+    image: timesheet-nginx:latest
     ports:
       - "80:8080"
-    depends_on:
-      auth-service:
-        condition: service_healthy
-      core-service:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
       interval: 15s
@@ -205,15 +205,15 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  jaeger:
-    # Traces: one per email / upload, across API -> queue -> worker -> AI call.
-    # UI: http://localhost:16686 (search by service, or by a trace id from the step log).
-    # Keeps traces in memory only: they are gone after a restart (the step log in
-    # PostgreSQL is the permanent record). Services send to it inside Docker on 4318.
-    image: jaegertracing/jaeger:2.1.0
-    ports:
-      - "16686:16686"
-    restart: unless-stopped
+  # jaeger:
+  #   # Traces: one per email / upload, across API -> queue -> worker -> AI call.
+  #   # UI: http://localhost:16686 (search by service, or by a trace id from the step log).
+  #   # Keeps traces in memory only: they are gone after a restart (the step log in
+  #   # PostgreSQL is the permanent record). Services send to it inside Docker on 4318.
+  #   image: jaegertracing/jaeger:2.1.0
+  #   ports:
+  #     - "16686:16686"
+  #   restart: unless-stopped
 
 volumes:
   pgdata:
