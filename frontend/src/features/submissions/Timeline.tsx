@@ -5,7 +5,7 @@ import {
   CircleDot,
   History,
   CircleX,
-  ExternalLink,
+  // ExternalLink,
 } from "lucide-react";
 import type {
   AuditEventRead,
@@ -16,7 +16,7 @@ import type {
 import { SubmissionStateBadge } from "@/components/Badges";
 import { JsonBlock } from "@/components/JsonBlock";
 import { formatDateTime, formatDuration, humanize } from "@/lib/format";
-import { traceUrl } from "@/lib/tracing";
+// import { traceUrl } from "@/lib/tracing";
 import { cn } from "@/lib/utils";
 
 type Item =
@@ -122,7 +122,7 @@ function StateRow({ v }: { v: StateChangeRead }) {
 }
 
 function StepRow({ v, documentName }: { v: ProcessingStepRead; documentName: string | null }) {
-  const trace = traceUrl(v.trace_id);
+  // const trace = traceUrl(v.trace_id);
   const hasInput = Object.keys(v.input ?? {}).length > 0;
   const hasOutput = Object.keys(v.output ?? {}).length > 0;
   return (
@@ -139,7 +139,7 @@ function StepRow({ v, documentName }: { v: ProcessingStepRead; documentName: str
           at={v.created_at}
           extra={[formatDuration(v.duration_ms), documentName].filter(Boolean).join(" · ")}
         />
-        {trace ? (
+        {/* {trace ? (
           <a
             href={trace}
             target="_blank"
@@ -148,7 +148,7 @@ function StepRow({ v, documentName }: { v: ProcessingStepRead; documentName: str
           >
             <ExternalLink className="size-3" aria-hidden /> Open trace
           </a>
-        ) : null}
+        ) : null} */}
       </summary>
       <div className="mt-2 grid gap-2 lg:grid-cols-2">
         <div>

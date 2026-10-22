@@ -21,6 +21,7 @@ import {
   TimesheetPageSchema,
   TimesheetReadSchema,
   WhitelistReadSchema,
+  DashboardSnapshotSchema,
 } from "./schemas/core";
 import { z } from "zod";
 import type {
@@ -94,9 +95,12 @@ export type ExportListParams = {
   size?: number;
 };
 
+export type { DashboardSnapshot } from "./schemas/core";
+
 export const coreApi = {
   me: () => data(PrincipalReadSchema, http.get("/api/me")),
 
+  getDashboard: () => data(DashboardSnapshotSchema, http.get("/api/dashboard")),
   // Timesheets
   listTimesheets: (params: TimesheetListParams) =>
     data(TimesheetPageSchema, http.get("/api/timesheets", { params: cleanParams(params) })),

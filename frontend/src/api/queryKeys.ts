@@ -31,6 +31,7 @@ export const qk = {
     detail: (id: string) => ["companies", "detail", id] as const,
     whitelist: (id: string) => ["companies", "whitelist", id] as const,
   },
+  dashboard: () => ["dashboard"] as const,
   employees: {
     all: ["employees"] as const,
     list: (p: EmployeeListParams) => ["employees", "list", p] as const,

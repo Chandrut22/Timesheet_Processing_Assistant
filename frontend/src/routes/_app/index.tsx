@@ -1,9 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { OctagonAlert, CircleCheck, ClipboardCheck, MailWarning } from "lucide-react";
 import type { ReactNode } from "react";
-import { coreApi, type SubmissionListParams, type TimesheetListParams } from "@/api/core";
-import { qk } from "@/api/queryKeys";
 import { useUser } from "@/auth/useSession";
 import { SourceIcon, SubmissionStateBadge } from "@/components/Badges";
 import { PageHeader } from "@/components/PageHeader";
@@ -18,44 +15,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useDashboard, type StreamState } from "@/features/dashboard/useDashboard";
 import { formatRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/")({ component: DashboardPage });
 
-function useTimesheetCount(params: TimesheetListParams, enabled = true) {
-  const p = { ...params, size: 1, page: 1 };
-  return useQuery({
-    queryKey: qk.timesheets.list(p),
-    queryFn: () => coreApi.listTimesheets(p),
-    select: (d) => d.total,
-    enabled,
-  });
-}
-
-function useSubmissionCount(params: SubmissionListParams) {
-  const p = { ...params, size: 1, page: 1 };
-  return useQuery({
-    queryKey: qk.submissions.list(p),
-    queryFn: () => coreApi.listSubmissions(p),
-    select: (d) => d.total,
-  });
-}
-
 function DashboardPage() {
   const user = useUser();
-  const needsReview = useTimesheetCount({ status: ["needs_review"] });
-  const high = useTimesheetCount({ status: ["needs_review"], severity: ["high"] });
-  const approved = useTimesheetCount({ status: ["approved"] });
-  const failed = useSubmissionCount({ status: "failed" });
-  const recentParams = { page: 1, size: 10 };
-  const recent = useQuery({
-    queryKey: qk.submissions.list(recentParams),
-    queryFn: () => coreApi.listSubmissions(recentParams),
-    refetchInterval: (q) =>
-      q.state.data?.items.some((s) => s.status === "received" || s.status === "processing")
-        ? 5000
-        : false,
+  const dash = useDashboard();
+  const counts = dash.data?.counts;
+
+  // StatCard takes { data, isPending, isError }; build that from the live snapshot.
+  const stat = (value: number | undefined) => ({
+    data: value,
+    isPending: dash.isPending,
+    isError: dash.isError && !dash.data,
   });
 
   return (
@@ -65,10 +40,14 @@ function DashboardPage() {
         description="What needs attention today."
       />
 
+      <div className="mb-3 flex justify-end">
+        <LiveBadge state={dash.stream} />
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Needs review"
-          query={needsReview}
+          query={stat(counts?.needs_review)}
           icon={<ClipboardCheck />}
           link={
             <Link to="/review" search={{ status: "needs_review" }}>
@@ -78,7 +57,7 @@ function DashboardPage() {
         />
         <StatCard
           label="High severity"
-          query={high}
+          query={stat(counts?.high_severity)}
           icon={<OctagonAlert />}
           tone="danger"
           link={
@@ -89,14 +68,14 @@ function DashboardPage() {
         />
         <StatCard
           label="Approved, waiting for export"
-          query={approved}
+          query={stat(counts?.approved_waiting_export)}
           icon={<CircleCheck />}
           tone="success"
           link={<Link to="/export">Go to payroll export</Link>}
         />
         <StatCard
           label="Failed emails"
-          query={failed}
+          query={stat(counts?.failed_submissions)}
           icon={<MailWarning />}
           tone="warning"
           link={
@@ -114,13 +93,13 @@ function DashboardPage() {
             View all
           </Link>
         </CardHeader>
-        {recent.isPending ? (
+        {dash.isPending ? (
           <TableSkeleton rows={5} cols={4} />
-        ) : recent.isError ? (
+        ) : dash.isError && !dash.data ? (
           <CardContent>
-            <ErrorState error={recent.error} onRetry={() => void recent.refetch()} />
+            <ErrorState error={dash.error} onRetry={() => void dash.refetch()} />
           </CardContent>
-        ) : recent.data.items.length === 0 ? (
+        ) : !dash.data || dash.data.recent.length === 0 ? (
           <CardContent>
             <EmptyState title="No submissions yet" hint="Emails and uploads will appear here." />
           </CardContent>
@@ -136,7 +115,7 @@ function DashboardPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {recent.data.items.map((s) => (
+              {dash.data.recent.map((s) => (
                 <TableRow key={s.id}>
                   <TableCell>
                     <SourceIcon source={s.source} />
@@ -210,5 +189,20 @@ function StatCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function LiveBadge({ state }: { state: StreamState }) {
+  const live = state === "live";
+  return (
+    <span role="status" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+      <span
+        className={cn(
+          "size-2 rounded-full",
+          live ? "bg-emerald-500" : "bg-amber-500 motion-safe:animate-pulse",
+        )}
+      />
+      {live ? "Live" : "Reconnecting…"}
+    </span>
   );
 }
