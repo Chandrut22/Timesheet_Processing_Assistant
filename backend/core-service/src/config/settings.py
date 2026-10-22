@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -95,6 +95,15 @@ class Settings(BaseSettings):
     # reported as "too many people in one document" (no 3 x 3 retries). None = provider default.
     llm_max_output_tokens: int | None = 16_000
     # long documents are cut to this before the LLM
+    # Fallback model: asked (instead of failing the job) when the main model cannot answer
+    # (provider down, rate limit, timeout, API error) or never returns valid JSON.
+    # Empty LLM_FALLBACK_MODEL = no fallback. Provider, base URL and key default to the main
+    # ones, but only where that is safe: the base URL only for the same provider, the key
+    # only for the same provider AND host (a key is never sent to a host it was not made for).
+    llm_fallback_model: str | None = None
+    llm_fallback_provider: str | None = None
+    llm_fallback_base_url: str | None = None
+    llm_fallback_api_key: SecretStr | None = None
     # Big sheets (many people): cut into pieces of CHUNK_PEOPLE people, one AI call per
     # piece (at most CHUNK_PARALLEL at a time), answers merged. Only when the document's
     # tables list more than CHUNK_ABOVE_PEOPLE people; smaller ones go in one call.
@@ -168,6 +177,65 @@ class Settings(BaseSettings):
     # --- sweeper (Celery beat): re-queue work that was lost ---
     sweeper_interval_seconds: int = 120  # how often it looks
     sweeper_grace_seconds: int = 600  # "received" (or a retry overdue) this long = lost
+
+    dashboard_poll_seconds: int = 30        # refresh even without a change message
+    dashboard_heartbeat_seconds: int = 15   # keeps proxies from closing an idle stream
+    dashboard_max_streams_per_user: int = 5 # per API process (open tabs)
+
+    @field_validator(
+        "llm_fallback_model",
+        "llm_fallback_provider",
+        "llm_fallback_base_url",
+        "llm_fallback_api_key",
+        mode="before",
+    )
+    @classmethod
+    def blank_fallback_is_unset(cls, value: object) -> object:
+        """A blank line in .env (LLM_FALLBACK_MODEL=) means "not set"."""
+        return None if isinstance(value, str) and not value.strip() else value
+
+    @property
+    def llm_fallback_provider_effective(self) -> str:
+        return self.llm_fallback_provider or self.llm_provider
+
+    @property
+    def llm_fallback_base_url_effective(self) -> str | None:
+        if self.llm_fallback_base_url:
+            return self.llm_fallback_base_url
+        # The main base URL belongs to the main provider: not inherited across providers.
+        same_provider = self.llm_fallback_provider_effective == self.llm_provider
+        return self.llm_base_url if same_provider else None
+
+    @property
+    def llm_fallback_api_key_effective(self) -> SecretStr | None:
+        if self.llm_fallback_api_key is not None:
+            return self.llm_fallback_api_key
+        # The main key only goes to the host and provider it was made for.
+        same_provider = self.llm_fallback_provider_effective == self.llm_provider
+        same_host = self.llm_fallback_base_url_effective == self.llm_base_url
+        return self.llm_api_key if same_provider and same_host else None
+
+    @model_validator(mode="after")
+    def check_llm_fallback(self) -> "Settings":
+        if self.llm_fallback_model is None:
+            return self
+        if self.llm_fallback_api_key_effective is None:
+            raise ValueError(
+                "LLM_FALLBACK_MODEL is set but there is no key for it: set "
+                "LLM_FALLBACK_API_KEY (the main key is only reused for the same provider "
+                "and base URL)"
+            )
+        same_as_main = (
+            self.llm_fallback_model == self.llm_model
+            and self.llm_fallback_provider_effective == self.llm_provider
+            and self.llm_fallback_base_url_effective == self.llm_base_url
+        )
+        if same_as_main:
+            raise ValueError(
+                "LLM_FALLBACK_MODEL is the same model, provider and base URL as the main "
+                "model: pick a different one, or leave it empty"
+            )
+        return self
 
     @model_validator(mode="after")
     def check_classifier(self) -> "Settings":

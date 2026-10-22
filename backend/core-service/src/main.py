@@ -11,6 +11,7 @@ from src.api.middleware.rate_limit import Limit, RateLimitMiddleware
 from src.api.rest.routes import (
     audit,
     companies,
+    dashboard,
     employees,
     exports,
     health,
@@ -28,6 +29,7 @@ from src.data.clients.postgres import engine
 from src.data.clients.redis import redis_client
 from src.observability.logging.setup import configure_logging
 from src.observability.tracing.setup import setup_tracing, shutdown_tracing
+from src.core.services.dashboard_hub import DashboardHub
 
 configure_logging(settings.log_level)
 logger = logging.getLogger(__name__)
@@ -36,9 +38,15 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     public_key()  # fail fast at startup if the public key is missing
+    hub = DashboardHub()
+    await hub.start()
+    app.state.dashboard_hub = hub
+    logger.info("core-service started")
     logger.info("core-service started")
 
     yield
+
+    await hub.stop()
 
     logger.info("Shutting down application resources...")
     try:
@@ -103,6 +111,7 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(me.router)
 app.include_router(companies.router)
+app.include_router(dashboard.router)
 app.include_router(employees.router)
 app.include_router(holidays.router)
 app.include_router(uploads.router)
