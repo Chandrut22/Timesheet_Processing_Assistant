@@ -12,9 +12,13 @@ import { Input } from "@/components/ui/input";
 type LoginSearch = { redirect?: string };
 
 export const Route = createFileRoute("/_auth/login")({
-  validateSearch: (search: Record<string, unknown>): LoginSearch => ({
-    redirect: typeof search.redirect === "string" ? search.redirect : undefined,
-  }),
+  validateSearch: (search: Record<string, unknown>): LoginSearch => {
+    const r = search.redirect;
+    return {
+      redirect:
+        typeof r === "string" && r.length <= 1000 && !r.startsWith("/login") ? r : undefined,
+    };
+  },
   component: LoginPage,
 });
 
