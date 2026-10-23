@@ -70,3 +70,34 @@ class UserPage(BaseModel):
     total: int
     page: int
     size: int
+
+
+class BulkUserStatus(BaseModel):
+    """Activate or deactivate up to 100 users (one page of the list)."""
+
+    ids: list[uuid.UUID] = Field(min_length=1, max_length=100)
+    is_active: bool
+
+    @field_validator("ids")
+    @classmethod
+    def unique_ids(cls, ids: list[uuid.UUID]) -> list[uuid.UUID]:
+        if len(ids) != len(set(ids)):
+            raise ValueError("Each id can appear only once.")
+        return ids
+
+
+class BulkUserItem(BaseModel):
+    id: uuid.UUID
+    ok: bool
+    changed: bool = False  # false when the user already had that status (or failed)
+    is_active: bool | None = None  # the status afterwards (None = not found)
+    error: str | None = None  # why it was skipped
+
+
+class BulkUserResult(BaseModel):
+    """Each user is handled on its own: one failure never undoes the others."""
+
+    requested: int
+    succeeded: int
+    failed: int
+    results: list[BulkUserItem]

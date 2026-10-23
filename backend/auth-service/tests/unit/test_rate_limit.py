@@ -1,7 +1,7 @@
 """Rate limiting in auth-service: sign-in endpoints are strict and per IP, the rest per
 user; 429 with Retry-After; fail-open / fail-closed; spoofed X-Forwarded-For ignored."""
 
-from typing import Any, Self
+from typing import Any, Self, cast
 
 import pytest
 from fastapi import FastAPI, Request
@@ -23,7 +23,9 @@ class Clock:
 
 class FakeRedis:
     def __init__(self, clock: Clock) -> None:
-        self.clock, self.values, self.expires, self.down = clock, {}, {}, False
+        self.clock, self.down = clock, False
+        self.values: dict[str, int] = {}
+        self.expires: dict[str, float] = {}
 
     def pipeline(self, transaction: bool = True) -> "FakeRedis":
         assert transaction
@@ -178,12 +180,15 @@ def test_spoofed_forwarded_for_cannot_reset_the_login_limit() -> None:
 
 
 def test_the_real_app_runs_cors_then_auth_then_rate_limit() -> None:
-    order = [m.cls for m in real_app.user_middleware]  # outermost first
+    order: list[Any] = [m.cls for m in real_app.user_middleware]  # outermost first
     assert (
         order.index(CORSMiddleware)
         < order.index(AuthMiddleware)
         < order.index(RateLimitMiddleware)
     )
-    rate = next(m for m in real_app.user_middleware if m.cls is RateLimitMiddleware)
-    assert rate.kwargs["prefix"] == "auth"
-    assert rate.kwargs["limits"]["strict"] == Limit(10, 60)
+    rate = next(
+        m for m in real_app.user_middleware if cast(Any, m.cls) is RateLimitMiddleware
+    )
+    kwargs = cast(dict[str, Any], rate.kwargs)
+    assert kwargs["prefix"] == "auth"
+    assert kwargs["limits"]["strict"] == Limit(10, 60)

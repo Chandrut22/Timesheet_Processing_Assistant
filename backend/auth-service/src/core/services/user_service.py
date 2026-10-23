@@ -7,11 +7,16 @@ from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants.roles import RoleName
-from src.core.exceptions import ConflictError, NotFoundError, ValidationFailedError
+from src.core.exceptions import (
+    AppError,
+    ConflictError,
+    NotFoundError,
+    ValidationFailedError,
+)
 from src.core.security import hash_password, verify_password
 from src.data.models import User
 from src.data.repositories.user_repository import UserRepository
-from src.schemas.user import UserCreate, UserUpdate
+from src.schemas.user import BulkUserItem, BulkUserResult, UserCreate, UserUpdate
 
 
 class UserService:
@@ -95,6 +100,36 @@ class UserService:
         await self.session.commit()
         await self.session.refresh(user, ["role"])
         return user
+
+    async def bulk_status(
+        self, ids: Sequence[uuid.UUID], is_active: bool, actor: User
+    ) -> BulkUserResult:
+        """Activate / deactivate many users with the same rules as one (never yourself,
+        never the last active admin: checked user by user, so a batch with every admin
+        stops at the last one). Each user is committed on its own."""
+        results: list[BulkUserItem] = []
+        for user_id in ids:
+            try:
+                user = await self.get(user_id)
+                changed = user.is_active != is_active
+                if changed:
+                    await self.update(user_id, UserUpdate(is_active=is_active), actor)
+                results.append(
+                    BulkUserItem(
+                        id=user_id, ok=True, changed=changed, is_active=is_active
+                    )
+                )
+            except AppError as exc:
+                # The rules are checked before anything changes, so there is nothing to
+                # roll back (a rollback would also expire the signed-in admin's row).
+                results.append(BulkUserItem(id=user_id, ok=False, error=exc.message))
+        succeeded = sum(1 for r in results if r.ok)
+        return BulkUserResult(
+            requested=len(results),
+            succeeded=succeeded,
+            failed=len(results) - succeeded,
+            results=results,
+        )
 
     async def reset_password(self, user_id: uuid.UUID, new_password: str) -> None:
         user = await self.get(user_id)

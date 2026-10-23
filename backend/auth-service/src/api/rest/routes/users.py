@@ -17,7 +17,15 @@ from src.core.services.importing.service import import_users, template_csv
 from src.core.services.user_notifications import send_welcome_email
 from src.core.services.user_service import UserService
 from src.schemas.importing import ImportReport, OnDuplicate, OnError
-from src.schemas.user import PasswordReset, UserCreate, UserPage, UserRead, UserUpdate
+from src.schemas.user import (
+    BulkUserResult,
+    BulkUserStatus,
+    PasswordReset,
+    UserCreate,
+    UserPage,
+    UserRead,
+    UserUpdate,
+)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -111,6 +119,17 @@ async def import_file(
             role=w.role,
         )
     return report
+
+
+# Declared before "/{user_id}" so "bulk" is never read as an id.
+@router.post("/bulk/status", response_model=BulkUserResult)
+async def bulk_user_status(
+    body: BulkUserStatus, session: SessionDep, actor: Admin
+) -> BulkUserResult:
+    """Activate or deactivate up to 100 users (admins only). You cannot deactivate
+    yourself, and the last active admin always stays; those are listed as failed and
+    the rest still go through. A deactivated user can no longer sign in or refresh."""
+    return await UserService(session).bulk_status(body.ids, body.is_active, actor)
 
 
 @router.get("/{user_id}", response_model=UserRead)
