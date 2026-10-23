@@ -106,9 +106,8 @@ def state_from_timesheets(statuses: Iterable[str]) -> SubmissionState | None:
     """Pure: the state a set of timesheets adds up to. None = no timesheets.
 
     any waiting for a reviewer -> awaiting_review; all exported -> exported;
-    any approved (or exported) -> approved; otherwise all rejected -> rejected.
-    Superseded timesheets (replaced by a reprocess) do not count."""
-    found = set(statuses) - {TimesheetStatus.SUPERSEDED}
+    any approved (or exported) -> approved; otherwise all rejected -> rejected."""
+    found = set(statuses)
     if not found:
         return None
     if TimesheetStatus.NEEDS_REVIEW in found:

@@ -2,10 +2,11 @@ import uuid
 from collections.abc import Sequence
 from decimal import Decimal
 
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions import ConflictError, NotFoundError, ValidationFailedError
-from src.data.models import Company, WhitelistSender
+from src.data.models import Company, Employee, WhitelistSender
 from src.data.repositories.base import commit_or_conflict
 from src.data.repositories.company_repository import CompanyRepository, WhitelistRepository
 from src.schemas.company import CompanyCreate, CompanyUpdate
@@ -62,6 +63,8 @@ class CompanyService:
     async def apply_changes(self, company: Company, data: CompanyUpdate) -> None:
         """Every rule of update(), without the commit (used by the bulk import)."""
         changes = data.model_dump(exclude_unset=True)
+        if changes.get("is_active") is False and company.is_active:
+            await self.deactivate_employees(company.id)  # an inactive company has none
 
         new_name = changes.get("name")
         if new_name:
@@ -95,6 +98,19 @@ class CompanyService:
             company.daily_ot_after, company.double_time_after, company.double_time_rate
         )
         await self.session.flush()
+
+    async def deactivate_employees(self, company_id: uuid.UUID) -> Sequence[uuid.UUID]:
+        """Deactivating a company deactivates its active employees too (activating it
+        again does not switch them back on: some may have been inactive before). Returns
+        the ids that changed. No commit."""
+        rows = await self.session.execute(
+            update(Employee)
+            .where(Employee.company_id == company_id, Employee.is_active.is_(True))
+            .values(is_active=False)
+            .returning(Employee.id)
+            .execution_options(synchronize_session="fetch")
+        )
+        return [row[0] for row in rows.all()]
 
     # --- whitelist ---------------------------------------------------------
 

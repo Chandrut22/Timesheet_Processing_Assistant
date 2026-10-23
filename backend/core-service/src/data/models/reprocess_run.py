@@ -1,6 +1,7 @@
 """Reprocessing history: who asked, when, why, and the results before and after.
 
-Rows are never deleted. Earlier timesheets are kept with status "superseded"."""
+Rows are never deleted. A reprocess updates the timesheets in place; what they were
+before is kept in timesheet_versions (change "reprocessed")."""
 
 import uuid
 from datetime import datetime

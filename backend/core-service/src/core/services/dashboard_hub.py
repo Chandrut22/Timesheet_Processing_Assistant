@@ -5,6 +5,7 @@ import asyncio
 import contextlib
 import logging
 import time
+from typing import Any, cast
 
 from src.config.settings import settings
 from src.core.services.dashboard_service import build_snapshot
@@ -86,7 +87,8 @@ class DashboardHub:
                         if message["type"] == "message":
                             self._dirty.set()
                 finally:
-                    await pubsub.aclose()
+                    # aclose() has no type hints in some redis versions: call it untyped.
+                    await cast(Any, pubsub).aclose()
             except asyncio.CancelledError:
                 raise
             except Exception:
@@ -95,10 +97,9 @@ class DashboardHub:
 
     async def _refresh_loop(self) -> None:
         while True:
-            try:
+            # Safety net: refresh even if no message arrived within the poll time.
+            with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(self._dirty.wait(), timeout=settings.dashboard_poll_seconds)
-            except TimeoutError:
-                pass  # safety net: refresh even if no message arrived
             await asyncio.sleep(DEBOUNCE_S)
             self._dirty.clear()
             if not self._clients:

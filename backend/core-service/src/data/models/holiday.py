@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, String, UniqueConstraint, Uuid, func
+from sqlalchemy import Date, DateTime, ForeignKey, String, UniqueConstraint, Uuid, func, true
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.data.models.base import SCHEMA, Base, UUIDPrimaryKeyMixin
@@ -25,4 +25,7 @@ class Holiday(UUIDPrimaryKeyMixin, Base):
     )
     holiday_date: Mapped[date] = mapped_column(Date, index=True)
     name: Mapped[str] = mapped_column(String(150))
+    # An inactive holiday stays in the calendar but no longer counts in pay (from the
+    # next calculation: timesheets already priced keep their pay until recalculated).
+    is_active: Mapped[bool] = mapped_column(default=True, server_default=true())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

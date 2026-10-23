@@ -19,8 +19,10 @@ class HolidayService:
         self.holidays = HolidayRepository(session)
         self.companies = CompanyRepository(session)
 
-    async def list(self, *, company_id: uuid.UUID | None, year: int | None) -> Sequence[Holiday]:
-        return await self.holidays.list(company_id=company_id, year=year)
+    async def list(
+        self, *, company_id: uuid.UUID | None, year: int | None, is_active: bool | None = None
+    ) -> Sequence[Holiday]:
+        return await self.holidays.list(company_id=company_id, year=year, is_active=is_active)
 
     async def create(self, data: HolidayCreate) -> Holiday:
         holiday = await self.add_new(data)

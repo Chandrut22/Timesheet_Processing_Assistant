@@ -5,7 +5,9 @@ from fastapi import APIRouter, Query, status
 
 from src.api.rest.dependencies import Admin, CurrentPrincipal, PaginationDep, SessionDep
 from src.api.rest.routes.importing import add_import_routes
+from src.core.services.bulk_status import BulkStatusService
 from src.core.services.company_service import CompanyService
+from src.schemas.bulk import BulkStatusRequest, BulkStatusResult
 from src.schemas.common import Page
 from src.schemas.company import (
     CompanyCreate,
@@ -40,6 +42,16 @@ async def list_companies(
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_company(body: CompanyCreate, session: SessionDep, _: Admin) -> CompanyRead:
     return CompanyRead.model_validate(await CompanyService(session).create(body))
+
+
+# Declared before "/{company_id}" so "bulk" is never read as an id.
+@router.post("/bulk/status")
+async def bulk_company_status(
+    body: BulkStatusRequest, session: SessionDep, actor: Admin
+) -> BulkStatusResult:
+    """Activate or deactivate up to 100 companies. Deactivating a company also
+    deactivates its employees (activating it again does not reactivate them)."""
+    return await BulkStatusService(session).companies(body.ids, body.is_active, actor)
 
 
 @router.get("/{company_id}")

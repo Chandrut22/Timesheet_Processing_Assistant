@@ -12,6 +12,7 @@ from src.data.models.reprocess_run import ReprocessRun
 from src.data.models.submission import Submission
 from src.data.models.timesheet import Timesheet
 from src.data.models.timesheet_entry import TimesheetEntry
+from src.data.models.timesheet_version import TimesheetVersion
 from src.data.models.whitelist_sender import WhitelistSender
 
 __all__ = [
@@ -24,6 +25,7 @@ __all__ = [
     "Submission",
     "Timesheet",
     "TimesheetEntry",
+    "TimesheetVersion",
     "WhitelistSender",
     "AuditEvent",
     "ProcessingStep",
