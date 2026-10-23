@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyRound, Plus } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -37,6 +37,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { BulkStatusBar, RowCheckbox, SelectAllCheckbox } from "@/features/bulk/BulkStatus";
+import { useRowSelection } from "@/features/bulk/useRowSelection";
 import { ImportButton } from "@/features/import/ImportDialog";
 import { DebouncedInput } from "@/features/review/DebouncedInput";
 import { applyFieldErrors } from "@/lib/forms";
@@ -70,6 +72,18 @@ function UsersPage() {
     queryFn: () => authApi.listUsers(params),
     placeholderData: keepPreviousData,
   });
+  const bulkRows = useMemo(
+    () =>
+      (list.data?.items ?? []).map((u) => ({
+        id: u.id,
+        label: `${u.name} (${u.email})`,
+        isActive: u.is_active,
+        disabled: u.id === me.id,
+        disabledReason: "You can't change your own status",
+      })),
+    [list.data, me.id],
+  );
+  const selection = useRowSelection(bulkRows, JSON.stringify(params));
 
   // The backend refuses changing your own role or demoting the last admin; its message is shown in a toast.
   const update = useMutation({
@@ -147,7 +161,7 @@ function UsersPage() {
 
       <Card>
         {list.isPending ? (
-          <TableSkeleton rows={5} cols={6} />
+          <TableSkeleton rows={5} cols={8} />
         ) : list.isError ? (
           <div className="p-4">
             <ErrorState error={list.error} onRetry={() => void list.refetch()} />
@@ -161,6 +175,9 @@ function UsersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <SelectAllCheckbox selection={selection} />
+                  </TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
@@ -171,10 +188,16 @@ function UsersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {list.data.items.map((u) => {
+                {list.data.items.map((u, i) => {
                   const isMe = u.id === me.id;
                   return (
-                    <TableRow key={u.id}>
+                    <TableRow
+                      key={u.id}
+                      data-state={selection.selected.has(u.id) ? "selected" : undefined}
+                    >
+                      <TableCell>
+                        <RowCheckbox row={bulkRows[i]} selection={selection} />
+                      </TableCell>
                       <TableCell className="font-medium">
                         {u.name} {isMe ? <Badge variant="secondary">You</Badge> : null}
                       </TableCell>
@@ -230,6 +253,17 @@ function UsersPage() {
         )}
       </Card>
 
+      <BulkStatusBar
+        selection={selection}
+        noun={{ one: "user", many: "users" }}
+        setStatus={authApi.bulkUserStatus}
+        invalidate={[qk.users.all]}
+        warnings={{
+          deactivate:
+            "They can't sign in any more and are signed out within minutes. Their past work is kept. The last active admin always stays.",
+          activate: "They'll be able to sign in again with their current password.",
+        }}
+      />
       <CreateUserDialog open={creating} onOpenChange={setCreating} />
       {resetting ? (
         <ResetPasswordDialog user={resetting} onClose={() => setResetting(null)} />

@@ -2,7 +2,7 @@
 // JSON responses are checked against their zod schemas in dev and tests.
 import { cleanParams, http } from "./client";
 import { MessageResponseSchema, UserPageSchema, UserReadSchema } from "./schemas/auth";
-import { responseOf } from "./schemas/common";
+import { BulkStatusResultSchema, responseOf } from "./schemas/common";
 import type { RoleName, UserCreate, UserUpdate } from "./models";
 
 export type UserListParams = {
@@ -33,6 +33,11 @@ export const authApi = {
   createUser: (body: UserCreate) => http.post("/users", body).then(responseOf(UserReadSchema)),
   updateUser: (id: string, body: UserUpdate) =>
     http.patch(`/users/${id}`, body).then(responseOf(UserReadSchema)),
+  /** Admin: activate / deactivate up to 100 users (never yourself, never the last admin). */
+  bulkUserStatus: (ids: string[], isActive: boolean) =>
+    http
+      .post("/users/bulk/status", { ids, is_active: isActive })
+      .then(responseOf(BulkStatusResultSchema)),
   setUserPassword: (id: string, newPassword: string) =>
     http.put(`/users/${id}/password`, { new_password: newPassword }).then(() => undefined),
 };

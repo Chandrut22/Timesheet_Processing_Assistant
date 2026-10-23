@@ -18,7 +18,6 @@ export const TIMESHEET_STATUSES: TimesheetStatus[] = [
   "approved",
   "rejected",
   "exported",
-  "superseded",
 ];
 export const SUBMISSION_STATUSES: SubmissionStatus[] = [
   "received",

@@ -53,6 +53,34 @@ export const ImportReportSchema = z.object({
   rows_omitted: int,
 });
 
+// --- bulk activate / deactivate / delete (same item shape from both services) -------
+
+export const BulkStatusItemSchema = z.object({
+  id: uuid,
+  ok: z.boolean(),
+  /** False when it already had that status (or failed). */
+  changed: z.boolean(),
+  /** The status afterwards (null when not found, or after a delete). */
+  is_active: z.boolean().nullable(),
+  error: z.string().nullable(),
+});
+
+export const BulkStatusResultSchema = z.object({
+  requested: int,
+  succeeded: int,
+  failed: int,
+  results: z.array(BulkStatusItemSchema),
+  /** Companies only: employees deactivated with them (auth-service leaves it out). */
+  employees_deactivated: int.optional(),
+});
+
+export const BulkDeleteResultSchema = z.object({
+  requested: int,
+  deleted: int,
+  failed: int,
+  results: z.array(BulkStatusItemSchema),
+});
+
 // --- the dev-time check ---------------------------------------------------------------
 
 /** On in `npm run dev` and in tests; off in production builds (no cost, no new failure). */

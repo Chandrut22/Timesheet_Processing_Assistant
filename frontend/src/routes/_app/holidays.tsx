@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -28,12 +28,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { BulkStatusBar, RowCheckbox, SelectAllCheckbox } from "@/features/bulk/BulkStatus";
+import { useRowSelection } from "@/features/bulk/useRowSelection";
 import { ImportButton } from "@/features/import/ImportDialog";
 import { applyFieldErrors } from "@/lib/forms";
 import { formatDayLabel } from "@/lib/format";
 import { useCompanyMap } from "@/lib/lookups";
 
-type HolidaysSearch = { year?: number; company_id?: string };
+type HolidaysSearch = { year?: number; company_id?: string; active?: "active" | "inactive" };
 const THIS_YEAR = new Date().getFullYear();
 
 export const Route = createFileRoute("/_app/holidays")({
@@ -42,6 +44,7 @@ export const Route = createFileRoute("/_app/holidays")({
     return {
       year: Number.isInteger(y) && y >= 2000 && y <= 2100 ? y : undefined,
       company_id: typeof s.company_id === "string" && s.company_id ? s.company_id : undefined,
+      active: s.active === "active" || s.active === "inactive" ? s.active : undefined,
     };
   },
   component: HolidaysPage,
@@ -62,7 +65,11 @@ function HolidaysPage() {
   const queryClient = useQueryClient();
   const [deleting, setDeleting] = useState<HolidayRead | null>(null);
   const year = search.year ?? THIS_YEAR;
-  const params = { year, company_id: search.company_id };
+  const params = {
+    year,
+    company_id: search.company_id,
+    is_active: search.active === undefined ? undefined : search.active === "active",
+  };
   const list = useQuery({
     queryKey: qk.holidays.list(params),
     queryFn: () => coreApi.listHolidays(params),
@@ -97,7 +104,20 @@ function HolidaysPage() {
   });
 
   const years = Array.from({ length: 6 }, (_, i) => THIS_YEAR - 2 + i);
-  const rows = [...(list.data ?? [])].sort((a, b) => a.holiday_date.localeCompare(b.holiday_date));
+  const rows = useMemo(
+    () => [...(list.data ?? [])].sort((a, b) => a.holiday_date.localeCompare(b.holiday_date)),
+    [list.data],
+  );
+  const bulkRows = useMemo(
+    () =>
+      rows.map((h) => ({
+        id: h.id,
+        label: `${h.name} (${formatDayLabel(h.holiday_date)})`,
+        isActive: h.is_active,
+      })),
+    [rows],
+  );
+  const selection = useRowSelection(bulkRows, JSON.stringify(params));
 
   return (
     <>
@@ -149,10 +169,30 @@ function HolidaysPage() {
                   }
                 />
               </div>
+              <div className="grid w-32 gap-1.5">
+                <Label htmlFor="h-active">Show</Label>
+                <NativeSelect
+                  id="h-active"
+                  value={search.active ?? ""}
+                  onChange={(e) =>
+                    void navigate({
+                      search: (p) => ({
+                        ...p,
+                        active: (e.target.value || undefined) as HolidaysSearch["active"],
+                      }),
+                      replace: true,
+                    })
+                  }
+                >
+                  <option value="">All</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </NativeSelect>
+              </div>
             </div>
           </CardHeader>
           {list.isPending ? (
-            <TableSkeleton rows={6} cols={3} />
+            <TableSkeleton rows={6} cols={isAdmin ? 6 : 4} />
           ) : list.isError ? (
             <CardContent>
               <ErrorState error={list.error} onRetry={() => void list.refetch()} />
@@ -165,15 +205,29 @@ function HolidaysPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {isAdmin ? (
+                    <TableHead className="w-10">
+                      <SelectAllCheckbox selection={selection} />
+                    </TableHead>
+                  ) : null}
                   <TableHead>Date</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Applies to</TableHead>
+                  <TableHead>Status</TableHead>
                   {isAdmin ? <TableHead className="w-10" /> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((h) => (
-                  <TableRow key={h.id}>
+                {rows.map((h, i) => (
+                  <TableRow
+                    key={h.id}
+                    data-state={selection.selected.has(h.id) ? "selected" : undefined}
+                  >
+                    {isAdmin ? (
+                      <TableCell>
+                        <RowCheckbox row={bulkRows[i]} selection={selection} />
+                      </TableCell>
+                    ) : null}
                     <TableCell className="tabular">{formatDayLabel(h.holiday_date)}</TableCell>
                     <TableCell className="font-medium">{h.name}</TableCell>
                     <TableCell>
@@ -182,6 +236,11 @@ function HolidaysPage() {
                       ) : (
                         <Badge variant="secondary">All companies</Badge>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={h.is_active ? "success" : "muted"}>
+                        {h.is_active ? "Active" : "Inactive"}
+                      </Badge>
                     </TableCell>
                     {isAdmin ? (
                       <TableCell>
@@ -247,6 +306,24 @@ function HolidaysPage() {
           </Card>
         ) : null}
       </div>
+
+      {isAdmin ? (
+        <BulkStatusBar
+          selection={selection}
+          noun={{ one: "holiday", many: "holidays" }}
+          setStatus={coreApi.bulkHolidayStatus}
+          remove={coreApi.bulkDeleteHolidays}
+          invalidate={[qk.holidays.all]}
+          warnings={{
+            deactivate:
+              "They stay in the list but are no longer paid at the holiday rate. Timesheets already priced keep their pay until they are recalculated.",
+            activate:
+              "Hours on these days are paid at the holiday rate again, for timesheets calculated from now on.",
+            delete:
+              "They are removed for good. Timesheets already priced keep their pay until they are recalculated. To keep them on record, deactivate them instead.",
+          }}
+        />
+      ) : null}
 
       <ConfirmDialog
         open={!!deleting}

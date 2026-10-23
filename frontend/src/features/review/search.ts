@@ -27,7 +27,6 @@ export type ReviewSearch = {
   /** Percent, 0–100 (the API wants 0–1). */
   min_conf?: number;
   max_conf?: number;
-  superseded?: boolean;
   sort?: TimesheetSort;
   order?: SortOrder;
   page?: number;
@@ -59,7 +58,6 @@ const int = (v: unknown, min: number, max: number): number | undefined => {
   const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
   return Number.isInteger(n) && n >= min && n <= max ? n : undefined;
 };
-const bool = (v: unknown) => (v === true || v === "true" ? true : undefined);
 
 export function parseReviewSearch(s: Record<string, unknown>): ReviewSearch {
   return {
@@ -77,7 +75,6 @@ export function parseReviewSearch(s: Record<string, unknown>): ReviewSearch {
     received_to: date(s.received_to),
     min_conf: int(s.min_conf, 0, 100),
     max_conf: int(s.max_conf, 0, 100),
-    superseded: bool(s.superseded),
     sort: oneOf(s.sort, TIMESHEET_SORTS),
     order: oneOf(s.order, ["asc", "desc"] as const),
     page: int(s.page, 1, 10_000),
@@ -102,7 +99,6 @@ export function reviewParams(s: ReviewSearch): TimesheetListParams {
     received_to: s.received_to,
     min_confidence: s.min_conf !== undefined ? s.min_conf / 100 : undefined,
     max_confidence: s.max_conf !== undefined ? s.max_conf / 100 : undefined,
-    include_superseded: s.superseded || undefined,
     sort: s.sort ?? REVIEW_DEFAULTS.sort,
     order: s.order ?? REVIEW_DEFAULTS.order,
     page: s.page ?? REVIEW_DEFAULTS.page,
@@ -122,6 +118,5 @@ export function advancedFilterCount(s: ReviewSearch): number {
     s.received_to,
     s.min_conf,
     s.max_conf,
-    s.superseded,
   ].filter((v) => v !== undefined).length;
 }

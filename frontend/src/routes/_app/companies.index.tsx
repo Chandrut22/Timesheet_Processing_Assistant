@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { coreApi } from "@/api/core";
@@ -31,6 +31,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { BulkStatusBar, RowCheckbox, SelectAllCheckbox } from "@/features/bulk/BulkStatus";
+import { useRowSelection } from "@/features/bulk/useRowSelection";
 import { CompanyForm, type CompanyFormValues } from "@/features/companies/CompanyForm";
 import { toCompanyBody } from "@/features/companies/company-utils";
 import { ImportButton } from "@/features/import/ImportDialog";
@@ -63,6 +65,11 @@ function CompaniesPage() {
     queryFn: () => coreApi.listCompanies(params),
     placeholderData: keepPreviousData,
   });
+  const bulkRows = useMemo(
+    () => (list.data?.items ?? []).map((c) => ({ id: c.id, label: c.name, isActive: c.is_active })),
+    [list.data],
+  );
+  const selection = useRowSelection(bulkRows, JSON.stringify(params));
 
   const create = useMutation({
     mutationFn: (v: CompanyFormValues) => coreApi.createCompany(toCompanyBody(v)),
@@ -147,7 +154,7 @@ function CompaniesPage() {
 
       <Card>
         {list.isPending ? (
-          <TableSkeleton rows={6} cols={isAdmin ? 8 : 7} />
+          <TableSkeleton rows={6} cols={isAdmin ? 9 : 7} />
         ) : list.isError ? (
           <div className="p-4">
             <ErrorState error={list.error} onRetry={() => void list.refetch()} />
@@ -164,6 +171,11 @@ function CompaniesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {isAdmin && (
+                    <TableHead className="w-10">
+                      <SelectAllCheckbox selection={selection} />
+                    </TableHead>
+                  )}
                   <TableHead>Name</TableHead>
                   <TableHead className="text-right">Regular</TableHead>
                   <TableHead className="text-right">Overtime</TableHead>
@@ -177,8 +189,16 @@ function CompaniesPage() {
               </TableHeader>
 
               <TableBody>
-                {list.data.items.map((c) => (
-                  <TableRow key={c.id}>
+                {list.data.items.map((c, i) => (
+                  <TableRow
+                    key={c.id}
+                    data-state={selection.selected.has(c.id) ? "selected" : undefined}
+                  >
+                    {isAdmin && (
+                      <TableCell>
+                        <RowCheckbox row={bulkRows[i]} selection={selection} />
+                      </TableCell>
+                    )}
                     <TableCell>
                       <Link
                         to="/companies/$companyId"
@@ -245,6 +265,21 @@ function CompaniesPage() {
           </>
         )}
       </Card>
+
+      {isAdmin ? (
+        <BulkStatusBar
+          selection={selection}
+          noun={{ one: "company", many: "companies" }}
+          setStatus={coreApi.bulkCompanyStatus}
+          invalidate={[qk.companies.all, qk.employees.all]}
+          warnings={{
+            deactivate:
+              "All their employees are deactivated too. Timesheets from these companies are no longer matched.",
+            activate:
+              "Their employees stay inactive. Activate the ones you need on the Employees page.",
+          }}
+        />
+      ) : null}
 
       <Dialog
         open={creating}
