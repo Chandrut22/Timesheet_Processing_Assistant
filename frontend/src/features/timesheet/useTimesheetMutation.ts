@@ -19,6 +19,7 @@ export function useTimesheetMutation<V>(
       queryClient.setQueryData(qk.timesheets.detail(t.id), t);
       void queryClient.invalidateQueries({ queryKey: ["timesheets", "list"] });
       void queryClient.invalidateQueries({ queryKey: qk.audit("timesheet", t.id) });
+      void queryClient.invalidateQueries({ queryKey: qk.timesheets.versions(t.id) });
       void queryClient.invalidateQueries({ queryKey: qk.submissions.all });
       if (opts.success) toast.success(opts.success);
       opts.onSuccess?.(t);

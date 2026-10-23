@@ -46,7 +46,7 @@ export const Route = createFileRoute("/_app/review")({
   component: ReviewQueuePage,
 });
 
-const LOCKED = new Set(["exported", "superseded"]);
+const LOCKED = new Set(["exported"]);
 const EMPTY: Set<string> = new Set();
 
 function ReviewQueuePage() {
@@ -254,13 +254,6 @@ function ReviewQueuePage() {
                 />
               </div>
             </div>
-            <label className="flex items-center gap-2 self-end pb-2 text-sm">
-              <Checkbox
-                checked={!!search.superseded}
-                onChange={(e) => update({ superseded: e.target.checked || undefined })}
-              />
-              Include replaced versions
-            </label>
           </div>
         ) : null}
 

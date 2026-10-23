@@ -14,10 +14,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApproveDialog, RejectDialog } from "@/features/timesheet/DecisionDialogs";
 import { EntriesEditor } from "@/features/timesheet/EntriesEditor";
 import { FlagsPanel } from "@/features/timesheet/FlagsPanel";
+import { HandwritingBanner } from "@/features/timesheet/HandwritingBanner";
 import { HistoryPanel } from "@/features/timesheet/HistoryPanel";
 import { MatchEmployeeDialog } from "@/features/timesheet/MatchEmployeeDialog";
 import { PayBreakdown } from "@/features/timesheet/PayBreakdown";
 import { useTimesheetMutation } from "@/features/timesheet/useTimesheetMutation";
+import { VersionsPanel } from "@/features/timesheet/VersionsPanel";
 import { WeeklyTotalPanel } from "@/features/timesheet/WeeklyTotalPanel";
 import { formatDateTime, formatHours, formatPercent, formatWeek, humanize } from "@/lib/format";
 import {
@@ -32,7 +34,7 @@ export const Route = createFileRoute("/_app/timesheets/$timesheetId")({
   component: TimesheetDetailPage,
 });
 
-const READ_ONLY = new Set(["exported", "superseded"]);
+const READ_ONLY = new Set(["exported"]);
 
 function TimesheetDetailPage() {
   const { timesheetId } = Route.useParams();
@@ -136,6 +138,7 @@ function TimesheetDetail({ t, back }: { t: TimesheetRead; back: ReactNode }) {
       />
 
       <StatusBanner t={t} />
+      <HandwritingBanner t={t} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
@@ -149,6 +152,7 @@ function TimesheetDetail({ t, back }: { t: TimesheetRead; back: ReactNode }) {
           ) : null}
           <EntriesEditor key={JSON.stringify(t.entries)} timesheet={t} readOnly={readOnly} />
           {showCompare ? <ComparePanel t={t} /> : null}
+          <VersionsPanel t={t} readOnly={readOnly} />
           <HistoryPanel entityType="timesheet" entityId={t.id} />
         </div>
         <div className="space-y-4">
@@ -186,23 +190,6 @@ function TimesheetDetail({ t, back }: { t: TimesheetRead; back: ReactNode }) {
 }
 
 function StatusBanner({ t }: { t: TimesheetRead }) {
-  if (t.status === "superseded") {
-    return (
-      <Banner tone="warning" className="mb-4">
-        This version was replaced when the submission was reprocessed. It's kept for the record and
-        can't be changed.{" "}
-        {t.superseded_by_id ? (
-          <Link
-            to="/timesheets/$timesheetId"
-            params={{ timesheetId: t.superseded_by_id }}
-            className="font-medium underline"
-          >
-            Open the current version
-          </Link>
-        ) : null}
-      </Banner>
-    );
-  }
   if (t.status === "exported") {
     return (
       <Banner tone="info" className="mb-4">

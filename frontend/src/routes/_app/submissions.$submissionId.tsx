@@ -9,6 +9,7 @@ import { qk } from "@/api/queryKeys";
 import {
   FlagBadges,
   SeverityDot,
+  WritingClassChip,
   SourceIcon,
   SubmissionStateBadge,
   SubmissionStatusBadge,
@@ -67,7 +68,6 @@ function SubmissionDetailPage() {
   const busy = timeline.data ? isBusy(timeline.data.submission) : false;
   const tsParams = {
     submission_id: submissionId,
-    include_superseded: true,
     size: 100,
     sort: "employee" as const,
     order: "asc" as const,
@@ -215,10 +215,7 @@ function SubmissionDetailPage() {
                   {timesheets.data.items.map((t) => {
                     const e = timesheetEmployeeName(t, employees);
                     return (
-                      <TableRow
-                        key={t.id}
-                        className={t.status === "superseded" ? "opacity-60" : undefined}
-                      >
+                      <TableRow key={t.id}>
                         <TableCell>
                           <SeverityDot severity={t.severity} />
                         </TableCell>
@@ -290,6 +287,11 @@ function SubmissionDetailPage() {
                       <p className="text-xs text-muted-foreground">
                         {d.content_type} · {formatBytes(d.size_bytes)}
                       </p>
+                      {d.read_method === "vision" ? (
+                        <div className="mt-1">
+                          <WritingClassChip doc={d} />
+                        </div>
+                      ) : null}
                       <ReadLimitNote limit={d.read_limit} />
                       {d.error ? <p className="mt-1 text-xs text-red-700">{d.error}</p> : null}
                     </li>

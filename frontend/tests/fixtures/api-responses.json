@@ -22,7 +22,6 @@
           "status": "approved",
           "version": 1,
           "reprocess_run_id": null,
-          "superseded_by_id": null,
           "regular_hours": 40.0,
           "overtime_hours": 0.0,
           "double_time_hours": 0.0,
@@ -52,7 +51,6 @@
           "created_at": "2026-10-20T16:21:34.780228Z",
           "entries": [
             {
-              "id": "bad0f6b3-bfaa-4c5d-8903-37ff1e31cc4b",
               "work_date": "2026-06-01",
               "hours": 8.0,
               "is_holiday": false,
@@ -61,7 +59,6 @@
               "note": null
             },
             {
-              "id": "c5931064-1149-4210-8f15-49365312e5b5",
               "work_date": "2026-06-02",
               "hours": 8.0,
               "is_holiday": false,
@@ -84,7 +81,6 @@
           "status": "approved",
           "version": 1,
           "reprocess_run_id": null,
-          "superseded_by_id": null,
           "regular_hours": 40.0,
           "overtime_hours": 5.0,
           "double_time_hours": 0.0,
@@ -114,7 +110,6 @@
           "created_at": "2026-10-20T16:21:34.780228Z",
           "entries": [
             {
-              "id": "bc9151ec-48d8-43c7-84b5-a71615c93064",
               "work_date": "2026-06-01",
               "hours": 9.0,
               "is_holiday": false,
@@ -123,7 +118,6 @@
               "note": null
             },
             {
-              "id": "ab70cbb6-a76c-4950-91e0-809176c70959",
               "work_date": "2026-06-02",
               "hours": 9.0,
               "is_holiday": false,
@@ -151,7 +145,6 @@
       "status": "approved",
       "version": 1,
       "reprocess_run_id": null,
-      "superseded_by_id": null,
       "regular_hours": 40.0,
       "overtime_hours": 0.0,
       "double_time_hours": 0.0,
@@ -181,7 +174,6 @@
       "created_at": "2026-10-20T16:21:34.780228Z",
       "entries": [
         {
-          "id": "bad0f6b3-bfaa-4c5d-8903-37ff1e31cc4b",
           "work_date": "2026-06-01",
           "hours": 8.0,
           "is_holiday": false,
@@ -190,7 +182,6 @@
           "note": null
         },
         {
-          "id": "c5931064-1149-4210-8f15-49365312e5b5",
           "work_date": "2026-06-02",
           "hours": 8.0,
           "is_holiday": false,
@@ -228,7 +219,13 @@
               "status": "parsed",
               "error": null,
               "read_limit": null,
-              "created_at": "2026-10-20T16:21:34.635427Z"
+              "created_at": "2026-10-20T16:21:34.635427Z",
+              "read_method": "docling",
+              "unclear_marks": 0,
+              "writing_class": null,
+              "writing_confidence": null,
+              "has_handwritten_hours": false,
+              "writing_reason": null
             }
           ]
         }
@@ -264,7 +261,13 @@
             "status": "parsed",
             "error": null,
             "read_limit": null,
-            "created_at": "2026-10-20T16:21:34.635427Z"
+            "created_at": "2026-10-20T16:21:34.635427Z",
+            "read_method": "docling",
+            "unclear_marks": 0,
+            "writing_class": null,
+            "writing_confidence": null,
+            "has_handwritten_hours": false,
+            "writing_reason": null
           }
         ]
       },
@@ -450,6 +453,7 @@
         "company_id": "07a378ff-51c7-4a04-89a9-b771d31b3280",
         "holiday_date": "2031-01-01",
         "name": "New Year's Day",
+        "is_active": true,
         "created_at": "2026-10-20T16:28:16.492399Z"
       }
     ],
@@ -609,6 +613,90 @@
         }
       ],
       "rows_omitted": 0
+    },
+    "timesheetVersions": [
+      {
+        "version": 2,
+        "current": true,
+        "change": null,
+        "changed_by_name": null,
+        "changed_at": null,
+        "reason": null,
+        "reprocess_run_id": null,
+        "employee_id": "1556d059-2d34-4653-919f-0d8681ad2969",
+        "extracted_name": "Ravi Kumar",
+        "week_start": "2026-06-01",
+        "status": "needs_review",
+        "days": 4,
+        "total_hours": 36.0,
+        "gross_amount": 16200.0,
+        "flags": []
+      },
+      {
+        "version": 1,
+        "current": false,
+        "change": "entries_edited",
+        "changed_by_name": "Rita Reviewer",
+        "changed_at": "2026-10-22T09:15:00.123456Z",
+        "reason": null,
+        "reprocess_run_id": null,
+        "employee_id": "1556d059-2d34-4653-919f-0d8681ad2969",
+        "extracted_name": "Ravi Kumar",
+        "week_start": "2026-06-01",
+        "status": "approved",
+        "days": 5,
+        "total_hours": 40.0,
+        "gross_amount": 18000.0,
+        "flags": [
+          "long_day"
+        ]
+      }
+    ],
+    "timesheetVersion": {
+      "version": 1,
+      "current": false,
+      "change": "entries_edited",
+      "changed_by_name": "Rita Reviewer",
+      "changed_at": "2026-10-22T09:15:00.123456Z",
+      "reason": null,
+      "reprocess_run_id": null,
+      "employee_id": "1556d059-2d34-4653-919f-0d8681ad2969",
+      "extracted_name": "Ravi Kumar",
+      "week_start": "2026-06-01",
+      "status": "approved",
+      "days": 5,
+      "total_hours": 40.0,
+      "gross_amount": 18000.0,
+      "flags": [
+        "long_day"
+      ],
+      "entries": [
+        {
+          "work_date": "2026-10-12",
+          "hours": 8.0,
+          "is_holiday": false,
+          "sheet_holiday": false,
+          "double_time_marked": false,
+          "note": null
+        },
+        {
+          "work_date": "2026-10-13",
+          "hours": 10.5,
+          "is_holiday": false,
+          "sheet_holiday": false,
+          "double_time_marked": false,
+          "note": "late shift"
+        }
+      ],
+      "regular_hours": 40.0,
+      "overtime_hours": 0.0,
+      "double_time_hours": 0.0,
+      "holiday_hours": 0.0,
+      "stated_total": null,
+      "currency": "INR",
+      "match_method": "code",
+      "match_reason": "Matched by code",
+      "notes": null
     }
   },
   "auth": {
