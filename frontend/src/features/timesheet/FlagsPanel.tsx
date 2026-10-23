@@ -3,7 +3,7 @@ import { CircleCheck } from "lucide-react";
 import type { FlagRead } from "@/api/models";
 import { SeverityBadge } from "@/components/Badges";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { humanize } from "@/lib/format";
+import { flagLabel } from "@/lib/flags";
 import { groupFlags, otherTimesheetId } from "@/lib/severity";
 import { cn } from "@/lib/utils";
 
@@ -39,7 +39,7 @@ export function FlagsPanel({ flags }: { flags: FlagRead[] }) {
                     <div className="flex flex-wrap items-center gap-2">
                       <SeverityBadge severity={sev} />
                       <span className="text-xs font-medium text-muted-foreground">
-                        {humanize(f.code)}
+                        {flagLabel(f.code)}
                       </span>
                     </div>
                     <p className="mt-1 text-sm">{f.message}</p>

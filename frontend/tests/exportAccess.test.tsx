@@ -58,7 +58,12 @@ describe("navigation", () => {
 describe("route guards", () => {
   it("sends an anonymous visitor to /login, remembering where they were going", async () => {
     const guard = beforeLoadOf(appLayout.Route);
-    const err = await thrown(() => guard?.({ location: { href: "/export?week=2026-09-07" } }));
+    const location = {
+      href: "/export?week=2026-09-07",
+      pathname: "/export",
+      searchStr: "?week=2026-09-07",
+    };
+    const err = await thrown(() => guard?.({ location }));
     expect(isRedirect(err)).toBe(true);
     const options = (err as { options: { to: string; search: { redirect: string } } }).options;
     expect(options.to).toBe("/login");
@@ -68,7 +73,11 @@ describe("route guards", () => {
   it("lets a signed-in reviewer open /export (no admin guard on the page)", async () => {
     session.state = { status: "authenticated", user: reviewer };
     const guard = beforeLoadOf(appLayout.Route);
-    expect(await guard?.({ location: { href: "/export" } })).toEqual({ user: reviewer });
+    expect(
+      await guard?.({ location: { href: "/export", pathname: "/export", searchStr: "" } }),
+    ).toEqual({
+      user: reviewer,
+    });
     expect(beforeLoadOf(exportPage.Route)).toBeUndefined();
   });
 
