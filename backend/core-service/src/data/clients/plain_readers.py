@@ -90,6 +90,16 @@ def pdf_text_layer(data: bytes, page_range: tuple[int, int] | None = None) -> st
         document.close()
 
 
+_PAGE_MARKER = re.compile(r"--- page \d+ ---")
+
+
+def has_text_layer(data: bytes, min_chars: int = 20) -> bool:
+    """True for a typed PDF (it has real text); False for a scan, whose only "text" is
+    nothing or a stray page number. Damaged files count as no text layer."""
+    text = _PAGE_MARKER.sub("", pdf_text_layer(data))
+    return len("".join(text.split())) >= min_chars
+
+
 def missing_numbers(markdown: str, text_layer: str) -> list[str]:
     """Numbers (hours, dates, totals) in the text layer that Docling's output lacks."""
     have = set(_NUMBER.findall(markdown))

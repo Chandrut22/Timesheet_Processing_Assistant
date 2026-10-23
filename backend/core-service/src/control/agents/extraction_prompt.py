@@ -30,6 +30,10 @@ Rules:
    daily hours. Then leave "days" empty and put that total in stated_total. Never split
    a total into days. If the period is written ("week of 12 Oct", "w/e 18/10"), put its
    first day in week_start; otherwise leave week_start null.
+4c. "[UNCLEAR]" in the text marks writing that could not be read. Never guess a value
+   marked [UNCLEAR] and never use 0 for it: leave that day out of "days" and list it in
+   unreadable_days (its date, or its weekday as written). [UNCLEAR] in a name or date:
+   copy what is readable and mention it in "issues".
 5. Use dates written on the sheet. If only weekday names are given, leave work_date null
    and fill weekday.
 6. Preserve the reported total exactly as written (stated_total). If the EMAIL BODY states
