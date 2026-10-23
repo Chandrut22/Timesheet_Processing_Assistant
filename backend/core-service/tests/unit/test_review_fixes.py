@@ -92,10 +92,10 @@ def test_a_deleted_calendar_holiday_is_no_longer_a_holiday() -> None:
     entry = TimesheetEntry(work_date=MON, hours=D(8), sheet_holiday=False)
     timesheet = sheet_with(entry)
     recalculate(timesheet, PayRules(), {MON})
-    assert (timesheet.holiday_hours, entry.is_holiday) == (D(8), True)
+    assert (timesheet.holiday_hours, timesheet.entries[0].is_holiday) == (D(8), True)
     recalculate(timesheet, PayRules(), set())  # the holiday was deleted
     assert (timesheet.regular_hours, timesheet.holiday_hours) == (D(8), D(0))
-    assert entry.is_holiday is False
+    assert timesheet.entries[0].is_holiday is False
     assert "holiday_not_in_calendar" not in codes(timesheet)
 
 

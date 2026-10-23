@@ -18,7 +18,8 @@ from src.data.models import Document, Timesheet
 VALIDATION_FLAG_CODES = frozenset({"duplicate_file", "duplicate_week"})
 
 # Flags that are only information and do not stop auto-approval.
-NON_BLOCKING_FLAGS = frozenset({"holiday_worked", "company_from_sheet"})
+# handwriting_present: a photo / scan with some handwriting, but the hours are printed.
+NON_BLOCKING_FLAGS = frozenset({"holiday_worked", "company_from_sheet", "handwriting_present"})
 
 LIVE_STATUSES = (TimesheetStatus.NEEDS_REVIEW, TimesheetStatus.APPROVED, TimesheetStatus.EXPORTED)
 

@@ -84,7 +84,8 @@ async def reprocess(
     submission_id: uuid.UUID, body: ReprocessRequest, session: SessionDep, actor: Reviewer
 ) -> ReprocessRunRead:
     """Run the email (or one attachment) again with the current master data. A reason is
-    required. Earlier timesheets are kept as "superseded"; nothing is deleted."""
+    required. The timesheets are updated in place (version + 1); their earlier data is
+    kept in the version history, so nothing is lost."""
     run = await SubmissionService(session).reprocess(
         submission_id,
         body.reason,

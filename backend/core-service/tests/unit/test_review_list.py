@@ -38,11 +38,11 @@ def params(filters: TimesheetFilters) -> set[object]:
 # --- filters -----------------------------------------------------------------------
 
 
-def test_superseded_versions_are_hidden_by_default() -> None:
-    assert "core.timesheets.status != " in sql(TimesheetFilters())
-    assert "core.timesheets.status != " not in sql(TimesheetFilters(include_superseded=True))
-    superseded = TimesheetFilters(status=[TimesheetStatus.SUPERSEDED])
-    assert "core.timesheets.status != " not in sql(superseded)
+def test_every_status_is_listed_by_default() -> None:
+    # No hidden "superseded" versions any more: a reprocess updates in place.
+    assert "core.timesheets.status" not in sql(TimesheetFilters())
+    rejected = TimesheetFilters(status=[TimesheetStatus.REJECTED])
+    assert "core.timesheets.status IN" in sql(rejected)
 
 
 def test_severity_none_means_no_flags() -> None:

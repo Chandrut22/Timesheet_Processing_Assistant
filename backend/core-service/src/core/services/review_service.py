@@ -1,16 +1,20 @@
-"""What reviewers do to a timesheet: fix hours, pick the employee, approve, reject.
+"""What reviewers do to a timesheet: fix hours, pick the employee, approve, reject,
+and roll back to an earlier version.
 
-Every change re-runs the pay rules and duplicate checks, and writes an audit event."""
+Every change re-runs the pay rules and duplicate checks, and writes an audit event.
+A change of the data (days, employee, week, pay) first keeps the timesheet as it was
+in timesheet_versions and raises its version (see version_history.py)."""
 
 import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants.flags import Severity
-from src.constants.timesheet_status import TimesheetStatus
+from src.constants.timesheet_status import TimesheetChange, TimesheetStatus
 from src.core.exceptions import AppError, ConflictError, NotFoundError, ValidationFailedError
 from src.core.rbac.principal import Principal
 from src.core.services.activity_log import refresh_state
@@ -31,7 +35,8 @@ from src.core.services.timesheet_validation import (
     other_paid_timesheet,
     validate_duplicates,
 )
-from src.data.models import Company, Document, Employee, Timesheet, TimesheetEntry
+from src.core.services.version_history import restore_snapshot, save_version, take_snapshot
+from src.data.models import Company, Document, Employee, Timesheet, TimesheetEntry, TimesheetVersion
 from src.data.repositories.holiday_repository import HolidayRepository
 from src.schemas.review import BulkItemResult, BulkResult, EntriesUpdate
 from src.utils.dates import start_of_week, weekday_name
@@ -118,11 +123,6 @@ class ReviewService:
     def _ensure_editable(timesheet: Timesheet) -> None:
         if timesheet.status == TimesheetStatus.EXPORTED:
             raise ConflictError("This timesheet was already exported to payroll and cannot change.")
-        if timesheet.status == TimesheetStatus.SUPERSEDED:
-            raise ConflictError(
-                "This is an older version, replaced when the email was reprocessed. "
-                "Open the current version instead."
-            )
 
     async def _company(self, timesheet: Timesheet) -> Company | None:
         if timesheet.company_id is None:
@@ -174,6 +174,7 @@ class ReviewService:
         timesheet = await self._get(timesheet_id)
         self._ensure_editable(timesheet)
         before = _totals(timesheet)
+        snap = take_snapshot(timesheet)
         company = await self._company(timesheet)
         week_start_day = company.week_start if company else 0
         weeks = sorted({start_of_week(e.work_date, week_start_day) for e in data.entries})
@@ -183,10 +184,7 @@ class ReviewService:
                 f"fall in the weeks starting {', '.join(str(w) for w in weeks)}."
             )
 
-        # Delete the old days first: same dates would clash with the unique constraint.
-        timesheet.entries.clear()
-        await self.session.flush()
-        timesheet.entries.extend(
+        timesheet.entries = [
             TimesheetEntry(
                 work_date=e.work_date,
                 hours=e.hours,
@@ -196,13 +194,14 @@ class ReviewService:
                 note=e.note,
             )
             for e in sorted(data.entries, key=lambda e: e.work_date)
-        )
+        ]
         if weeks:
             timesheet.week_start = weeks[0]
 
         _refresh_entry_flags(timesheet)
         await self._recompute(timesheet)
         self._back_to_review(timesheet)
+        save_version(self.session, timesheet, snap, TimesheetChange.ENTRIES_EDITED, actor=actor)
 
         record_event(
             self.session,
@@ -219,6 +218,7 @@ class ReviewService:
     ) -> Timesheet:
         timesheet = await self._get(timesheet_id)
         self._ensure_editable(timesheet)
+        snap = take_snapshot(timesheet)
 
         employee = await self.session.get(Employee, employee_id)
         if employee is None or not employee.is_active:
@@ -238,6 +238,7 @@ class ReviewService:
         apply_match(timesheet, MatchResult(employee.id, "manual"), matched=to_record(employee))
         await self._recompute(timesheet)
         self._back_to_review(timesheet)
+        save_version(self.session, timesheet, snap, TimesheetChange.EMPLOYEE_MATCHED, actor=actor)
 
         record_event(
             self.session,
@@ -269,12 +270,14 @@ class ReviewService:
                 f"{weekday_name(week_start_day)}."
             )
         before = timesheet.week_start
+        snap = take_snapshot(timesheet)
         timesheet.week_start = week_start
         timesheet.flags = [
             f for f in timesheet.flags or [] if f.get("code") != WEEK_ASSUMED_FLAG
         ]  # the reviewer chose it: no longer an assumption
         await self._recompute(timesheet)  # pay, and the duplicate check for the new week
         self._back_to_review(timesheet)
+        save_version(self.session, timesheet, snap, TimesheetChange.WEEK_CHANGED, actor=actor)
         record_event(
             self.session,
             entity_type="timesheet",
@@ -292,10 +295,13 @@ class ReviewService:
         timesheet = await self._get(timesheet_id)
         self._ensure_editable(timesheet)
         before = _totals(timesheet)
+        snap = take_snapshot(timesheet)
         await self._recompute(timesheet)
         after = _totals(timesheet)
         if after != before:
             self._back_to_review(timesheet)
+        # A version only when something really changed (pay, flags, holidays).
+        save_version(self.session, timesheet, snap, TimesheetChange.RECALCULATED, actor=actor)
 
         record_event(
             self.session,
@@ -381,6 +387,81 @@ class ReviewService:
             action="rejected",
             actor=actor,
             details={"reason": reason, "bulk": bulk},
+        )
+        return await self._save(timesheet, actor)
+
+    # --- versions ----------------------------------------------------------------------
+
+    async def versions(self, timesheet_id: uuid.UUID) -> tuple[Timesheet, list[TimesheetVersion]]:
+        """The timesheet and its saved versions, oldest first."""
+        timesheet = await self._get(timesheet_id)
+        rows = await self.session.scalars(
+            select(TimesheetVersion)
+            .where(TimesheetVersion.timesheet_id == timesheet_id)
+            .order_by(TimesheetVersion.version)
+        )
+        return timesheet, list(rows.all())
+
+    async def version(self, timesheet_id: uuid.UUID, number: int) -> TimesheetVersion:
+        found = await self.session.scalar(
+            select(TimesheetVersion).where(
+                TimesheetVersion.timesheet_id == timesheet_id,
+                TimesheetVersion.version == number,
+            )
+        )
+        if found is None:
+            raise NotFoundError(f"Version {number} of this timesheet was not found.")
+        return found
+
+    async def restore_version(
+        self, timesheet_id: uuid.UUID, number: int, reason: str | None, actor: Principal
+    ) -> Timesheet:
+        """Roll back: the timesheet gets version `number`'s days, employee, week, pay and
+        flags again, as a NEW version (nothing is lost, the rollback can be undone), and
+        goes back to review. Not possible once exported to payroll."""
+        timesheet = await self._get(timesheet_id)
+        self._ensure_editable(timesheet)
+        if number == timesheet.version:
+            raise ConflictError(f"Version {number} is already the current version.")
+        saved = await self.version(timesheet_id, number)
+        current = timesheet.version
+        snap = take_snapshot(timesheet)
+
+        restore_snapshot(timesheet, saved.snapshot)
+        timesheet.status = TimesheetStatus.NEEDS_REVIEW  # a person checks the restored data
+        timesheet.reviewed_by_id = None
+        timesheet.reviewed_by_name = None
+        timesheet.reviewed_at = None
+        await self.session.flush()
+        # The pay stays as it was in that version; only the duplicate check is redone,
+        # because other timesheets may have changed since.
+        document = (
+            await self.session.get(Document, timesheet.document_id)
+            if timesheet.document_id
+            else None
+        )
+        await validate_duplicates(self.session, timesheet, document)
+        save_version(
+            self.session,
+            timesheet,
+            snap,
+            TimesheetChange.ROLLED_BACK,
+            actor=actor,
+            reason=reason,
+            force=True,
+        )
+        record_event(
+            self.session,
+            entity_type="timesheet",
+            entity_id=timesheet.id,
+            action="rolled_back",
+            actor=actor,
+            details={
+                "restored_version": number,
+                "from_version": current,
+                "new_version": timesheet.version,
+                "reason": reason,
+            },
         )
         return await self._save(timesheet, actor)
 

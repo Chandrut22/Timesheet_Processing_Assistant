@@ -68,9 +68,6 @@ class TimesheetFilters(BaseModel):
     received_to: date | None = Field(default=None, description="Arrived on or before (UTC)")
     min_confidence: float | None = Field(default=None, ge=0, le=1)
     max_confidence: float | None = Field(default=None, ge=0, le=1)
-    include_superseded: bool = Field(
-        default=False, description="Also list versions replaced by a reprocess"
-    )
     sort: TimesheetSort = TimesheetSort.RECEIVED
     order: SortOrder = SortOrder.DESC
 

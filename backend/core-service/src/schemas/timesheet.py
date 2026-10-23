@@ -1,15 +1,16 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.schemas.common import HoursOut, MoneyOut
 
 
 class TimesheetEntryRead(BaseModel):
+    """One day (stored in the timesheet's entries JSONB; a day is known by its date)."""
+
     model_config = ConfigDict(from_attributes=True)
 
-    id: uuid.UUID
     work_date: date
     hours: HoursOut
     is_holiday: bool  # holiday in the end (sheet / reviewer, or holiday calendar)
@@ -41,10 +42,9 @@ class TimesheetRead(BaseModel):
     extracted_code: str | None
     extracted_company_name: str | None  # company as written on the sheet
     week_start: date | None
-    status: str  # needs_review | approved | rejected | exported | superseded
-    version: int  # 1 = first run, 2+ = after a reprocess
-    reprocess_run_id: uuid.UUID | None  # the reprocess that produced this version
-    superseded_by_id: uuid.UUID | None  # set on an old version: the one that replaced it
+    status: str  # needs_review | approved | rejected | exported
+    version: int  # 1 when extracted, + 1 per data change (edit, reprocess, rollback)
+    reprocess_run_id: uuid.UUID | None  # the last reprocess that changed it
     regular_hours: HoursOut
     overtime_hours: HoursOut
     double_time_hours: HoursOut
@@ -75,3 +75,42 @@ class TimesheetRead(BaseModel):
     reviewed_at: datetime | None
     created_at: datetime
     entries: list[TimesheetEntryRead]
+
+
+class TimesheetVersionSummary(BaseModel):
+    """One version in the list: what it was and what changed it."""
+
+    version: int
+    current: bool  # the timesheet as it is now (not a saved version)
+    change: str | None  # what made the NEXT version (None for the current one)
+    changed_by_name: str | None
+    changed_at: datetime | None  # when the next version was made
+    reason: str | None
+    reprocess_run_id: uuid.UUID | None
+    employee_id: uuid.UUID | None
+    extracted_name: str | None
+    week_start: date | None
+    status: str | None  # its status at the time
+    days: int
+    total_hours: HoursOut
+    gross_amount: MoneyOut | None
+    flags: list[str]
+
+
+class TimesheetVersionRead(TimesheetVersionSummary):
+    """One version in full: the days and pay as they were."""
+
+    entries: list[TimesheetEntryRead]
+    regular_hours: HoursOut
+    overtime_hours: HoursOut
+    double_time_hours: HoursOut
+    holiday_hours: HoursOut
+    stated_total: HoursOut | None
+    currency: str | None
+    match_method: str | None
+    match_reason: str | None
+    notes: str | None
+
+
+class RestoreRequest(BaseModel):
+    reason: str | None = Field(default=None, max_length=500)

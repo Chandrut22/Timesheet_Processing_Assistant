@@ -2,6 +2,7 @@
 before clearing approvals: request schema and error)."""
 
 import uuid
+from datetime import date
 from decimal import Decimal
 
 from src.core.exceptions import ConfirmationRequiredError, ConflictError
@@ -20,7 +21,7 @@ def confident_timesheet(flag: dict[str, str] | None) -> Timesheet:
         employee_id=uuid.uuid4(),
         confidence=Decimal("0.97"),
         flags=[flag] if flag else [],
-        entries=[TimesheetEntry(hours=Decimal(8))],
+        entries=[TimesheetEntry(work_date=date(2026, 10, 12), hours=Decimal(8))],
     )
 
 

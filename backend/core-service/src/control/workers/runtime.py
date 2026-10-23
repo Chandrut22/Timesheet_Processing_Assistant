@@ -13,6 +13,7 @@ from celery.signals import (
     after_setup_task_logger,
     worker_process_init,
     worker_process_shutdown,
+    worker_ready,
 )
 
 from src.data.clients import upload_buffer
@@ -47,6 +48,14 @@ def _start_tracing(**_: Any) -> None:
     """Each worker process (after the fork) sets up its own tracing: a job continues
     the trace of the upload / email that queued it. Only if OTEL_ENABLED."""
     setup_tracing(engine=engine, celery=True)
+
+
+@worker_ready.connect
+def _announce_vision(**_: Any) -> None:
+    """Once per worker: say where page images go when the vision read is on."""
+    from src.data.clients.vision_reader import log_destination
+
+    log_destination()
 
 
 @after_setup_logger.connect

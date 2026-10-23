@@ -4,7 +4,6 @@ from typing import Any
 
 from sqlalchemy import ColumnElement, case, func, or_, select
 
-from src.constants.timesheet_status import TimesheetStatus
 from src.data.models import Employee, Submission, Timesheet
 from src.data.repositories.base import BaseRepository
 from src.schemas.timesheet_filters import (
@@ -37,9 +36,6 @@ def _conditions(f: TimesheetFilters) -> list[ColumnElement[bool]]:
 
     if f.status:
         where.append(Timesheet.status.in_(f.status))
-    if not f.include_superseded and TimesheetStatus.SUPERSEDED not in f.status:
-        # Replaced versions are history: hidden unless asked for.
-        where.append(Timesheet.status != TimesheetStatus.SUPERSEDED)
     if f.state:
         where.append(Submission.state.in_(f.state))
     if f.severity:
