@@ -13,13 +13,7 @@ import {
 
 // --- enums --------------------------------------------------------------------------
 
-export const TimesheetStatusSchema = z.enum([
-  "needs_review",
-  "approved",
-  "rejected",
-  "exported",
-  "superseded",
-]);
+export const TimesheetStatusSchema = z.enum(["needs_review", "approved", "rejected", "exported"]);
 export const SubmissionStatusSchema = z.enum([
   "received",
   "processing",
@@ -71,8 +65,8 @@ export const FlagReadSchema = z.looseObject({
   severity: z.string(),
 });
 
+/** One day. Days are stored on the timesheet and known by their date (no id). */
 export const TimesheetEntryReadSchema = z.object({
-  id: uuid,
   work_date: isoDate,
   hours: decimal,
   is_holiday: z.boolean(),
@@ -94,7 +88,6 @@ export const TimesheetReadSchema = z.object({
   status: z.string(),
   version: int,
   reprocess_run_id: uuid.nullable(),
-  superseded_by_id: uuid.nullable(),
   regular_hours: decimal,
   overtime_hours: decimal,
   double_time_hours: decimal,
@@ -126,6 +119,49 @@ export const TimesheetReadSchema = z.object({
 });
 export const TimesheetPageSchema = pageOf(TimesheetReadSchema);
 
+/** What made the next version of a timesheet (only data changes make versions). */
+export const TimesheetChangeSchema = z.enum([
+  "entries_edited",
+  "employee_matched",
+  "week_changed",
+  "recalculated",
+  "reprocessed",
+  "rolled_back",
+]);
+
+/** GET /timesheets/{id}/versions: newest first; the first one is the current timesheet. */
+export const TimesheetVersionSummarySchema = z.object({
+  version: int,
+  current: z.boolean(),
+  change: TimesheetChangeSchema.nullable(),
+  changed_by_name: z.string().nullable(),
+  changed_at: isoDateTime.nullable(),
+  reason: z.string().nullable(),
+  reprocess_run_id: uuid.nullable(),
+  employee_id: uuid.nullable(),
+  extracted_name: z.string().nullable(),
+  week_start: isoDate.nullable(),
+  status: z.string().nullable(),
+  days: int,
+  total_hours: decimal,
+  gross_amount: decimal.nullable(),
+  flags: z.array(z.string()),
+});
+
+/** GET /timesheets/{id}/versions/{n}: one version with its days and pay. */
+export const TimesheetVersionReadSchema = TimesheetVersionSummarySchema.extend({
+  entries: z.array(TimesheetEntryReadSchema),
+  regular_hours: decimal,
+  overtime_hours: decimal,
+  double_time_hours: decimal,
+  holiday_hours: decimal,
+  stated_total: decimal.nullable(),
+  currency: z.string().nullable(),
+  match_method: z.string().nullable(),
+  match_reason: z.string().nullable(),
+  notes: z.string().nullable(),
+});
+
 export const BulkItemResultSchema = z.object({
   timesheet_id: uuid,
   ok: z.boolean(),
@@ -141,6 +177,15 @@ export const BulkResultSchema = z.object({
 
 // --- submissions --------------------------------------------------------------------
 
+/** How a photo / scan is written, as the vision model saw it. */
+export const WritingClassSchema = z.enum([
+  "printed_only",
+  "handwritten_only",
+  "mixed",
+  "no_text",
+  "uncertain",
+]);
+
 export const DocumentReadSchema = z.object({
   id: uuid,
   filename: z.string(),
@@ -151,6 +196,15 @@ export const DocumentReadSchema = z.object({
   error: z.string().nullable(),
   /** How much of a large file was read (pages / sheets); null when all of it was. */
   read_limit: z.union([jsonObject, z.string()]).nullish(),
+  /** docling (typed / OCR), plain (CSV, TXT) or vision (photo / scan read by an AI model). */
+  read_method: z.enum(["docling", "plain", "vision"]).nullish(),
+  /** How many [UNCLEAR] marks the vision model left; 0 otherwise. */
+  unclear_marks: int.nonnegative().default(0),
+  /** Photos / scans only: how the page is written (null for typed documents). */
+  writing_class: WritingClassSchema.nullish(),
+  writing_confidence: z.number().min(0).max(1).nullish(),
+  has_handwritten_hours: z.boolean().default(false),
+  writing_reason: z.string().nullish(),
   created_at: isoDateTime,
 });
 
@@ -281,6 +335,8 @@ export const HolidayReadSchema = z.object({
   company_id: uuid.nullable(),
   holiday_date: isoDate,
   name: z.string(),
+  /** Inactive holidays stay listed but no longer count when pay is calculated. */
+  is_active: z.boolean(),
   created_at: isoDateTime,
 });
 

@@ -1,7 +1,7 @@
 // Typed functions for every core-service endpoint (through the /api proxy). Every JSON
 // response is checked against its zod schema in dev and tests (schemas/common.ts).
 import { cleanParams, filenameFromDisposition, http, saveBlob } from "./client";
-import { responseOf } from "./schemas/common";
+import { BulkDeleteResultSchema, BulkStatusResultSchema, responseOf } from "./schemas/common";
 import {
   AuditEventReadSchema,
   BulkResultSchema,
@@ -20,6 +20,8 @@ import {
   SubmissionTimelineSchema,
   TimesheetPageSchema,
   TimesheetReadSchema,
+  TimesheetVersionReadSchema,
+  TimesheetVersionSummarySchema,
   WhitelistReadSchema,
   DashboardSnapshotSchema,
 } from "./schemas/core";
@@ -63,7 +65,6 @@ export type TimesheetListParams = {
   received_to?: string;
   min_confidence?: number;
   max_confidence?: number;
-  include_superseded?: boolean;
   sort?: TimesheetSort;
   order?: SortOrder;
   page?: number;
@@ -87,7 +88,7 @@ export type EmployeeListParams = {
   page?: number;
   size?: number;
 };
-export type HolidayListParams = { company_id?: string; year?: number };
+export type HolidayListParams = { company_id?: string; year?: number; is_active?: boolean };
 export type ExportListParams = {
   company_id?: string;
   week_start?: string;
@@ -117,6 +118,17 @@ export const coreApi = {
     ),
   recalculate: (id: string) =>
     data(TimesheetReadSchema, http.post(`/api/timesheets/${id}/recalculate`)),
+  /** Every version, newest first (the first is the timesheet as it is now). */
+  listVersions: (id: string) =>
+    data(z.array(TimesheetVersionSummarySchema), http.get(`/api/timesheets/${id}/versions`)),
+  getVersion: (id: string, version: number) =>
+    data(TimesheetVersionReadSchema, http.get(`/api/timesheets/${id}/versions/${version}`)),
+  /** Roll back to an earlier version: it becomes a new version, back in review. */
+  restoreVersion: (id: string, version: number, reason?: string) =>
+    data(
+      TimesheetReadSchema,
+      http.post(`/api/timesheets/${id}/versions/${version}/restore`, { reason: reason || null }),
+    ),
   approve: (id: string, notes?: string) =>
     data(TimesheetReadSchema, http.post(`/api/timesheets/${id}/approve`, { notes: notes || null })),
   reject: (id: string, reason: string) =>
@@ -185,6 +197,13 @@ export const coreApi = {
     data(CompanyReadSchema, http.post("/api/companies", body)),
   updateCompany: (id: string, body: CompanyUpdate) =>
     data(CompanyReadSchema, http.patch(`/api/companies/${id}`, body)),
+  /** Admin: activate / deactivate up to 100 companies. Deactivating also deactivates
+   * their employees (`employees_deactivated`); activating does not bring them back. */
+  bulkCompanyStatus: (ids: string[], isActive: boolean) =>
+    data(
+      BulkStatusResultSchema,
+      http.post("/api/companies/bulk/status", { ids, is_active: isActive }),
+    ),
   listWhitelist: (companyId: string) =>
     data(z.array(WhitelistReadSchema), http.get(`/api/companies/${companyId}/whitelist`)),
   addWhitelist: (companyId: string, value: string) =>
@@ -200,12 +219,25 @@ export const coreApi = {
     data(EmployeeReadSchema, http.post("/api/employees", body)),
   updateEmployee: (id: string, body: EmployeeUpdate) =>
     data(EmployeeReadSchema, http.patch(`/api/employees/${id}`, body)),
+  /** Admin: activate / deactivate up to 100 employees; each one is reported on its own. */
+  bulkEmployeeStatus: (ids: string[], isActive: boolean) =>
+    data(
+      BulkStatusResultSchema,
+      http.post("/api/employees/bulk/status", { ids, is_active: isActive }),
+    ),
 
   // Holidays
   listHolidays: (params: HolidayListParams) =>
     data(z.array(HolidayReadSchema), http.get("/api/holidays", { params: cleanParams(params) })),
   createHoliday: (body: HolidayCreate) => data(HolidayReadSchema, http.post("/api/holidays", body)),
   deleteHoliday: (id: string) => http.delete(`/api/holidays/${id}`).then(() => undefined),
+  bulkHolidayStatus: (ids: string[], isActive: boolean) =>
+    data(
+      BulkStatusResultSchema,
+      http.post("/api/holidays/bulk/status", { ids, is_active: isActive }),
+    ),
+  bulkDeleteHolidays: (ids: string[]) =>
+    data(BulkDeleteResultSchema, http.post("/api/holidays/bulk/delete", { ids })),
 
   // Payroll export (admin)
   previewExport: (companyId: string, weekStart: string) =>

@@ -14,6 +14,8 @@ export const qk = {
     all: ["timesheets"] as const,
     list: (p: TimesheetListParams) => ["timesheets", "list", p] as const,
     detail: (id: string) => ["timesheets", "detail", id] as const,
+    versions: (id: string) => ["timesheets", "versions", id] as const,
+    version: (id: string, n: number) => ["timesheets", "versions", id, n] as const,
   },
   submissions: {
     all: ["submissions"] as const,

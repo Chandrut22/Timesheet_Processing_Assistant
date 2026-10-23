@@ -8,6 +8,7 @@ import type {
   BulkResultSchema,
   CompanyReadSchema,
   DocumentReadSchema,
+  WritingClassSchema,
   EmployeeReadSchema,
   ExportBatchReadSchema,
   ExportPreviewSchema,
@@ -26,7 +27,10 @@ import type {
   SubmissionStateSchema,
   SubmissionStatusSchema,
   SubmissionTimelineSchema,
+  TimesheetChangeSchema,
   TimesheetEntryReadSchema,
+  TimesheetVersionReadSchema,
+  TimesheetVersionSummarySchema,
   TimesheetReadSchema,
   TimesheetSortSchema,
   TimesheetStatusSchema,
@@ -51,9 +55,13 @@ export type PrincipalRead = z.infer<typeof PrincipalReadSchema>;
 export type FlagRead = z.infer<typeof FlagReadSchema>;
 export type TimesheetEntryRead = z.infer<typeof TimesheetEntryReadSchema>;
 export type TimesheetRead = z.infer<typeof TimesheetReadSchema>;
+export type TimesheetChange = z.infer<typeof TimesheetChangeSchema>;
+export type TimesheetVersionSummary = z.infer<typeof TimesheetVersionSummarySchema>;
+export type TimesheetVersionRead = z.infer<typeof TimesheetVersionReadSchema>;
 export type BulkItemResult = z.infer<typeof BulkItemResultSchema>;
 export type BulkResult = z.infer<typeof BulkResultSchema>;
 export type DocumentRead = z.infer<typeof DocumentReadSchema>;
+export type WritingClass = z.infer<typeof WritingClassSchema>;
 export type SubmissionRead = z.infer<typeof SubmissionReadSchema>;
 export type StateChangeRead = z.infer<typeof StateChangeReadSchema>;
 export type ProcessingStepRead = z.infer<typeof ProcessingStepReadSchema>;

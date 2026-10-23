@@ -62,7 +62,9 @@ export function ReprocessDialog({
     },
     onSuccess: () => {
       setConfirm(null);
-      toast.success("Reprocessing queued. Earlier timesheets will be kept as replaced versions.");
+      toast.success(
+        "Reprocessing queued. Each timesheet keeps its earlier version in its history.",
+      );
       form.reset();
       onOpenChange(false);
       void queryClient.invalidateQueries({ queryKey: qk.submissions.all });
@@ -95,8 +97,9 @@ export function ReprocessDialog({
           <DialogHeader>
             <DialogTitle>Reprocess</DialogTitle>
             <DialogDescription>
-              Run it again with the current companies, employees and rules. Nothing is deleted:
-              earlier timesheets are kept as replaced versions.
+              Run it again with the current companies, employees and rules. The timesheets are
+              updated in place and nothing is lost: each one keeps its earlier version in its
+              history, so it can be rolled back.
             </DialogDescription>
           </DialogHeader>
 

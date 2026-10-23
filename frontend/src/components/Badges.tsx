@@ -1,9 +1,11 @@
 import { Mail, Upload } from "lucide-react";
 import type { FlagRead } from "@/api/models";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
+import { flagLabel } from "@/lib/flags";
 import { humanize } from "@/lib/format";
 import { IN_PROGRESS_STATES } from "@/lib/submissionStates";
 import { sortFlags } from "@/lib/severity";
+import { writingChip } from "@/lib/writing";
 import { cn } from "@/lib/utils";
 
 const TIMESHEET_TONE: Record<string, BadgeVariant> = {
@@ -11,7 +13,6 @@ const TIMESHEET_TONE: Record<string, BadgeVariant> = {
   approved: "success",
   rejected: "danger",
   exported: "info",
-  superseded: "muted",
 };
 
 export function TimesheetStatusBadge({ status }: { status: string }) {
@@ -102,7 +103,7 @@ export function FlagBadges({ flags, max = 3 }: { flags: FlagRead[]; max?: number
     <div className="flex flex-wrap gap-1">
       {shown.map((f, i) => (
         <Badge key={`${f.code}-${i}`} variant={severityVariant(f.severity)} title={f.message}>
-          {humanize(f.code)}
+          {flagLabel(f.code)}
         </Badge>
       ))}
       {sorted.length > max ? <Badge variant="muted">+{sorted.length - max}</Badge> : null}
@@ -112,4 +113,18 @@ export function FlagBadges({ flags, max = 3 }: { flags: FlagRead[]; max?: number
 
 export function SeverityBadge({ severity }: { severity: string }) {
   return <Badge variant={severityVariant(severity)}>{humanize(severity)}</Badge>;
+}
+
+/** On a photo / scan read by the vision model: printed, mixed, handwritten or unclear. */
+export function WritingClassChip({ doc }: { doc: Parameters<typeof writingChip>[0] }) {
+  const chip = writingChip(doc);
+  if (!chip) return null;
+  return (
+    <Badge variant={chip.tone} title={chip.title}>
+      {chip.label}
+      {doc.unclear_marks > 0 ? (
+        <span className="tabular">· {doc.unclear_marks} unclear</span>
+      ) : null}
+    </Badge>
+  );
 }

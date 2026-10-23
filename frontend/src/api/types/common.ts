@@ -2,6 +2,9 @@
 // ../schemas, so a type and its runtime check can never disagree.
 import type { z } from "zod";
 import type {
+  BulkDeleteResultSchema,
+  BulkStatusItemSchema,
+  BulkStatusResultSchema,
   CellErrorSchema,
   ImportReportSchema,
   OnDuplicateSchema,
@@ -13,6 +16,10 @@ import type {
 export type Page<T> = { items: T[]; total: number; page: number; size: number };
 
 export type RoleName = z.infer<typeof RoleNameSchema>;
+
+export type BulkStatusItem = z.infer<typeof BulkStatusItemSchema>;
+export type BulkStatusResult = z.infer<typeof BulkStatusResultSchema>;
+export type BulkDeleteResult = z.infer<typeof BulkDeleteResultSchema>;
 
 export type CellError = z.infer<typeof CellErrorSchema>;
 export type RowResult = z.infer<typeof RowResultSchema>;

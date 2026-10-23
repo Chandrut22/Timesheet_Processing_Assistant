@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { coreApi } from "@/api/core";
 import { errorMessage } from "@/api/errors";
@@ -25,6 +25,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { BulkStatusBar, RowCheckbox, SelectAllCheckbox } from "@/features/bulk/BulkStatus";
+import { useRowSelection } from "@/features/bulk/useRowSelection";
 import { EmployeeForm, type EmployeeFormValues } from "@/features/employees/EmployeeForm";
 import { toEmployeeCreate, toEmployeeUpdate } from "@/features/employees/employee-utils";
 import { ImportButton } from "@/features/import/ImportDialog";
@@ -69,6 +71,16 @@ function EmployeesPage() {
     queryFn: () => coreApi.listEmployees(params),
     placeholderData: keepPreviousData,
   });
+  const bulkRows = useMemo(
+    () =>
+      (list.data?.items ?? []).map((e) => ({
+        id: e.id,
+        label: `${e.full_name} (${e.employee_code})`,
+        isActive: e.is_active,
+      })),
+    [list.data],
+  );
+  const selection = useRowSelection(bulkRows, JSON.stringify(params));
 
   const update = (patch: Partial<EmployeesSearch>) =>
     void navigate({
@@ -150,7 +162,7 @@ function EmployeesPage() {
 
       <Card>
         {list.isPending ? (
-          <TableSkeleton rows={6} cols={6} />
+          <TableSkeleton rows={6} cols={isAdmin ? 8 : 6} />
         ) : list.isError ? (
           <div className="p-4">
             <ErrorState error={list.error} onRetry={() => void list.refetch()} />
@@ -164,6 +176,11 @@ function EmployeesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {isAdmin ? (
+                    <TableHead className="w-10">
+                      <SelectAllCheckbox selection={selection} />
+                    </TableHead>
+                  ) : null}
                   <TableHead>Code</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Company</TableHead>
@@ -174,8 +191,16 @@ function EmployeesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {list.data.items.map((e) => (
-                  <TableRow key={e.id}>
+                {list.data.items.map((e, i) => (
+                  <TableRow
+                    key={e.id}
+                    data-state={selection.selected.has(e.id) ? "selected" : undefined}
+                  >
+                    {isAdmin ? (
+                      <TableCell>
+                        <RowCheckbox row={bulkRows[i]} selection={selection} />
+                      </TableCell>
+                    ) : null}
                     <TableCell className="tabular">{e.employee_code}</TableCell>
                     <TableCell>
                       <span className="font-medium">{e.full_name}</span>
@@ -221,6 +246,20 @@ function EmployeesPage() {
           </>
         )}
       </Card>
+
+      {isAdmin ? (
+        <BulkStatusBar
+          selection={selection}
+          noun={{ one: "employee", many: "employees" }}
+          setStatus={coreApi.bulkEmployeeStatus}
+          invalidate={[qk.employees.all]}
+          warnings={{
+            deactivate:
+              "Timesheets that arrive for them are no longer matched to them. Their past timesheets are kept.",
+            activate: "Employees of an inactive company stay inactive: activate the company first.",
+          }}
+        />
+      ) : null}
 
       <Dialog
         open={editing !== null}
