@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from sqlalchemy import (
     CHAR,
@@ -19,14 +19,13 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
+from sqlalchemy.ext.mutable import MutableList
+from sqlalchemy.orm import Mapped, mapped_column, validates
 
 from src.constants.flags import Severity, highest_severity, with_severity
 from src.constants.timesheet_status import TimesheetStatus
 from src.data.models.base import SCHEMA, Base, TimestampMixin, UUIDPrimaryKeyMixin, enum_check
-
-if TYPE_CHECKING:
-    from src.data.models.timesheet_entry import TimesheetEntry
+from src.data.models.timesheet_entry import EntryList, TimesheetEntry, check_entries
 
 ZERO = text("0")
 
@@ -51,9 +50,7 @@ class Timesheet(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ),
         CheckConstraint("currency IS NULL OR currency ~ '^[A-Z]{3}$'", name="currency_format"),
         CheckConstraint("version >= 1", name="version_positive"),
-        CheckConstraint(
-            "superseded_by_id IS NULL OR superseded_by_id <> id", name="not_superseded_by_self"
-        ),
+        CheckConstraint("jsonb_typeof(entries) = 'array'", name="entries_is_array"),
         CheckConstraint(
             "email_stated_total IS NULL OR email_stated_total >= 0",
             name="email_stated_total_non_negative",
@@ -101,14 +98,12 @@ class Timesheet(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     employee_id: Mapped[uuid.UUID | None] = mapped_column(  # None until matched
         Uuid, ForeignKey(f"{SCHEMA}.employees.id", ondelete="RESTRICT"), index=True
     )
-    # Reprocessing: a reprocess never overwrites a timesheet. The old one is kept with
-    # status "superseded" and points to the version that replaced it.
+    # Version of the data (days, employee, week, pay): 1 when extracted, + 1 on every
+    # change by a reviewer, a reprocess or a rollback. Each earlier version is kept in
+    # timesheet_versions (see version_history.py), so any of them can be restored.
     version: Mapped[int] = mapped_column(SmallInteger, default=1, server_default=text("1"))
-    reprocess_run_id: Mapped[uuid.UUID | None] = mapped_column(  # run that created this one
+    reprocess_run_id: Mapped[uuid.UUID | None] = mapped_column(  # last reprocess that changed it
         Uuid, ForeignKey(f"{SCHEMA}.reprocess_runs.id", ondelete="SET NULL"), index=True
-    )
-    superseded_by_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey(f"{SCHEMA}.timesheets.id", ondelete="SET NULL"), index=True
     )
 
     # What the document said (kept even after matching, for the reviewer)
@@ -169,12 +164,9 @@ class Timesheet(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     exported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    entries: Mapped[list["TimesheetEntry"]] = relationship(
-        back_populates="timesheet",
-        lazy="selectin",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-        order_by="TimesheetEntry.work_date",
+    # The days, in date order (see timesheet_entry.py). [] for a weekly-total sheet.
+    entries: Mapped[list[TimesheetEntry]] = mapped_column(
+        MutableList.as_mutable(EntryList()), default=list, server_default=text("'[]'::jsonb")
     )
 
     # Which payroll sheet it went into. Set once; a timesheet is never exported twice.
@@ -185,6 +177,11 @@ class Timesheet(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # Worst flag severity (high / medium / low), None = no flags. Kept in step with
     # `flags` by _set_severity, so lists can filter and sort on it.
     severity: Mapped[str | None] = mapped_column(String(10), index=True)
+
+    @validates("entries")
+    def _check_entries(self, _key: str, entries: list[TimesheetEntry] | None) -> Any:
+        """One entry per date, hours 0-24, sorted: checked when the days are set."""
+        return check_entries(list(entries or []))
 
     @validates("flags")
     def _set_severity(self, _key: str, flags: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
