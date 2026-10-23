@@ -71,6 +71,12 @@ class AnswerTooLongError(Exception):
     answer can carry (many people or days)."""
 
 
+class VisionUnavailableError(Exception):
+    """The vision model (handwriting reader) could not be reached, timed out or answered
+    with a server error. Temporary: the worker tries again later. Defined here, not in
+    the reader, so this module needs no AI or imaging library."""
+
+
 class JobTooSlowError(Exception):
     """The job ran longer than WORKER_JOB_TIMEOUT_SECONDS and was stopped."""
 
@@ -131,6 +137,13 @@ def explain(exc: BaseException) -> Failure:
             temporary=False,  # the same document would be cut off again
             advice="Split the file (for example one sheet or a few people per file), or an "
             "admin raises LLM_MAX_OUTPUT_TOKENS; then reprocess.",
+        )
+    if any(isinstance(e, VisionUnavailableError) for e in chain):
+        return Failure(
+            "The handwriting reader (vision model) could not be reached or did not answer in time.",
+            temporary=True,
+            advice="Check that the vision model server is running (VISION_BASE_URL), then "
+            "reprocess.",
         )
     if any(marker in str(e).lower() for e in chain for marker in CONTEXT_LIMIT_MARKERS):
         return Failure(

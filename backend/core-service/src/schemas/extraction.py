@@ -40,6 +40,12 @@ class ExtractedTimesheet(BaseModel):
         description="Total hours written on the sheet for this person, if any (also when "
         "it is the only number given)",
     )
+    unreadable_days: list[str] = Field(
+        default_factory=list,
+        description="Days whose hours are unreadable (marked [UNCLEAR] in the text): the date "
+        "(YYYY-MM-DD) if known, else the weekday as written. Never put a guessed number "
+        "(or 0) in days for them",
+    )
     email_stated_total: float | None = Field(
         default=None,
         description="Total hours for THIS person stated in the email body text (not the "

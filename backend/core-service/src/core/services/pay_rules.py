@@ -22,7 +22,7 @@ Then the money:
 """
 
 from collections.abc import Collection, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
@@ -267,8 +267,11 @@ def recalculate(
     calendar. is_holiday is worked out fresh from sheet_holiday every time, so removing
     a holiday from the calendar and recalculating turns the day back into a normal day.
     Safe to call again after a reviewer edits hours: rule flags are rebuilt."""
-    for entry in timesheet.entries:
-        entry.is_holiday = bool(entry.sheet_holiday) or entry.work_date in holidays
+    # A new list of new entries: the JSONB column only sees replaced values.
+    timesheet.entries = [
+        replace(e, is_holiday=bool(e.sheet_holiday) or e.work_date in holidays)
+        for e in timesheet.entries
+    ]
 
     total = weekly_total(timesheet)
     if total is not None and timesheet.week_start is not None:

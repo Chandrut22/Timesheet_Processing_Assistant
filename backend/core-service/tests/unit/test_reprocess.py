@@ -1,6 +1,7 @@
-"""Reprocessing: old versions are kept, linked to the new ones, and never counted."""
+"""Reprocessing: which old timesheet a newly extracted one updates, and the summaries."""
 
 import uuid
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -8,43 +9,55 @@ from pydantic import ValidationError
 
 from src.constants.timesheet_status import SubmissionState
 from src.core.services.activity_log import state_from_timesheets
-from src.core.services.reprocess import pick_successor, snapshot, summarize
+from src.core.services.reprocess import pick_predecessor, snapshot, summarize
 from src.data.models import Timesheet
 from src.schemas.submission import ReprocessRequest
 
-DOC_A = str(uuid.uuid4())
-DOC_B = str(uuid.uuid4())
+DOC_A = uuid.uuid4()
+DOC_B = uuid.uuid4()
+WEEK = date(2026, 10, 12)
 
 
-def item(name: str | None, doc: str = DOC_A, code: str | None = None) -> dict[str, object]:
-    return {"id": str(uuid.uuid4()), "document_id": doc, "name": name, "code": code}
+def ts(
+    name: str | None, doc: uuid.UUID = DOC_A, code: str | None = None, week: date | None = WEEK
+) -> Timesheet:
+    return Timesheet(
+        id=uuid.uuid4(), document_id=doc, extracted_name=name, extracted_code=code, week_start=week
+    )
 
 
-def test_successor_is_found_by_name_in_the_same_document() -> None:
-    old = item("John")
-    new = [item("Priya"), item("john "), item("John", doc=DOC_B)]
-    assert pick_successor(old, new) == new[1]["id"]
+def test_the_old_timesheet_is_found_by_name_in_the_same_document() -> None:
+    olds = [ts("Priya"), ts("john "), ts("John", doc=DOC_B)]
+    assert pick_predecessor(ts("John"), olds, only_one_new=False) is olds[1]
 
 
-def test_successor_falls_back_to_the_code() -> None:
-    old = item("J. Mathew", code="SYN-EMP-020")
-    new = [item("John Mathew", code="syn-emp-020"), item("Priya", code="SYN-EMP-002")]
-    assert pick_successor(old, new) == new[0]["id"]
+def test_the_same_name_in_two_weeks_goes_to_the_same_week() -> None:
+    week2 = date(2026, 10, 19)
+    olds = [ts("John"), ts("John", week=week2)]
+    assert pick_predecessor(ts("John", week=week2), olds, only_one_new=False) is olds[1]
 
 
-def test_successor_is_the_only_timesheet_of_the_document() -> None:
-    assert pick_successor(item("R. Kumar"), [only := item("Rahul Kumar")]) == only["id"]
+def test_falls_back_to_the_code() -> None:
+    olds = [ts("John Mathew", code="syn-emp-020"), ts("Priya", code="SYN-EMP-002")]
+    new = ts("J. Mathew", code="SYN-EMP-020")
+    assert pick_predecessor(new, olds, only_one_new=False) is olds[0]
 
 
-def test_no_successor_when_ambiguous_or_missing() -> None:
-    assert pick_successor(item("Anna"), [item("Bob"), item("Carl")]) is None
-    assert pick_successor(item("Anna"), []) is None
+def test_one_old_and_one_new_go_together() -> None:
+    only = ts("Rahul Kumar")
+    assert pick_predecessor(ts("R. Kumar"), [only], only_one_new=True) is only
+    assert pick_predecessor(ts("R. Kumar"), [only], only_one_new=False) is None
 
 
-def test_superseded_timesheets_do_not_count_for_the_email_state() -> None:
-    assert state_from_timesheets(["superseded"]) is None
-    assert state_from_timesheets(["superseded", "approved"]) is SubmissionState.APPROVED
-    assert state_from_timesheets(["superseded", "needs_review"]) is SubmissionState.AWAITING_REVIEW
+def test_none_when_ambiguous_or_missing() -> None:
+    assert pick_predecessor(ts("Anna"), [ts("Bob"), ts("Carl")], only_one_new=True) is None
+    assert pick_predecessor(ts("Anna"), [], only_one_new=True) is None
+
+
+def test_the_email_state_comes_from_all_timesheets() -> None:
+    assert state_from_timesheets([]) is None
+    assert state_from_timesheets(["rejected", "approved"]) is SubmissionState.APPROVED
+    assert state_from_timesheets(["rejected", "needs_review"]) is SubmissionState.AWAITING_REVIEW
 
 
 def _timesheet(status: str, employee: bool) -> Timesheet:

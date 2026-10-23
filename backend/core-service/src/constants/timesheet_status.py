@@ -23,7 +23,6 @@ class TimesheetStatus(StrEnum):
     APPROVED = "approved"
     REJECTED = "rejected"
     EXPORTED = "exported"
-    SUPERSEDED = "superseded"
 
 
 class DocumentStatus(StrEnum):
@@ -69,6 +68,18 @@ class StepResult(StrEnum):
     SUCCESS = "success"
     WARNING = "warning"
     ERROR = "error"
+
+
+class TimesheetChange(StrEnum):
+    """What turned a timesheet version into the next one (timesheet_versions.change).
+    Only data changes make a version; approve / reject are in the audit log."""
+
+    ENTRIES_EDITED = "entries_edited"  # a reviewer changed the days
+    EMPLOYEE_MATCHED = "employee_matched"  # a reviewer picked the employee
+    WEEK_CHANGED = "week_changed"  # a weekly-total timesheet moved to another week
+    RECALCULATED = "recalculated"  # pay rules run again with current rates / holidays
+    REPROCESSED = "reprocessed"  # the document was extracted again
+    ROLLED_BACK = "rolled_back"  # an earlier version was restored
 
 
 class ReprocessStatus(StrEnum):

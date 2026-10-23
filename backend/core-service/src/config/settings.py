@@ -112,6 +112,27 @@ class Settings(BaseSettings):
     chunk_people: int = Field(default=15, ge=1, le=100)
     chunk_parallel: int = Field(default=2, ge=1, le=8)
 
+    # --- vision read: photos and scanned timesheets (OFF by default) ---
+    # Photos and PDFs without a text layer are read by a vision-language model (e.g. Gemma 4
+    # on Ollama, any OpenAI-compatible endpoint) instead of Docling + RapidOCR, which reads
+    # handwriting poorly. One call per page returns the kind of writing (printed /
+    # handwritten / mixed) and the transcription. Typed documents are never sent. When on,
+    # the page images go to VISION_BASE_URL: no default host, so nothing leaves this
+    # machine until someone sets one. ollama.com is a hosted (third-party) service.
+    vision_enabled: bool = False
+    vision_base_url: str | None = None  # https://ollama.com/v1, or http://gpu-host:11434/v1
+    vision_api_key: SecretStr | None = None  # Ollama Cloud needs one; self-hosted usually not
+    vision_model: str | None = None  # exactly as the server lists it, e.g. gemma4:31b-cloud
+    vision_provider: str = "openai"  # LangChain provider; "openai" = any compatible API
+    vision_timeout_s: float = Field(default=120, gt=0)  # per page
+    vision_max_retries: int = Field(default=2, ge=0, le=5)  # quick retries per call
+    vision_max_output_tokens: int = Field(default=8000, ge=256)
+    vision_max_pages: int = Field(default=6, ge=1, le=50)  # pages read per document
+    # Pages are shrunk (never enlarged) to this longest side (and about 2.5 MP).
+    vision_image_max_side: int = Field(default=2048, ge=512, le=8192)
+    # A page classified with less confidence than this counts as "uncertain".
+    vision_min_confidence: float = Field(default=0.8, ge=0, le=1)
+
     # --- review ---
     auto_approve_enabled: bool = True
     auto_approve_min_confidence: float = 0.85
@@ -178,9 +199,9 @@ class Settings(BaseSettings):
     sweeper_interval_seconds: int = 120  # how often it looks
     sweeper_grace_seconds: int = 600  # "received" (or a retry overdue) this long = lost
 
-    dashboard_poll_seconds: int = 30        # refresh even without a change message
-    dashboard_heartbeat_seconds: int = 15   # keeps proxies from closing an idle stream
-    dashboard_max_streams_per_user: int = 5 # per API process (open tabs)
+    dashboard_poll_seconds: int = 30  # refresh even without a change message
+    dashboard_heartbeat_seconds: int = 15  # keeps proxies from closing an idle stream
+    dashboard_max_streams_per_user: int = 5  # per API process (open tabs)
 
     @field_validator(
         "llm_fallback_model",
@@ -242,6 +263,21 @@ class Settings(BaseSettings):
         key = self.jev_api_key.get_secret_value().strip() if self.jev_api_key else ""
         if self.classifier_enabled and not key:  # an empty JEV_API_KEY= counts as missing
             raise ValueError("CLASSIFIER_ENABLED=true needs JEV_API_KEY in .env")
+        return self
+
+    @model_validator(mode="after")
+    def check_vision(self) -> "Settings":
+        if not self.vision_enabled:
+            return self
+        if not (self.vision_base_url or "").strip() or not (self.vision_model or "").strip():
+            raise ValueError("VISION_ENABLED=true needs VISION_BASE_URL and VISION_MODEL in .env")
+        # One job must be able to read every page (one call each) and still extract.
+        needed = int(self.vision_max_pages * self.vision_timeout_s) + 300
+        if self.worker_job_timeout_seconds < needed:
+            raise ValueError(
+                f"VISION_MAX_PAGES x VISION_TIMEOUT_S needs WORKER_JOB_TIMEOUT_SECONDS of at "
+                f"least {needed} (and the other WORKER_* / BROKER_* times above it)"
+            )
         return self
 
     @model_validator(mode="after")

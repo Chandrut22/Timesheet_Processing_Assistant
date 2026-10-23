@@ -18,6 +18,13 @@ class DocumentRead(BaseModel):
     status: str
     error: str | None
     read_limit: dict[str, Any] | None  # pages / sheets not read (big files); None = all read
+    read_method: str | None = None  # docling / plain / vision; None = not read yet
+    unclear_marks: int = 0  # [UNCLEAR] left by the vision model (what it could not read)
+    # Photos / scans: how they are written (None for typed documents, see WritingClass).
+    writing_class: str | None = None
+    writing_confidence: float | None = None
+    has_handwritten_hours: bool = False
+    writing_reason: str | None = None
     created_at: datetime
 
 

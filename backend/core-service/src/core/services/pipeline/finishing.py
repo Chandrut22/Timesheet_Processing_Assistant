@@ -10,23 +10,20 @@ from src.constants.timesheet_status import (
     DocumentStatus,
     SubmissionState,
     SubmissionStatus,
-    TimesheetStatus,
 )
 from src.core.services.activity_log import set_state, state_from_timesheets
 from src.data.models import Submission, Timesheet
 
 
-async def has_timesheets(session: AsyncSession, document_id: uuid.UUID) -> bool:
-    """Live (not superseded) timesheets from this document: a reprocess leaves those."""
-    found = await session.scalar(
-        select(Timesheet.id)
-        .where(
-            Timesheet.document_id == document_id,
-            Timesheet.status != TimesheetStatus.SUPERSEDED,
-        )
-        .limit(1)
-    )
-    return found is not None
+async def already_extracted(
+    session: AsyncSession, document_id: uuid.UUID, reprocess_run_id: uuid.UUID | None
+) -> bool:
+    """Skip this document? A normal run: it already has timesheets (a retry after a
+    crash halfway). A reprocess: this run already updated its timesheets."""
+    query = select(Timesheet.id).where(Timesheet.document_id == document_id)
+    if reprocess_run_id is not None:
+        query = query.where(Timesheet.reprocess_run_id == reprocess_run_id)
+    return await session.scalar(query.limit(1)) is not None
 
 
 async def finish(session: AsyncSession, submission: Submission) -> None:

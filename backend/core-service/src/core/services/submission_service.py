@@ -1,8 +1,9 @@
 """Reprocess an email / upload, or one attachment of it, with a reason.
 
-Nothing is deleted: the timesheets being replaced get status "superseded" and stay
-visible in the history; the worker then extracts, matches and checks the document(s)
-again with the CURRENT master data (employees, aliases, rates, holidays).
+Nothing is deleted: the worker extracts, matches and checks the document(s) again
+with the CURRENT master data (employees, aliases, rates, holidays) and updates the
+existing timesheets in place; what they were before is kept in timesheet_versions.
+Approvals are cleared when the reprocess starts (given back if it cannot start).
 Files are read once; a reprocess uses the text saved from the first read."""
 
 import uuid
@@ -115,11 +116,8 @@ class SubmissionService:
                 "are no longer stored. Ask the sender for new copies or upload them again."
             )
 
-        # --- the timesheets being replaced --------------------------------------------
-        query = select(Timesheet).where(
-            Timesheet.submission_id == submission_id,
-            Timesheet.status != TimesheetStatus.SUPERSEDED,
-        )
+        # --- the timesheets being redone ----------------------------------------------
+        query = select(Timesheet).where(Timesheet.submission_id == submission_id)
         if document_id is not None:
             query = query.where(Timesheet.document_id == document_id)
         current = (await self.session.scalars(query.order_by(Timesheet.created_at))).all()
@@ -154,8 +152,11 @@ class SubmissionService:
             before_result=snapshot(submission.state, current),
         )
         self.session.add(run)
-        for timesheet in current:  # kept, just no longer the live version
-            timesheet.status = TimesheetStatus.SUPERSEDED
+        for timesheet in approved:  # decided again once the document is read again
+            timesheet.status = TimesheetStatus.NEEDS_REVIEW
+            timesheet.reviewed_by_id = None
+            timesheet.reviewed_by_name = None
+            timesheet.reviewed_at = None
         company_before = submission.company_id
         if submission.source == SubmissionSource.EMAIL and submission.sender_email:
             found = await WhitelistRepository(self.session).find_company_id_for_sender(
@@ -188,7 +189,7 @@ class SubmissionService:
                 "reprocess_run_id": str(run.id),
                 "reason": reason,
                 "document_id": str(document_id) if document_id else None,
-                "superseded_timesheets": [str(t.id) for t in current],
+                "timesheets": [str(t.id) for t in current],
                 "approvals_cleared": [str(t.id) for t in approved],
                 "company_changed": submission.company_id != company_before,
             },
@@ -208,11 +209,22 @@ class SubmissionService:
         submission = await self.session.get(Submission, submission_id, populate_existing=True)
         run = await self.session.get(ReprocessRun, run_id, populate_existing=True)
         if run is not None:
-            # Nothing ran: give the timesheets back their earlier status.
+            # Nothing ran: give the cleared approvals back.
             for item in run.before_result.get("timesheets", []):
+                if item["status"] != TimesheetStatus.APPROVED:
+                    continue
                 old = await self.session.get(Timesheet, uuid.UUID(item["id"]))
-                if old is not None and old.status == TimesheetStatus.SUPERSEDED:
-                    old.status = item["status"]
+                if old is not None and old.status == TimesheetStatus.NEEDS_REVIEW:
+                    old.status = TimesheetStatus.APPROVED
+                    old.reviewed_by_id = (
+                        uuid.UUID(item["reviewed_by_id"]) if item.get("reviewed_by_id") else None
+                    )
+                    old.reviewed_by_name = item.get("reviewed_by_name")
+                    old.reviewed_at = (
+                        datetime.fromisoformat(item["reviewed_at"])
+                        if item.get("reviewed_at")
+                        else datetime.now(UTC)
+                    )
             await finish_run(self.session, run.id, error=message)
         if submission is not None:
             submission.status = SubmissionStatus.FAILED

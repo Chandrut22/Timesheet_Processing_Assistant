@@ -6,8 +6,9 @@ submission's state moves Reading -> Matching -> Rule checks -> Awaiting review /
 Approved, or Ignored / Failed, each change logged with its time.
 
 Each document is committed on its own, so a failure halfway keeps the work already
-done. A reprocess skips files that were already read (their text is saved) and only
-re-runs extraction where no live timesheets exist (the replaced ones are "superseded").
+done. A reprocess skips files that were already read (their text is saved), extracts
+again and updates the existing timesheets in place (the earlier data is kept in
+timesheet_versions).
 When the job is a reprocess, every step is tagged with its run, and the run is closed
 at the end with the AFTER snapshot (see reprocess.py).
 
@@ -32,7 +33,7 @@ from src.core.services.pipeline.classifying import classified_as_not_timesheet
 from src.core.services.pipeline.deciding import check_and_decide
 from src.core.services.pipeline.extracting import extract_document
 from src.core.services.pipeline.failing import RetryLater, record_failure
-from src.core.services.pipeline.finishing import finish, has_timesheets
+from src.core.services.pipeline.finishing import already_extracted, finish
 from src.core.services.pipeline.matching import CompanyContexts, match_timesheets
 from src.core.services.pipeline.reading import friendly_read_error, read_document
 from src.core.services.reprocess import finish_run
@@ -167,6 +168,10 @@ class ProcessingService:
                     await read_document(self.session, document)
                     span.set_attribute("status", document.status)
                     span.set_attribute("characters", len(document.extracted_text or ""))
+                    span.set_attribute("read_method", document.read_method or "")
+                    if document.writing_class:  # photos / scans read by the vision model
+                        span.set_attribute("writing_class", document.writing_class)
+                        span.set_attribute("unclear_marks", document.unclear_marks)
                 self._progress(submission)
                 await self.session.commit()
                 if document.status != DocumentStatus.PENDING:
@@ -176,8 +181,8 @@ class ProcessingService:
         for document in submission.documents:
             if only_document is not None and document.id != only_document:
                 continue  # reprocess of one attachment: leave the others alone
-            if document.status == DocumentStatus.PARSED and not await has_timesheets(
-                self.session, document.id
+            if document.status == DocumentStatus.PARSED and not await already_extracted(
+                self.session, document.id, reprocess_run_id
             ):
                 with pipeline_span("document.extract", document_id=document.id):
                     await self._extract(submission, document, company)

@@ -19,10 +19,11 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from src.config.settings import settings
+from src.constants.read_methods import UNCLEAR_MARK, WritingClass
 from src.constants.timesheet_status import TimesheetStatus
 from src.core.services.pay_rules import WEEK_ASSUMED_FLAG, WEEKLY_TOTAL_FLAG
 from src.data.models import Timesheet, TimesheetEntry
-from src.schemas.extraction import ExtractedTimesheet
+from src.schemas.extraction import ExtractedDay, ExtractedTimesheet
 from src.utils.dates import date_in_week, start_of_week, weekday_index
 
 MAX_DAY = Decimal("24")
@@ -38,6 +39,11 @@ class BuildContext:
     received_on: date
     week_start_day: int = 0  # from the company; 0 = Monday
     is_email_body: bool = False  # the "document" is the email text itself (no attachment)
+    # Photos / scans read by the vision model (documents.writing_class etc.); None and
+    # False / 0 for typed documents.
+    writing_class: str | None = None
+    has_handwritten_hours: bool = False
+    unclear_marks: int = 0  # [UNCLEAR] the vision model left in the whole document
 
 
 def _flag(code: str, message: str) -> dict[str, Any]:
@@ -87,13 +93,82 @@ def _total_week(extracted: ExtractedTimesheet, ctx: BuildContext) -> tuple[date,
     return start_of_week(ctx.received_on, ctx.week_start_day) - timedelta(days=7), True
 
 
+def _illegible(extracted: ExtractedTimesheet) -> tuple[set[str], set[int]]:
+    """The days the AI reported as unreadable: ISO dates and weekday numbers."""
+    dates: set[str] = set()
+    weekdays: set[int] = set()
+    for value in extracted.unreadable_days:
+        text = value.strip()
+        try:
+            dates.add(date.fromisoformat(text[:10]).isoformat())
+        except ValueError:
+            index = weekday_index(text)
+            if index is not None:
+                weekdays.add(index)
+    return dates, weekdays
+
+
+def _is_illegible(day: ExtractedDay, dates: set[str], weekdays: set[int]) -> bool:
+    if day.note and UNCLEAR_MARK in day.note:
+        return True
+    if day.work_date is not None:
+        return day.work_date.isoformat() in dates
+    index = weekday_index(day.weekday)
+    return index is not None and index in weekdays
+
+
+def illegible_flag(extracted: ExtractedTimesheet, skipped: int) -> dict[str, Any] | None:
+    """unreadable_values: how many day values could not be read, and which days."""
+    listed = [d.strip() for d in extracted.unreadable_days if d.strip()]
+    count = max(len(listed), skipped)
+    if not count:
+        return None
+    days = f" ({', '.join(listed[:7])}{'…' if len(listed) > 7 else ''})" if listed else ""
+    return {
+        "code": "unreadable_values",
+        "message": f"{count} value(s) could not be read{days}. They were left out (not set "
+        "to 0): check the original and enter them.",
+        "count": count,
+        "days": listed,
+    }
+
+
+def writing_flag(ctx: BuildContext) -> dict[str, Any] | None:
+    """What the vision model saw: hours by hand or an unclear page mean a reviewer must
+    check (high); handwriting elsewhere (hours printed) is only noted (low)."""
+    if ctx.writing_class is None:
+        return None  # a typed document
+    if ctx.writing_class in (WritingClass.UNCERTAIN, WritingClass.NO_TEXT):
+        return _flag(
+            "writing_unclear",
+            "The photo / scan was hard to read (blurry, cut off, or the AI was not sure). "
+            "Check every value against the original.",
+        )
+    if ctx.has_handwritten_hours or ctx.writing_class == WritingClass.HANDWRITTEN_ONLY:
+        return _flag(
+            "handwritten_hours",
+            "Hours were written by hand and read by an AI model. Check them against the original.",
+        )
+    if ctx.writing_class == WritingClass.MIXED:
+        return _flag(
+            "handwriting_present",
+            "The sheet has some handwriting (the hours are printed).",
+        )
+    return None
+
+
 def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timesheet:
     flags = [_flag("model_issue", issue) for issue in extracted.issues]
     base, assumed = _base_week(extracted, ctx)
     entries: dict[date, TimesheetEntry] = {}
     undated = 0
+    illegible_dates, illegible_weekdays = _illegible(extracted)
+    skipped_illegible = 0
 
     for day in extracted.days:
+        if _is_illegible(day, illegible_dates, illegible_weekdays):
+            skipped_illegible += 1  # never a guessed (or zero) value for an unreadable day
+            continue
         work_date = day.work_date
         if work_date is None:
             index = weekday_index(day.weekday)
@@ -140,7 +215,14 @@ def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timeshe
     total = sum((e.hours for e in ordered), Decimal("0"))
     stated = _hours(extracted.stated_total) if extracted.stated_total is not None else None
     # Only a weekly total, no days ("Chandru 40 h"): the total is the hours.
-    weekly_only = not ordered and stated is not None and stated > 0
+    # Not when days were there but unreadable: then the days are missing, not absent.
+    weekly_only = (
+        not ordered
+        and stated is not None
+        and stated > 0
+        and not skipped_illegible
+        and not extracted.unreadable_days
+    )
     total_week: date | None = None
     if weekly_only:
         assert stated is not None
@@ -184,6 +266,23 @@ def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timeshe
         else total_week or extracted.week_start
     )
     read_confidence = Decimal(str(round(extracted.confidence, 2)))
+
+    illegible = illegible_flag(extracted, skipped_illegible)
+    if illegible is None and ctx.unclear_marks:
+        # The reader marked [UNCLEAR] somewhere in the document but the AI listed no
+        # day: say so anyway, so nobody approves without looking.
+        illegible = {
+            "code": "unreadable_values",
+            "message": f"{ctx.unclear_marks} value(s) in this document could not be read "
+            "(marked [UNCLEAR]). Check the original.",
+            "count": ctx.unclear_marks,
+            "days": [],
+        }
+    if illegible is not None:
+        flags.append(illegible)
+    writing = writing_flag(ctx)
+    if writing is not None:
+        flags.append(writing)
 
     return Timesheet(
         submission_id=ctx.submission_id,

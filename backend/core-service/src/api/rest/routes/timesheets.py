@@ -1,11 +1,13 @@
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Path, Query
 
 from src.api.rest.dependencies import CurrentPrincipal, Reviewer, SessionDep
 from src.core.exceptions import NotFoundError
 from src.core.services.review_service import ReviewService
+from src.core.services.version_history import summary, take_snapshot
+from src.data.models import TimesheetVersion
 from src.data.repositories.timesheet_repository import TimesheetRepository
 from src.schemas.common import Page
 from src.schemas.review import (
@@ -18,7 +20,12 @@ from src.schemas.review import (
     RejectRequest,
     WeekUpdate,
 )
-from src.schemas.timesheet import TimesheetRead
+from src.schemas.timesheet import (
+    RestoreRequest,
+    TimesheetRead,
+    TimesheetVersionRead,
+    TimesheetVersionSummary,
+)
 from src.schemas.timesheet_filters import TimesheetListQuery
 
 router = APIRouter(prefix="/timesheets", tags=["timesheets"])
@@ -31,8 +38,7 @@ async def list_timesheets(
     query: Annotated[TimesheetListQuery, Query()],
 ) -> Page[TimesheetRead]:
     """The review list. Filters combine with AND; repeat status / state / severity for
-    several values. Replaced (superseded) versions are left out unless
-    include_superseded=true or status=superseded.
+    several values.
 
     Example: ?status=needs_review&severity=high&sort=confidence&order=asc"""
     items, total = await TimesheetRepository(session).search(
@@ -125,4 +131,79 @@ async def reject(
     timesheet_id: uuid.UUID, body: RejectRequest, session: SessionDep, actor: Reviewer
 ) -> TimesheetRead:
     timesheet = await ReviewService(session).reject(timesheet_id, body.reason, actor)
+    return TimesheetRead.model_validate(timesheet)
+
+
+# --- version history ----------------------------------------------------------------
+
+
+def _version_fields(
+    number: int, snap: dict[str, Any], saved: TimesheetVersion | None
+) -> dict[str, Any]:
+    return {
+        **summary(snap),
+        "version": number,
+        "current": saved is None,
+        "change": saved.change if saved else None,
+        "changed_by_name": saved.changed_by_name if saved else None,
+        "changed_at": saved.created_at if saved else None,
+        "reason": saved.reason if saved else None,
+        "reprocess_run_id": saved.reprocess_run_id if saved else None,
+    }
+
+
+def _full(
+    number: int, snap: dict[str, Any], saved: TimesheetVersion | None
+) -> TimesheetVersionRead:
+    return TimesheetVersionRead.model_validate(
+        {
+            **_version_fields(number, snap, saved),
+            **{k: snap.get(k) for k in TimesheetVersionRead.model_fields if k in snap},
+        }
+    )
+
+
+@router.get("/{timesheet_id}/versions")
+async def list_versions(
+    timesheet_id: uuid.UUID, session: SessionDep, _: CurrentPrincipal
+) -> list[TimesheetVersionSummary]:
+    """Every version, newest first: the current one, then the saved ones with what
+    changed them, who and when. Only data changes make a version (approve / reject
+    are in the audit history)."""
+    timesheet, saved = await ReviewService(session).versions(timesheet_id)
+    items = [_version_fields(timesheet.version, take_snapshot(timesheet), None)]
+    items += [_version_fields(v.version, v.snapshot, v) for v in reversed(saved)]
+    return [TimesheetVersionSummary.model_validate(i) for i in items]
+
+
+@router.get("/{timesheet_id}/versions/{version}")
+async def get_version(
+    timesheet_id: uuid.UUID,
+    version: Annotated[int, Path(ge=1)],
+    session: SessionDep,
+    _: CurrentPrincipal,
+) -> TimesheetVersionRead:
+    """One version in full: its days, hours and pay as they were."""
+    timesheet, saved_versions = await ReviewService(session).versions(timesheet_id)
+    if version == timesheet.version:
+        return _full(version, take_snapshot(timesheet), None)
+    saved = next((v for v in saved_versions if v.version == version), None)
+    if saved is None:
+        raise NotFoundError(f"Version {version} of this timesheet was not found.")
+    return _full(version, saved.snapshot, saved)
+
+
+@router.post("/{timesheet_id}/versions/{version}/restore")
+async def restore_version(
+    timesheet_id: uuid.UUID,
+    version: Annotated[int, Path(ge=1)],
+    body: RestoreRequest,
+    session: SessionDep,
+    actor: Reviewer,
+) -> TimesheetRead:
+    """Roll back to an earlier version (admins and reviewers). The restored data becomes
+    a new version and goes back to review; not possible once exported to payroll."""
+    timesheet = await ReviewService(session).restore_version(
+        timesheet_id, version, body.reason, actor
+    )
     return TimesheetRead.model_validate(timesheet)

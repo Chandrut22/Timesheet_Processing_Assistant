@@ -35,6 +35,10 @@ FLAG_SEVERITY: dict[str, Severity] = {
     "employee_unmatched": Severity.HIGH,
     "no_company": Severity.HIGH,
     "missing_rate": Severity.HIGH,  # hours found but the company has no rate for them
+    # Photos / scans read by the vision model:
+    "handwritten_hours": Severity.HIGH,  # hours written by hand: a person checks them
+    "unreadable_values": Severity.HIGH,  # [UNCLEAR] values, left out (never 0)
+    "writing_unclear": Severity.HIGH,  # blurry / cut off / low confidence
     # pay codes and master data
     "holiday_worked": Severity.MEDIUM,
     "holiday_not_in_calendar": Severity.MEDIUM,
@@ -52,6 +56,9 @@ FLAG_SEVERITY: dict[str, Severity] = {
     # assumptions
     "dates_assumed": Severity.LOW,
     "company_from_sheet": Severity.LOW,
+    "handwriting_present": Severity.LOW,  # some handwriting, but the hours are printed
+    # A reprocess did not find this person / week again: rejected, kept for the record.
+    "removed_by_reprocess": Severity.LOW,
     # no company on the upload: taken from the sheet
 }
 
