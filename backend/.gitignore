@@ -239,3 +239,8 @@ __marimo__/
 *.pem
 **/.venv/
 __pycache__/
+
+# Handwriting evaluation (src/tools/eval_handwriting.py): real timesheets and their
+# results. Never commit them.
+**/eval_data/
+**/eval-report*.md
