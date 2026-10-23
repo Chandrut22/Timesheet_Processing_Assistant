@@ -34,7 +34,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 logger = logging.getLogger(__name__)
 
-# path (exact, or a prefix when it ends in "/*") -> class. First match wins.
+
 ROUTE_CLASSES: tuple[tuple[str, str], ...] = (
     ("/auth/login", "strict"),
     ("/auth/refresh", "strict"),

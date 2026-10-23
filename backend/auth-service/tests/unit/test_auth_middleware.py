@@ -53,7 +53,7 @@ def client() -> Iterator[TestClient]:
 
 
 def is_middleware_401(response: Any) -> bool:
-    return (
+    return bool(
         response.status_code == 401
         and response.json()
         == {"detail": "Not signed in or session expired.", "code": "unauthorized"}
