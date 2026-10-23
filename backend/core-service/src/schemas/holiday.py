@@ -17,4 +17,5 @@ class HolidayRead(BaseModel):
     company_id: uuid.UUID | None
     holiday_date: date
     name: str
+    is_active: bool  # false = kept in the calendar, but not counted in pay
     created_at: datetime

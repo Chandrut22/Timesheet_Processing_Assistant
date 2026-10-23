@@ -28,9 +28,13 @@ class HolidayRepository(BaseRepository[Holiday]):
         )
         return found is not None
 
-    async def list(self, *, company_id: uuid.UUID | None, year: int | None) -> Sequence[Holiday]:
+    async def list(
+        self, *, company_id: uuid.UUID | None, year: int | None, is_active: bool | None = None
+    ) -> Sequence[Holiday]:
         """With company_id: global holidays + that company's. Without: all holidays."""
         query = select(Holiday)
+        if is_active is not None:
+            query = query.where(Holiday.is_active.is_(is_active))
         if company_id is not None:
             query = query.where(or_(Holiday.company_id.is_(None), Holiday.company_id == company_id))
         if year is not None:
@@ -39,10 +43,12 @@ class HolidayRepository(BaseRepository[Holiday]):
         return rows.all()
 
     async def dates_for(self, company_id: uuid.UUID | None) -> set[date]:
-        """Holiday dates that apply to a company: global ones + its own.
-        Without a company: global holidays only."""
+        """Active holiday dates that apply to a company: global ones + its own.
+        Without a company: global holidays only. Inactive holidays never count."""
         condition: ColumnElement[bool] = Holiday.company_id.is_(None)
         if company_id is not None:
             condition = or_(condition, Holiday.company_id == company_id)
-        rows = await self.session.scalars(select(Holiday.holiday_date).where(condition))
+        rows = await self.session.scalars(
+            select(Holiday.holiday_date).where(condition, Holiday.is_active.is_(True))
+        )
         return set(rows.all())

@@ -24,12 +24,12 @@ from src.api.rest.routes import (
 from src.config.settings import settings
 from src.core.rbac.principal import Principal
 from src.core.rbac.tokens import decode_access_token, public_key
+from src.core.services.dashboard_hub import DashboardHub
 from src.data.clients import upload_buffer
 from src.data.clients.postgres import engine
 from src.data.clients.redis import redis_client
 from src.observability.logging.setup import configure_logging
 from src.observability.tracing.setup import setup_tracing, shutdown_tracing
-from src.core.services.dashboard_hub import DashboardHub
 
 configure_logging(settings.log_level)
 logger = logging.getLogger(__name__)

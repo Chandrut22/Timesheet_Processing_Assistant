@@ -10,8 +10,8 @@ hub's periodic refresh covers those.
 import logging
 
 import redis
-from sqlalchemy import event
-from sqlalchemy.orm import Session
+from sqlalchemy import Table, event
+from sqlalchemy.orm import ORMExecuteState, Session
 
 from src.config.settings import settings
 from src.data.clients.redis import redis_key
@@ -58,11 +58,12 @@ def register() -> None:
             session.info["dashboard_dirty"] = True
 
     @event.listens_for(Session, "do_orm_execute")
-    def _bulk(state) -> None:  # ORM bulk insert/update/delete statements
+    def _bulk(state: ORMExecuteState) -> None:  # ORM bulk insert/update/delete statements
         mapper = state.bind_mapper
         if (
             (state.is_insert or state.is_update or state.is_delete)
             and mapper is not None
+            and isinstance(mapper.local_table, Table)
             and mapper.local_table.name in WATCHED_TABLES
         ):
             state.session.info["dashboard_dirty"] = True

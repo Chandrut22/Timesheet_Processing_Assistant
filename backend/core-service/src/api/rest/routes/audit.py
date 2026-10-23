@@ -14,7 +14,7 @@ router = APIRouter(prefix="/audit-events", tags=["audit"])
 async def list_audit_events(
     session: SessionDep,
     _: Reviewer,
-    entity_type: Literal["timesheet", "submission"],
+    entity_type: Literal["timesheet", "submission", "employee", "company", "holiday"],
     entity_id: uuid.UUID,
 ) -> list[AuditEventRead]:
     events = await AuditRepository(session).for_entity(entity_type, entity_id)

@@ -3,6 +3,7 @@ from collections.abc import AsyncIterator
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from src.config.settings import settings
+
 # Every process that opens a session also announces dashboard-relevant commits.
 from src.data.clients import dashboard_hooks  # noqa: E402, F401
 
