@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react";
+import { env } from "@/config/env";
 
 // Devtools are code-split and only rendered in development, so production
 // users never download them.
@@ -10,7 +11,7 @@ const RouterDevtoolsLazy = lazy(() =>
 );
 
 export function Devtools() {
-  if (!import.meta.env.DEV) return null;
+  if (!env.isDev) return null;
   return (
     <Suspense fallback={null}>
       <QueryDevtoolsLazy buttonPosition="bottom-left" />
@@ -19,7 +20,7 @@ export function Devtools() {
 }
 
 export function RouterDevtools() {
-  if (!import.meta.env.DEV) return null;
+  if (!env.isDev) return null;
   return (
     <Suspense fallback={null}>
       <RouterDevtoolsLazy position="bottom-right" />

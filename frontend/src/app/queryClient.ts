@@ -1,6 +1,6 @@
 import { MutationCache, QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ApiError, errorMessage } from "@/api/errors";
+import { ApiError, errorMessage } from "@/services/apiErrors";
 
 declare module "@tanstack/react-query" {
   interface Register {
@@ -19,6 +19,7 @@ declare module "@tanstack/react-query" {
 export function shouldRetry(failureCount: number, error: unknown): boolean {
   if (failureCount >= 2) return false;
   if (!(error instanceof ApiError)) return false;
+  if (error.code === "cancelled") return false;
   if (error.status === 429 || error.code === "rate_limit_unavailable") return false;
   return error.status === 0 || error.status >= 500;
 }

@@ -6,9 +6,9 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
-import { ensureSession } from "@/api/session";
-import { useSession } from "@/auth/useSession";
-import { AppShell } from "@/components/AppShell";
+import { ensureSession } from "@/services/session";
+import { useSession } from "@/features/auth";
+import { AppShell } from "@/layouts/AppShell";
 
 const AUTH_PATHS = ["/login", "/forgot-password", "/reset-password"];
 const MAX_RETURN_LENGTH = 1000;

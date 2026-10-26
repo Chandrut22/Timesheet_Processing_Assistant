@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { ensureSession } from "@/api/session";
-import { AuthLayout, AuthPending } from "@/features/auth/AuthLayout";
+import { ensureSession } from "@/services/session";
+import { AuthLayout, AuthPending } from "@/layouts/AuthLayout";
 
 // Public pages (login, forgot / reset password). Signed-in users go to the dashboard.
 export const Route = createFileRoute("/_auth")({

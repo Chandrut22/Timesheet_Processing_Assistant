@@ -1,8 +1,8 @@
 import { createRootRouteWithContext, Link, Outlet, useRouter } from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
-import type { SessionUser } from "@/api/session";
+import type { SessionUser } from "@/services/session";
 import { RouterDevtools } from "@/app/devtools";
-import { ErrorState } from "@/components/States";
+import { ErrorState } from "@/components/common/States";
 import { Button } from "@/components/ui/button";
 
 export const Route = createRootRouteWithContext<{
