@@ -6,9 +6,11 @@ services:
   redis:
     ports:
       - "6380:6379"
+  # The APIs on this machine only (127.0.0.1): they trust the X-Real-IP header, which only
+  # nginx should set, so they are never reachable from the network without nginx.
   auth-service:
     ports:
-      - "8001:8001"
+      - "127.0.0.1:8001:8001"
   core-service:
     ports:
-      - "8002:8002"
+      - "127.0.0.1:8002:8002"

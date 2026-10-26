@@ -15,9 +15,6 @@ RUN npm ci
 
 COPY frontend/ ./
 
-# Vite bakes this in at build time (the "Open trace" links). Passed from docker-compose.yml.
-ARG VITE_JAEGER_URL=""
-ENV VITE_JAEGER_URL=${VITE_JAEGER_URL}
 RUN npm run build
 
 # ---- serve + proxy -------------------------------------------------------------

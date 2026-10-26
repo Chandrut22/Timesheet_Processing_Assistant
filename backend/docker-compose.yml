@@ -13,7 +13,7 @@
 # Needs backend/.env with POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB and
 # REDIS_PASSWORD, auth-service/.env and core-service/.env, and auth-service/keys/.
 #
-# This base file publishes only the frontend (port 80) and Jaeger's UI. The APIs,
+# This base file publishes only the frontend (port 80). The APIs,
 # Postgres and Redis are reachable only inside Docker. docker-compose.override.yml
 # (loaded automatically by "docker compose up") adds their host ports for local
 # development. On a server, skip it: docker compose -f docker-compose.yml up -d
@@ -24,11 +24,17 @@ x-db-url: &db-url postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PAS
 
 # Inside Docker, services reach each other by name (postgres, redis), not 127.0.0.1.
 # These override the 127.0.0.1 values in each service's .env (those are for local runs).
-# Tracing: every service sends spans to Jaeger (UI http://localhost:16686).
-# Set OTEL_ENABLED=false in backend/.env to switch it off; nothing else changes.
+# Logs: every service writes OpenTelemetry log records to stdout as normal text lines
+# (`docker compose logs core-worker`); OTEL_LOGS_FORMAT=json in backend/.env gives one
+# JSON object per line instead, for a log shipper. OTEL_ENABLED adds trace ids, so all the lines
+# of one email or upload share an id (also saved on each step-log row). To send logs and
+# traces to an OpenTelemetry Collector (or Grafana, SigNoz, ...), set
+# OTEL_EXPORTER_OTLP_ENDPOINT in backend/.env, e.g. http://otel-collector:4318.
 x-otel-env: &otel-env
   OTEL_ENABLED: ${OTEL_ENABLED:-true}
-  # OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  OTEL_LOGS_FORMAT: ${OTEL_LOGS_FORMAT:-text}
 
 # Redis requires a password (REDIS_PASSWORD in backend/.env; letters and digits only,
 # because it sits inside the URL).
@@ -96,8 +102,6 @@ services:
     build:
       context: ..                              # repo root: the image also builds ../frontend
       dockerfile: backend/nginx/Dockerfile
-      args:
-        VITE_JAEGER_URL: ${VITE_JAEGER_URL:-http://localhost:16686}
     image: timesheet-nginx:latest
     ports:
       - "80:8080"
@@ -198,22 +202,13 @@ services:
       IMAP_USER: ${IMAP_USER}
       IMAP_PASSWORD: ${IMAP_PASSWORD}
       EMAIL_START_FROM: new
+      IMAP_MARK_AS_READ: ${IMAP_MARK_AS_READ:-false}  # true: mark handled emails as read
     volumes:
       - uploads:/data/uploads  # email attachments wait here for the worker
     depends_on:
       core-service:
         condition: service_healthy
     restart: unless-stopped
-
-  # jaeger:
-  #   # Traces: one per email / upload, across API -> queue -> worker -> AI call.
-  #   # UI: http://localhost:16686 (search by service, or by a trace id from the step log).
-  #   # Keeps traces in memory only: they are gone after a restart (the step log in
-  #   # PostgreSQL is the permanent record). Services send to it inside Docker on 4318.
-  #   image: jaegertracing/jaeger:2.1.0
-  #   ports:
-  #     - "16686:16686"
-  #   restart: unless-stopped
 
 volumes:
   pgdata:
