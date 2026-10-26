@@ -39,10 +39,10 @@ from pydantic import BaseModel, Field, ValidationError
 from src.config.settings import settings
 from src.constants.file_types import IMAGE_EXTENSIONS, MIN_TIMESHEET_IMAGE_BYTES
 from src.constants.read_methods import UNCLEAR_MARK
-from src.control.agents.extraction_prompt import strip_block_tags
+from src.core.services.documents.document_limits import ReadLimit
+from src.core.services.documents.plain_readers import has_text_layer
 from src.core.services.failures import VisionUnavailableError
-from src.data.clients.document_limits import ReadLimit
-from src.data.clients.plain_readers import has_text_layer
+from src.utils.text import strip_block_tags
 
 logger = logging.getLogger(__name__)
 
@@ -236,7 +236,13 @@ def page_images(
     if extension == ".pdf":
         import pypdfium2
 
-        document = pypdfium2.PdfDocument(data)
+        try:
+            document = pypdfium2.PdfDocument(data)
+        except Exception as exc:  # normally caught earlier (file_problems)
+            raise VisionReadError(
+                "The PDF could not be opened (damaged or password-protected). "
+                "Ask the sender to resend it."
+            ) from exc
         try:
             total = len(document)
             for index in range(min(total, max_pages)):
@@ -392,7 +398,7 @@ def combine(pages: list[PageReading]) -> tuple[WritingClass, float, bool, bool]:
 
 
 def _default_model() -> Any:
-    from src.data.clients.llm import get_vision_model  # LangChain: only when used
+    from src.handlers.http_clients.llm import get_vision_model  # LangChain: only when used
 
     return get_vision_model()
 

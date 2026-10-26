@@ -3,7 +3,7 @@
     GET  /{resource}/import/template   the CSV template (exact headers + an example row)
     POST /{resource}/import            one CSV / XLSX file; dry_run=true by default
 
-Admins only. Counted in the "upload" rate-limit class (rate_limit.ROUTE_CLASSES)."""
+Admins only. Counted in the common per-IP rate limit (middleware/rate_limit.py)."""
 
 from typing import Annotated
 

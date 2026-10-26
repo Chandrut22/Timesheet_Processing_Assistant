@@ -140,7 +140,7 @@ def summary(rows: list[Row]) -> str:
 def _read_with_docling(path: Path) -> str:
     if path.suffix.lower() in (".txt", ".md"):
         return path.read_text(encoding="utf-8", errors="replace")
-    from src.data.clients.document_reader import read_document
+    from src.core.services.documents.document_reader import read_document
 
     return read_document(path.name, path.read_bytes())
 
@@ -154,7 +154,7 @@ def main() -> int:
         print(f"No files in {args.samples}/timesheet or {args.samples}/not_timesheet")
         return 2
 
-    from src.data.clients.jev_client import classify
+    from src.handlers.http_clients.jev_client import classify
 
     rows = asyncio.run(evaluate(args.samples, _read_with_docling, classify))
     write_csv(rows, args.out)

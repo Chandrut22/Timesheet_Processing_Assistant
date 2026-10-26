@@ -13,7 +13,7 @@ from pydantic import SecretStr, ValidationError
 from src.config.settings import Settings, settings
 from src.control.agents import extraction_agent as agent
 from src.core.services.failures import AnswerTooLongError, explain
-from src.data.clients import llm
+from src.handlers.http_clients import llm
 from src.schemas.extraction import ExtractionResult
 
 VALID = ExtractionResult(timesheets=[]).model_dump_json()

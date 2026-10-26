@@ -67,3 +67,24 @@ def get_fallback_chat_model() -> BaseChatModel | None:
         settings.llm_fallback_base_url_effective,
         key,
     )
+
+
+@lru_cache(maxsize=1)
+def get_vision_model() -> BaseChatModel:
+    """The vision-language model that classifies and transcribes photos and scans
+    (VISION_*), built like the extraction model, once per process."""
+    if not settings.vision_model or not settings.vision_base_url:
+        raise LLMNotConfiguredError("VISION_BASE_URL and VISION_MODEL are not set in .env.")
+    key = settings.vision_api_key.get_secret_value() if settings.vision_api_key else ""
+    model: BaseChatModel = init_chat_model(
+        settings.vision_model,
+        model_provider=settings.vision_provider,
+        # Self-hosted servers usually need no key, but the OpenAI client insists on one.
+        api_key=key or "not-needed",
+        base_url=settings.vision_base_url,
+        temperature=0,
+        timeout=settings.vision_timeout_s,
+        max_retries=settings.vision_max_retries,
+        max_tokens=settings.vision_max_output_tokens,
+    )
+    return model

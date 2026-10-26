@@ -43,7 +43,8 @@ class TimesheetRead(BaseModel):
     extracted_company_name: str | None  # company as written on the sheet
     week_start: date | None
     status: str  # needs_review | approved | rejected | exported
-    version: int  # 1 when extracted, + 1 per data change (edit, reprocess, rollback)
+    version: int  # 1 when extracted; a new number per reprocess or "Create as new version";
+    # a restore goes back to that version's number
     reprocess_run_id: uuid.UUID | None  # the last reprocess that changed it
     regular_hours: HoursOut
     overtime_hours: HoursOut
@@ -73,7 +74,12 @@ class TimesheetRead(BaseModel):
     notes: str | None
     reviewed_by_name: str | None
     reviewed_at: datetime | None
+    # Audit: when, and by which auth-service user (None = the system: a job or the
+    # email listener). Filled by the database layer, never by the client.
     created_at: datetime
+    updated_at: datetime
+    created_by: uuid.UUID | None
+    updated_by: uuid.UUID | None
     entries: list[TimesheetEntryRead]
 
 
@@ -81,8 +87,8 @@ class TimesheetVersionSummary(BaseModel):
     """One version in the list: what it was and what changed it."""
 
     version: int
-    current: bool  # the timesheet as it is now (not a saved version)
-    change: str | None  # what made the NEXT version (None for the current one)
+    current: bool  # the timesheet as it is now (after a restore, an earlier number)
+    change: str | None  # what made the next version (None if nothing has yet)
     changed_by_name: str | None
     changed_at: datetime | None  # when the next version was made
     reason: str | None

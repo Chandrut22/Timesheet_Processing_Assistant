@@ -4,8 +4,8 @@ from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions import ConflictError, NotFoundError, ValidationFailedError
+from src.core.services.transactions import commit_or_conflict
 from src.data.models import Employee
-from src.data.repositories.base import commit_or_conflict
 from src.data.repositories.company_repository import CompanyRepository
 from src.data.repositories.employee_repository import EmployeeRepository
 from src.schemas.employee import EmployeeCreate, EmployeeUpdate

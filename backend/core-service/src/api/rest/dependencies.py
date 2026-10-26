@@ -13,6 +13,7 @@ from src.constants.roles import RoleName
 from src.core.rbac.permissions import ADMINS, REVIEWERS
 from src.core.rbac.principal import Principal
 from src.core.rbac.tokens import InvalidTokenError, decode_access_token
+from src.data.actor import current_actor
 from src.data.clients.postgres import get_session
 from src.data.clients.redis import get_redis
 
@@ -40,14 +41,16 @@ async def get_principal(
     is not decoded a second time. Without the middleware (an app built in a test) the
     token is verified here instead, so a route is never open by accident."""
     principal = getattr(request.state, "principal", None)
-    if isinstance(principal, Principal):
-        return principal
-    if credentials is None:
-        raise UNAUTHORIZED
-    try:
-        return decode_access_token(credentials.credentials)
-    except InvalidTokenError:
-        raise UNAUTHORIZED from None
+    if not isinstance(principal, Principal):
+        if credentials is None:
+            raise UNAUTHORIZED
+        try:
+            principal = decode_access_token(credentials.credentials)
+        except InvalidTokenError:
+            raise UNAUTHORIZED from None
+    # Rows this request creates or changes record this user (created_by / updated_by).
+    current_actor.set(principal.id)
+    return principal
 
 
 CurrentPrincipal = Annotated[Principal, Depends(get_principal)]

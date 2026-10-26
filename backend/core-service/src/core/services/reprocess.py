@@ -157,8 +157,10 @@ async def previous_timesheets(
     return list(rows.all())
 
 
-def adopt(session: AsyncSession, old: Timesheet, new: Timesheet, run: ReprocessRun) -> Timesheet:
-    """Give the old timesheet the newly extracted data (same id, version + 1) and keep
+async def adopt(
+    session: AsyncSession, old: Timesheet, new: Timesheet, run: ReprocessRun
+) -> Timesheet:
+    """Give the old timesheet the newly extracted data (same id, a new version) and keep
     what it was in timesheet_versions. Returns the old timesheet, which the pipeline
     then matches, prices and decides like a new one. `new` is never saved."""
     before = take_snapshot(old)
@@ -170,7 +172,7 @@ def adopt(session: AsyncSession, old: Timesheet, new: Timesheet, run: ReprocessR
     old.reviewed_at = None
     old.notes = None
     old.reprocess_run_id = run.id
-    save_version(
+    await save_version(
         session,
         old,
         before,

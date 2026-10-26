@@ -12,8 +12,8 @@ import pytest
 from PIL import Image
 
 from src.config.settings import settings
-from src.data.clients import vision_reader
-from src.data.clients.vision_reader import VisionResult
+from src.handlers.http_clients import vision_reader
+from src.handlers.http_clients.vision_reader import VisionResult
 from src.schemas.extraction import ExtractedDay, ExtractedTimesheet, ExtractionResult
 from src.tools import eval_handwriting as ev
 

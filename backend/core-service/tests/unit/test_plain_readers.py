@@ -7,7 +7,7 @@ import pytest
 
 from src.constants.file_types import skip_reason
 from src.core.services.document_tables import count_people
-from src.data.clients.plain_readers import (
+from src.core.services.documents.plain_readers import (
     IMAGE_PLACEHOLDER,
     PlainReadError,
     csv_to_markdown,

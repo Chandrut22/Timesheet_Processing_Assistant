@@ -2,10 +2,8 @@ from collections.abc import Sequence
 from typing import Any
 
 from sqlalchemy import Select, func, select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.exceptions import ConflictError
 from src.data.models import Base
 
 
@@ -37,12 +35,3 @@ class BaseRepository[ModelT: Base]:
         )
         rows = await self.session.scalars(query.offset((page - 1) * size).limit(size))
         return rows.all(), total or 0
-
-
-async def commit_or_conflict(session: AsyncSession, message: str) -> None:
-    """Commit; a unique-constraint race (two admins at once) becomes a clean 409."""
-    try:
-        await session.commit()
-    except IntegrityError as exc:
-        await session.rollback()
-        raise ConflictError(message) from exc

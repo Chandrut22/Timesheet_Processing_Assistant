@@ -1,9 +1,11 @@
 """OpenTelemetry tracing: one trace per email or upload, across API -> queue -> worker.
 
 Off unless OTEL_ENABLED=true. When off, nothing here runs and every span in the code is a
-cheap no-op (the OpenTelemetry API's default). When on, spans are batched in memory and
-sent in the background to OTEL_EXPORTER_OTLP_ENDPOINT (Jaeger in docker compose); if
-Jaeger is down they are dropped. Processing never waits for, or fails because of, tracing.
+cheap no-op (the OpenTelemetry API's default). When on, every request and job has a trace
+id: log records written inside it carry that id (observability/logging/setup.py), and so does each
+step-log row. Spans leave the process only when OTEL_EXPORTER_OTLP_ENDPOINT is set (an
+OpenTelemetry Collector): batched, sent in the background, dropped if it is down.
+Processing never waits for, or fails because of, tracing.
 
 Spans carry ids, counts and timings only, never names, hours, email or document text.
 The state log and step log in PostgreSQL remain the record of what happened."""
@@ -28,11 +30,14 @@ _instrumented: set[str] = set()
 EXCLUDED_URLS = "health,health/db,health/redis"
 
 
-def _exporter_processor() -> SpanProcessor:
+def _exporter_processor() -> SpanProcessor | None:
+    """The OTLP exporter, or None when no endpoint is set (trace ids only)."""
+    if not settings.otel_exporter_otlp_endpoint:
+        return None
     from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
     endpoint = settings.otel_exporter_otlp_endpoint.rstrip("/") + "/v1/traces"
-    # Short timeout: a missing Jaeger costs a dropped batch, never a slow request.
+    # Short timeout: a missing collector costs a dropped batch, never a slow request.
     return BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint, timeout=5))
 
 
@@ -68,14 +73,16 @@ def setup_tracing(
             resource=resource,
             sampler=ParentBased(TraceIdRatioBased(settings.otel_sample_ratio)),
         )
-        _provider.add_span_processor(processor or _exporter_processor())
+        chosen = processor or _exporter_processor()
+        if chosen is not None:
+            _provider.add_span_processor(chosen)
         trace.set_tracer_provider(_provider)
         _instrument_once("redis", _instrument_redis)
         _instrument_once("httpx", _instrument_httpx)
         logger.info(
             "Tracing on: %s -> %s",
             service_name or settings.otel_service_name,
-            settings.otel_exporter_otlp_endpoint,
+            settings.otel_exporter_otlp_endpoint or "trace ids in logs only (no endpoint)",
         )
 
     if app is not None:

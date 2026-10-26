@@ -17,7 +17,7 @@ from src.data.clients.postgres import engine
 from src.data.clients.redis import redis_client
 from src.handlers.email.imap_source import FETCH_LIMIT, ImapSource, MailConnectionLost
 from src.handlers.email.listener import Cursor, process_new_mail
-from src.observability.logging.setup import configure_logging
+from src.observability.logging.setup import flush_logs, setup_logging
 from src.observability.tracing.setup import setup_tracing, shutdown_tracing
 
 logger = logging.getLogger("email_listener")
@@ -102,7 +102,7 @@ async def run() -> None:
 
 
 async def main() -> None:
-    configure_logging(settings.log_level)
+    setup_logging()  # every log record goes through OpenTelemetry
     setup_tracing(engine=engine, celery=True)  # only if OTEL_ENABLED
     if not settings.email_enabled:
         logger.warning("EMAIL_ENABLED is false: the email listener is not running.")
@@ -117,6 +117,7 @@ async def main() -> None:
         await redis_client.aclose()
         await upload_buffer.close()
         shutdown_tracing()
+        flush_logs()
 
 
 if __name__ == "__main__":

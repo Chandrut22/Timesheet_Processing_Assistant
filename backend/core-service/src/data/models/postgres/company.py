@@ -4,10 +4,10 @@ from sqlalchemy import CHAR, CheckConstraint, Index, Numeric, SmallInteger, Stri
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.data.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from src.data.models.postgres.base import AuditMixin, Base, UUIDPrimaryKeyMixin
 
 
-class Company(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class Company(UUIDPrimaryKeyMixin, AuditMixin, Base):
     """A client company (Company B). Its pay rules and pay rates are used for every
     employee placed there. Company A sets the rates when it creates the company."""
 

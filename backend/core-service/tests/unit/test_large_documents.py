@@ -11,12 +11,12 @@ import pypdfium2
 import pytest
 
 from src.config.settings import Settings, settings
-from src.core.services.failures import AnswerTooLongError, explain
-from src.data.clients.document_limits import (
+from src.core.services.documents.document_limits import (
     DocumentTooLargeError,
     prepare,
     too_large_flag,
 )
+from src.core.services.failures import AnswerTooLongError, explain
 
 
 def pdf(pages: int) -> bytes:

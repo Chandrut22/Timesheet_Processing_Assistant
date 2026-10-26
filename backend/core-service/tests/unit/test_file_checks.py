@@ -9,7 +9,7 @@ import openpyxl
 import pytest
 from PIL import Image
 
-from src.data.clients.document_limits import DocumentTooLargeError, prepare
+from src.core.services.documents.document_limits import DocumentTooLargeError, prepare
 from src.utils.file_checks import check_file, is_text, zip_bomb_reason
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
@@ -69,6 +69,9 @@ def bomb(unpacked_mb: int) -> bytes:
         ("hours.csv", "Name,Mon\nJosé,8\n".encode("cp1252")),
         ("notes.txt", b"Grace worked 8 h\n"),
     ],
+    # Short test ids (file name and size): pytest puts the id in PYTEST_CURRENT_TEST,
+    # and Windows refuses an environment variable over 32,767 characters.
+    ids=lambda value: value if isinstance(value, str) else f"{len(value)}-bytes",
 )
 def test_a_valid_file_of_each_type_passes(name: str, data: bytes) -> None:
     assert check(name, data) is None

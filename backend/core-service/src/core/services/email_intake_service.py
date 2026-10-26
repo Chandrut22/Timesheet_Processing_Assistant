@@ -4,7 +4,9 @@
   2. Unknown sender (not on any company's whitelist)      -> saved as Ignored, never read
   3. Sender not verified by our mail server (SPF/DKIM)    -> saved as Ignored, never read
   4. Attachments -> documents; their bytes go to the upload store (disk)
-     (logos, invoices-as-images and unsupported files are recorded but never read)
+     (logos, invoices-as-images and unsupported files are recorded but never read).
+     A photo pasted into the email body (inline, as phones and webmail often do) is
+     read like an attachment; only small inline images (logos, signatures) are skipped.
   5. No readable attachment but text in the body          -> the body becomes the document
   6. Commit, then queue the submission for the worker (if the queue is down, the
      sweeper queues it later: the email is never lost or stuck)
@@ -14,11 +16,14 @@ as the use case requires. For ignored emails only that metadata is kept: no body
 and no file bytes."""
 
 import hashlib
+import io
 import logging
+import mimetypes
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import PurePath
 
+from PIL import Image
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,6 +52,7 @@ logger = logging.getLogger(__name__)
 
 BODY_FILENAME = "email-body.txt"
 MIN_BODY_CHARS = 20  # "Thanks" or a signature alone is not a timesheet
+MIN_INLINE_IMAGE_SIDE = 300  # px: logos, icons and signature banners are smaller
 
 
 class IntakeOutcome(StrEnum):
@@ -62,9 +68,26 @@ def _safe_filename(raw: str) -> str:
     return name[:255] or "unnamed"
 
 
+def _inline_image_reason(data: bytes) -> str | None:
+    """Why an image in the email body should not be read, or None to read it. Only the
+    header is read to get the size; an image whose size can't be read is checked like
+    any attachment."""
+    try:
+        with Image.open(io.BytesIO(data)) as image:
+            width, height = image.size
+    except (OSError, ValueError, Image.DecompressionBombError):
+        return None
+    if min(width, height) < MIN_INLINE_IMAGE_SIDE:
+        return f"Inline image skipped ({width}x{height} px: looks like a logo or email signature)."
+    return None
+
+
 def _document_for(attachment: Attachment) -> tuple[Document, bool]:
     """Document row for one attachment, and whether its bytes should be read."""
     filename = _safe_filename(attachment.filename)
+    if not PurePath(filename).suffix and attachment.content_type.startswith("image/"):
+        # inline images often come without a name: "unnamed" + ".jpg" from the type
+        filename += mimetypes.guess_extension(attachment.content_type) or ""
     extension = PurePath(filename).suffix.lower()
     data = attachment.data
     max_bytes = settings.max_upload_mb * 1024 * 1024
@@ -74,15 +97,22 @@ def _document_for(attachment: Attachment) -> tuple[Document, bool]:
         reason = "The attachment is empty."
     elif len(data) > max_bytes:
         reason = f"Larger than {settings.max_upload_mb} MB."
-    elif attachment.is_inline and extension in IMAGE_EXTENSIONS:
-        reason = "Inline image skipped (logo or email signature)."
     else:
-        reason = skip_reason(extension, len(data)) or check_file(
-            filename,
-            extension,
-            data,
-            max_uncompressed_mb=settings.max_uncompressed_mb,
-            max_ratio=settings.max_compression_ratio,
+        reason = (
+            _inline_image_reason(data)
+            if attachment.is_inline and extension in IMAGE_EXTENSIONS
+            else None
+        )
+        reason = (
+            reason
+            or skip_reason(extension, len(data))
+            or check_file(
+                filename,
+                extension,
+                data,
+                max_uncompressed_mb=settings.max_uncompressed_mb,
+                max_ratio=settings.max_compression_ratio,
+            )
         )
 
     document = Document(

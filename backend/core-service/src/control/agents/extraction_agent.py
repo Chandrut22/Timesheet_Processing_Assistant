@@ -17,7 +17,7 @@ from src.control.agents.structured_output import (
     invoke_structured,
 )
 from src.core.services.failures import AnswerTooLongError, explain
-from src.data.clients.llm import get_chat_model, get_fallback_chat_model
+from src.handlers.http_clients.llm import get_chat_model, get_fallback_chat_model
 from src.observability.tracing.spans import set_attributes
 from src.schemas.extraction import ExtractionResult
 
@@ -37,8 +37,8 @@ async def extract_timesheets(
     email_body: str | None = None,
     part: tuple[int, int] | None = None,
 ) -> ExtractionResult:
-    """`part` = (n, of) when a big sheet was cut into pieces (chunking.py): this call
-    sees only piece n, and the AI is told so."""
+    """`part` = (n, of) when a long document was cut into overlapping pieces
+    (chunking.py): this call sees only piece n, and the AI is told so."""
     user_message = build_user_message(
         document_text=document_text,
         filename=filename,

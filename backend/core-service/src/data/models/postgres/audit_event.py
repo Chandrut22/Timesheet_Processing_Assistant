@@ -6,7 +6,7 @@ from sqlalchemy import CheckConstraint, DateTime, Index, String, Uuid, func, tex
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.data.models.base import Base, UUIDPrimaryKeyMixin
+from src.data.models.postgres.base import Base, UUIDPrimaryKeyMixin
 
 
 class AuditEvent(UUIDPrimaryKeyMixin, Base):

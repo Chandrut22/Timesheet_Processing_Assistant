@@ -8,7 +8,12 @@ When an email cannot be saved, the cursor stays before it and it is tried again 
 next check. If the cause is temporary (database or Redis down) that repeats until the
 service is back. Any other error (a broken email, data the database refuses) is
 counted: after email_max_intake_failures tries the email is recorded as failed and
-skipped, so one bad email can never block the rest of the inbox."""
+skipped, so one bad email can never block the rest of the inbox.
+
+With IMAP_MARK_AS_READ=true an email is marked as read once the intake has saved it
+(as a submission, as ignored, or found to be a repeat). Never before: a crash or a
+failed save leaves it unread and it is tried again. A skipped (broken) email is left
+unread, so a person notices it. Failing to mark is only logged: the email is saved."""
 
 import asyncio
 import logging
@@ -37,6 +42,7 @@ class MailSource(Protocol):
     def status(self) -> tuple[int, int]: ...  # (UIDVALIDITY, UIDNEXT)
     def fetch_from_uid(self, start_uid: int) -> list[tuple[int, Message]]: ...
     def fetch_since(self, day: date) -> list[tuple[int, Message]]: ...
+    def mark_read(self, uid: int) -> None: ...  # set the \Seen flag on one email
 
 
 Intake = Callable[[ParsedEmail], Awaitable[str]]  # returns what happened, for the log
@@ -69,11 +75,28 @@ class Cursor:
         await self.redis.hdel(FAILURES_KEY, ref)
 
 
+async def _mark_read(source: MailSource, uid: int) -> bool:
+    """Mark one saved email as read; False (and a warning) when the mailbox refuses."""
+    try:
+        await asyncio.to_thread(source.mark_read, uid)
+    except Exception as exc:
+        logger.warning("UID %s was saved but could not be marked as read: %s", uid, exc)
+        return False
+    return True
+
+
 async def _handle(
-    uid: int, msg: Message, ref: str, cursor: Cursor, intake: Intake, give_up: GiveUp | None
+    uid: int,
+    msg: Message,
+    ref: str,
+    cursor: Cursor,
+    intake: Intake,
+    give_up: GiveUp | None,
+    source: MailSource | None = None,
 ) -> None:
     """Parse and save one email. Raises when it should be tried again later; returns
-    when it is done (saved, or skipped for good after too many failures)."""
+    when it is done (saved, or skipped for good after too many failures). `source` is
+    given when saved emails should be marked as read."""
     email: ParsedEmail | None = None
     try:
         email = parse_message(msg, fallback_id=f"<uid-{ref}@imap.local>")
@@ -99,7 +122,14 @@ async def _handle(
         await cursor.forget(ref)
         return
     await cursor.forget(ref)
-    logger.info("UID %s from %s: %s", uid, email.from_email or "?", outcome)
+    marked = source is not None and await _mark_read(source, uid)
+    logger.info(
+        "UID %s from %s: %s%s",
+        uid,
+        email.from_email or "?",
+        outcome,
+        ", marked as read" if marked else "",
+    )
 
 
 async def process_new_mail(
@@ -139,11 +169,12 @@ async def process_new_mail(
         resync = False
 
     highest = 0 if resync else last_uid
+    marker = source if settings.imap_mark_as_read else None
     for uid, msg in messages:
         if not resync and uid <= last_uid:
             continue  # "n:*" returns the last email even when nothing is newer
         # Raises when the email must be tried again: the cursor stays before it.
-        await _handle(uid, msg, f"{validity}-{uid}", cursor, intake, give_up)
+        await _handle(uid, msg, f"{validity}-{uid}", cursor, intake, give_up, marker)
         highest = max(highest, uid)
         if not resync:
             await cursor.set(validity, highest)  # move forward after each email

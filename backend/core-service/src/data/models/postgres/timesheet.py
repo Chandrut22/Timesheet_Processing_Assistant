@@ -24,13 +24,13 @@ from sqlalchemy.orm import Mapped, mapped_column, validates
 
 from src.constants.flags import Severity, highest_severity, with_severity
 from src.constants.timesheet_status import TimesheetStatus
-from src.data.models.base import SCHEMA, Base, TimestampMixin, UUIDPrimaryKeyMixin, enum_check
-from src.data.models.timesheet_entry import EntryList, TimesheetEntry, check_entries
+from src.data.models.postgres.base import SCHEMA, AuditMixin, Base, UUIDPrimaryKeyMixin, enum_check
+from src.data.models.postgres.timesheet_entry import EntryList, TimesheetEntry, check_entries
 
 ZERO = text("0")
 
 
-class Timesheet(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class Timesheet(UUIDPrimaryKeyMixin, AuditMixin, Base):
     """One person's week, extracted from a document."""
 
     __tablename__ = "timesheets"

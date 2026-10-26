@@ -1,25 +1,31 @@
 """Timesheet versions: save what a timesheet was before a data change, and restore it.
 
+A NEW version is made by a reprocess or a reviewer's "Create as new version". A plain
+Save (days, week, employee, recalculation) changes the current version in place.
+Restoring a version makes no new version: the timesheet goes back to that version
+(its number included) and the data it had is kept under its own number.
+
     before = take_snapshot(timesheet)
     ... change the days / employee / week / pay ...
-    save_version(session, timesheet, before, TimesheetChange.ENTRIES_EDITED, actor=actor)
+    await save_version(session, timesheet, before, TimesheetChange.ENTRIES_EDITED, actor=actor)
 
-save_version stores `before` as version N in timesheet_versions and makes the
-timesheet version N + 1, but only when the data really changed (a recalculation that
-changes nothing makes no version). Approve / reject are status changes: they are in
-the audit log, not here. restore_snapshot puts an earlier version's data back."""
+save_version keeps `before` under the current number N in timesheet_versions and gives
+the timesheet the next free number (the highest so far + 1: after going back to an
+earlier version, N + 1 may already exist). switch_to_version restores one. Approve /
+reject are status changes: they are in the audit log, not here."""
 
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants.timesheet_status import TimesheetChange
 from src.core.rbac.principal import Principal
 from src.data.models import Timesheet, TimesheetVersion
-from src.data.models.timesheet_entry import TimesheetEntry
+from src.data.models.postgres.timesheet_entry import TimesheetEntry
 
 CENT = Decimal("0.01")
 
@@ -121,7 +127,55 @@ def data_changed(before: dict[str, Any], after: dict[str, Any]) -> bool:
     )
 
 
-def save_version(
+async def keep(
+    session: AsyncSession,
+    timesheet: Timesheet,
+    snap: dict[str, Any],
+    change: TimesheetChange,
+    *,
+    actor: Principal | None = None,
+    actor_id: uuid.UUID | None = None,
+    actor_name: str | None = None,
+    reprocess_run_id: uuid.UUID | None = None,
+    reason: str | None = None,
+) -> TimesheetVersion:
+    """Store `snap` as the timesheet's current version number. A row for that number
+    already exists when the timesheet went back to it: its data is brought up to date
+    (Save edits it in place) and its first `change` / who / when are kept."""
+    stored = await session.scalar(
+        select(TimesheetVersion).where(
+            TimesheetVersion.timesheet_id == timesheet.id,
+            TimesheetVersion.version == timesheet.version,
+        )
+    )
+    if stored is not None:
+        stored.snapshot = snap
+        return stored
+    stored = TimesheetVersion(
+        timesheet_id=timesheet.id,
+        version=timesheet.version,
+        change=change,
+        changed_by_id=actor.id if actor else actor_id,
+        changed_by_name=actor.name if actor else actor_name,
+        reprocess_run_id=reprocess_run_id,
+        reason=reason,
+        snapshot=snap,
+    )
+    session.add(stored)
+    return stored
+
+
+async def next_number(session: AsyncSession, timesheet: Timesheet) -> int:
+    """The highest version number used so far + 1."""
+    highest = await session.scalar(
+        select(func.max(TimesheetVersion.version)).where(
+            TimesheetVersion.timesheet_id == timesheet.id
+        )
+    )
+    return max(highest or 0, timesheet.version) + 1
+
+
+async def save_version(
     session: AsyncSession,
     timesheet: Timesheet,
     before: dict[str, Any],
@@ -134,24 +188,49 @@ def save_version(
     reason: str | None = None,
     force: bool = False,
 ) -> TimesheetVersion | None:
-    """Keep `before` as the current version number and move the timesheet to the next.
-    Nothing is saved when the data did not change, unless force=True (a rollback or a
-    reprocess always counts). Returns the saved version, or None. Does not commit."""
+    """Keep `before` as the current version and give the timesheet the next number.
+    Nothing is saved when the data did not change, unless force=True (a reprocess or
+    "Create as new version" always counts). Returns the kept version, or None. Does not
+    commit."""
     if not force and not data_changed(before, take_snapshot(timesheet)):
         return None
-    saved = TimesheetVersion(
-        timesheet_id=timesheet.id,
-        version=timesheet.version,
-        change=change,
-        changed_by_id=actor.id if actor else actor_id,
-        changed_by_name=actor.name if actor else actor_name,
+    stored = await keep(
+        session,
+        timesheet,
+        before,
+        change,
+        actor=actor,
+        actor_id=actor_id,
+        actor_name=actor_name,
         reprocess_run_id=reprocess_run_id,
         reason=reason,
-        snapshot=before,
     )
-    session.add(saved)
-    timesheet.version = timesheet.version + 1
-    return saved
+    timesheet.version = await next_number(session, timesheet)
+    return stored
+
+
+async def switch_to_version(
+    session: AsyncSession,
+    timesheet: Timesheet,
+    target: TimesheetVersion,
+    *,
+    actor: Principal,
+    reason: str | None,
+) -> None:
+    """Go back to `target`: the data the timesheet has now is kept under its current
+    number, then it gets `target`'s data and number. No new version is made, so going
+    back and forth is always possible. Status and review fields come from `target`
+    (the caller decides the status). Does not commit."""
+    await keep(
+        session,
+        timesheet,
+        take_snapshot(timesheet),
+        TimesheetChange.ROLLED_BACK,
+        actor=actor,
+        reason=reason,
+    )
+    restore_snapshot(timesheet, target.snapshot)
+    timesheet.version = target.version
 
 
 def summary(snap: dict[str, Any]) -> dict[str, Any]:

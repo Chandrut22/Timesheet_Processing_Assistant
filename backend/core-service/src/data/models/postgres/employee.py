@@ -5,10 +5,10 @@ from sqlalchemy import CheckConstraint, Date, ForeignKey, String, UniqueConstrai
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.data.models.base import SCHEMA, Base, TimestampMixin, UUIDPrimaryKeyMixin
+from src.data.models.postgres.base import SCHEMA, AuditMixin, Base, UUIDPrimaryKeyMixin
 
 
-class Employee(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class Employee(UUIDPrimaryKeyMixin, AuditMixin, Base):
     __tablename__ = "employees"
     __table_args__ = (
         # Codes and emails are unique per company (two companies may both have "E001").

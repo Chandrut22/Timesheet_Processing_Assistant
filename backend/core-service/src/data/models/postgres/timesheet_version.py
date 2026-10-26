@@ -1,10 +1,11 @@
 """Earlier versions of a timesheet, so changes can be seen and rolled back.
 
-Every data change (days, employee, week, pay, reprocess, rollback) first saves the
-timesheet as it was into this table, then raises timesheets.version by one. So the
-row with version N holds the timesheet exactly as it was at version N, and `change`
-says what turned it into version N + 1. The current version is the timesheet itself.
-Rows are never changed or deleted (they go only with their timesheet)."""
+A reprocess or "Create as new version" first saves the timesheet as it was into this
+table under its number, then gives it the next free number; `change` says what made
+that next version. Restoring version N saves what the timesheet had under its own
+number and gives it N's data and number back (no new number). The current version is
+the timesheet itself; its row here, if any, is refreshed when it is left (Save edits
+in place). Rows are never deleted (they go only with their timesheet)."""
 
 import uuid
 from datetime import datetime
@@ -25,7 +26,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.constants.timesheet_status import TimesheetChange
-from src.data.models.base import SCHEMA, Base, UUIDPrimaryKeyMixin, enum_check
+from src.data.models.postgres.base import SCHEMA, Base, UUIDPrimaryKeyMixin, enum_check
 
 
 class TimesheetVersion(UUIDPrimaryKeyMixin, Base):

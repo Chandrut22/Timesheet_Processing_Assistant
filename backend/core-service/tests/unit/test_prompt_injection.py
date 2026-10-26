@@ -4,11 +4,8 @@ and pass itself off as instructions."""
 import re
 from datetime import UTC, datetime
 
-from src.control.agents.extraction_prompt import (
-    SYSTEM_PROMPT,
-    build_user_message,
-    strip_block_tags,
-)
+from src.control.agents.extraction_prompt import SYSTEM_PROMPT, build_user_message
+from src.utils.text import strip_block_tags
 
 WHEN = datetime(2026, 10, 12, 9, 0, tzinfo=UTC)
 

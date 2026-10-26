@@ -1,11 +1,8 @@
-"""Big sheets (about 50 people): the people count that catches skipped rows, and the
-cutting / merging used for chunked extraction."""
-
-from datetime import date
+"""Big sheets (about 50 people): the people count that catches skipped rows (the
+cutting into pieces and the combining are tested in test_chunking.py)."""
 
 import pytest
 
-from src.core.services.chunking import merge_results, split_for_extraction
 from src.core.services.document_tables import (
     count_people,
     missing_rows_flag,
@@ -13,7 +10,6 @@ from src.core.services.document_tables import (
     norm_name,
     parse_tables,
 )
-from src.schemas.extraction import ExtractedDay, ExtractedTimesheet, ExtractionResult
 
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"]
 
@@ -37,18 +33,6 @@ def per_day(people: int) -> str:
             name = f"Person {i}" if d == 0 else ""
             lines.append(f"| {name} | 2026-06-0{d + 1} | 8 |")
     return "\n".join(lines)
-
-
-def sheet(
-    code: str | None, name: str | None, days: int = 5, week: date | None = None
-) -> ExtractedTimesheet:
-    return ExtractedTimesheet(
-        employee_code=code,
-        employee_name=name,
-        week_start=week,
-        days=[ExtractedDay(work_date=date(2026, 6, 1 + d), hours=8) for d in range(days)],
-        confidence=0.95,
-    )
 
 
 # --- the people count ---------------------------------------------------------------
@@ -127,118 +111,6 @@ def test_code_normalising(raw: str, code: str) -> None:
 
 def test_name_normalising_ignores_order_and_case() -> None:
     assert norm_name("Kumar, Robert") == norm_name("robert  KUMAR")
-
-
-# --- cutting a big sheet --------------------------------------------------------------
-
-
-def test_a_small_sheet_is_one_piece_unchanged() -> None:
-    text = grid(20)
-    (piece,) = split_for_extraction(text, people_per_piece=15, above_people=25)
-    assert piece.text == text
-
-
-def test_60_people_become_4_pieces_with_everyone_exactly_once() -> None:
-    pieces = split_for_extraction(grid(60), people_per_piece=15, above_people=25)
-    assert [p.people for p in pieces] == [15, 15, 15, 15]
-    for i in range(1, 61):
-        holders = [p for p in pieces if f"| E{i:03d} |" in p.text]
-        assert len(holders) == 1, f"E{i:03d} is in {len(holders)} pieces"
-
-
-def test_every_piece_repeats_the_title_and_header_but_not_the_total() -> None:
-    for piece in split_for_extraction(grid(40), people_per_piece=15, above_people=25):
-        assert piece.text.startswith("# ABC Staffing - week of 2026-06-01")
-        assert "| Emp ID | Employee Name |" in piece.text
-        assert "| Total | |" not in piece.text  # the totals row (the header has a Total column)
-
-
-def test_a_persons_days_are_never_split() -> None:
-    pieces = split_for_extraction(per_day(40), people_per_piece=15, above_people=25)
-    assert [p.people for p in pieces] == [15, 15, 10]
-    # Person 15's 5 rows (name on the first only) are all in piece 1
-    first = pieces[0].text.splitlines()
-    start = first.index("| Person 15 | 2026-06-01 | 8 |")
-    assert first[start + 1 : start + 5] == [f"|  | 2026-06-0{d} | 8 |" for d in range(2, 6)]
-    assert "Person 16" not in pieces[0].text
-
-
-def test_people_from_two_sheets_are_packed_with_each_sheets_heading() -> None:
-    text = grid(20, title="## Week 1", total=False) + "\n\n" + grid(20, title="## Week 2")
-    pieces = split_for_extraction(text, people_per_piece=15, above_people=25)
-    assert [p.people for p in pieces] == [15, 15, 10]
-    assert "## Week 1" in pieces[1].text and "## Week 2" in pieces[1].text  # 5 + 10
-
-
-def test_small_context_tables_go_into_every_piece() -> None:
-    meta = "| Client | Week |\n| --- | --- |\n| ABC Staffing | 2026-06-01 |"
-    pieces = split_for_extraction(meta + "\n\n" + grid(40), people_per_piece=15, above_people=25)
-    assert len(pieces) == 3
-    assert all("| ABC Staffing | 2026-06-01 |" in p.text for p in pieces)
-
-
-def test_notes_after_the_tables_go_into_the_first_piece_only() -> None:
-    text = grid(40) + "\n\nApproved by: Site supervisor"
-    pieces = split_for_extraction(text, people_per_piece=15, above_people=25)
-    assert "Approved by" in pieces[0].text
-    assert all("Approved by" not in p.text for p in pieces[1:])
-
-
-# --- merging the answers --------------------------------------------------------------
-
-
-def test_answers_are_joined_in_order() -> None:
-    merged = merge_results(
-        [
-            ExtractionResult(timesheets=[sheet("E001", "A"), sheet("E002", "B")]),
-            ExtractionResult(timesheets=[sheet("E003", "C")]),
-        ]
-    )
-    assert [t.employee_code for t in merged.timesheets] == ["E001", "E002", "E003"]
-
-
-def test_the_same_person_and_week_in_two_pieces_become_one() -> None:
-    week = date(2026, 6, 1)
-    a = sheet("E001", "Grace", days=3, week=week)
-    b = sheet("e-001", "Grace", days=5, week=week)  # days 1-3 again, plus 4 and 5
-    b = b.model_copy(update={"confidence": 0.7, "stated_total": 40.0})
-    (one,) = merge_results(
-        [ExtractionResult(timesheets=[a]), ExtractionResult(timesheets=[b])]
-    ).timesheets
-    assert len(one.days) == 5  # identical days kept once (never added twice)
-    assert one.confidence == 0.7 and one.stated_total == 40.0
-
-
-def test_different_hours_for_the_same_day_are_both_kept() -> None:
-    a = sheet("E001", "Grace", days=1)
-    b = sheet("E001", "Grace", days=1)
-    b = b.model_copy(update={"days": [ExtractedDay(work_date=date(2026, 6, 1), hours=10)]})
-    (one,) = merge_results(
-        [ExtractionResult(timesheets=[a]), ExtractionResult(timesheets=[b])]
-    ).timesheets
-    assert sorted(d.hours for d in one.days) == [8, 10]  # -> the duplicate_day flag later
-
-
-def test_different_weeks_stay_apart() -> None:
-    a = sheet("E001", "Grace", week=date(2026, 6, 1))
-    b = sheet("E001", "Grace", week=date(2026, 6, 8))
-    merged = merge_results([ExtractionResult(timesheets=[a]), ExtractionResult(timesheets=[b])])
-    assert len(merged.timesheets) == 2
-
-
-def test_unnamed_timesheets_are_never_merged() -> None:
-    merged = merge_results(
-        [
-            ExtractionResult(timesheets=[sheet(None, None)]),
-            ExtractionResult(timesheets=[sheet(None, None)]),
-        ]
-    )
-    assert len(merged.timesheets) == 2
-
-
-def test_the_title_is_not_repeated_twice_in_a_piece() -> None:
-    for piece in split_for_extraction(grid(40), people_per_piece=15, above_people=25):
-        assert piece.text.count("# ABC Staffing - week of 2026-06-01") == 1
 
 
 # --- found in the first batch run: single-person sheets -------------------------------

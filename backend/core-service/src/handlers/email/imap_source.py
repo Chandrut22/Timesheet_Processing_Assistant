@@ -10,7 +10,7 @@ from datetime import date
 from email.message import Message
 from types import TracebackType
 
-from imap_tools import AND, MailBox, U
+from imap_tools import AND, MailBox, MailMessageFlags, U
 
 from src.config.settings import settings
 
@@ -97,6 +97,12 @@ class ImapSource:
                 AND(date_gte=day), mark_seen=False, limit=FETCH_LIMIT, bulk=True
             )
         ]
+
+    @_mail_call
+    def mark_read(self, uid: int) -> None:
+        """Set the \\Seen flag on one email (IMAP_MARK_AS_READ). The folder is open
+        read-write (SELECT), so no other permission is needed."""
+        self.mailbox.flag(str(uid), MailMessageFlags.SEEN, True)
 
     @_mail_call
     def wait(self, timeout: int) -> bool:

@@ -14,9 +14,12 @@ from src.core.services.attachment_classifier import (
     decide,
     describe,
 )
-from src.data.clients.jev_client import classify
 from src.data.models import Document, Submission
+from src.handlers.http_clients.jev_client import classify
 from src.observability.tracing.spans import pipeline_span
+
+# Start of the message a skipped attachment gets (finishing.py looks for it).
+SKIPPED_BY_CLASSIFIER = "Not a timesheet (classifier:"
 
 
 async def classified_as_not_timesheet(
@@ -85,5 +88,5 @@ async def classified_as_not_timesheet(
     )
     if decision != Decision.SKIP:
         return False
-    document.error = f"Not a timesheet (classifier: {found}). Reprocess to extract it anyway."
+    document.error = f"{SKIPPED_BY_CLASSIFIER} {found}). Reprocess to extract it anyway."
     return True

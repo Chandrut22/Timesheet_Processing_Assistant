@@ -13,7 +13,8 @@ layer added, so the hours still reach the AI (plain_readers.with_pdf_text_layer)
 OCR uses RapidOCR with the ONNX Runtime backend.
 
 With VISION_ENABLED=true, photos and scans (PDFs with no text layer) are read by a
-vision-language model instead (vision_reader.py): RapidOCR reads handwriting poorly.
+vision-language model instead (handlers/http_clients/vision_reader.py): RapidOCR
+reads handwriting poorly.
 read_document_full() says which way a file was read (read_method).
 """
 
@@ -35,8 +36,9 @@ from docling.document_converter import (
 )
 
 from src.config.settings import settings
-from src.data.clients.document_limits import ReadLimit, prepare
-from src.data.clients.plain_readers import (
+from src.core.services.documents.document_limits import ReadLimit, prepare
+from src.core.services.documents.file_problems import file_problem
+from src.core.services.documents.plain_readers import (
     PlainReadError,
     csv_to_markdown,
     pdf_text_layer,
@@ -64,6 +66,11 @@ SUPPORTED_EXTENSIONS = {
 
 class DocumentReadError(Exception):
     """Raised when a document cannot be converted or has no readable text."""
+
+
+class UnreadableFileError(DocumentReadError):
+    """The file is damaged or password-protected. The message is for people (it names
+    the file and says what to ask the sender)."""
 
 
 ReadMethod = Literal["docling", "plain", "vision"]
@@ -138,8 +145,16 @@ def read_document_full(filename: str, data: bytes) -> ReadOutcome:
     otherwise Docling, or the plain readers for CSV / TXT. Raises DocumentReadError,
     DocumentTooLargeError, or VisionUnavailableError (temporary: retried later; a photo
     is never read with OCR instead, that would guess handwriting)."""
+    if filename and filename.strip() and data:
+        problem = file_problem(filename, _extension(filename), data)
+        if problem is not None:  # before any reader: no reader crashes, no retries
+            raise UnreadableFileError(problem)
     if filename and filename.strip() and data and settings.vision_enabled:
-        from src.data.clients.vision_reader import VisionReadError, needs_vision, read_with_vision
+        from src.handlers.http_clients.vision_reader import (
+            VisionReadError,
+            needs_vision,
+            read_with_vision,
+        )
 
         extension = _extension(filename)
         if extension in SUPPORTED_EXTENSIONS and needs_vision(extension, data):

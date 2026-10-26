@@ -18,12 +18,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.data.models.base import SCHEMA, Base, TimestampMixin, UUIDPrimaryKeyMixin
+from src.data.models.postgres.base import SCHEMA, AuditMixin, Base, UUIDPrimaryKeyMixin
 
 ZERO = text("0")
 
 
-class ExportBatch(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class ExportBatch(UUIDPrimaryKeyMixin, AuditMixin, Base):
     """One payroll sheet: the approved timesheets of one client company for one week.
 
     The CSV is kept in the row, so the same file can be downloaded again later
@@ -74,8 +74,7 @@ class ExportBatch(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     filename: Mapped[str] = mapped_column(String(255))
     csv_content: Mapped[str] = mapped_column(Text)
 
-    # auth-service user: UUID + name snapshot, no foreign key
-    created_by_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    # Name of the user in created_by (AuditMixin), kept for the export history list.
     created_by_name: Mapped[str | None] = mapped_column(String(150))
 
     def __repr__(self) -> str:

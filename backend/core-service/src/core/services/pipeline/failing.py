@@ -17,6 +17,7 @@ from src.core.services.activity_log import record_step, set_state
 from src.core.services.failures import explain, plan_retry, technical_details
 from src.core.services.reprocess import finish_run
 from src.data.models import Submission
+from src.observability.metrics.instruments import submissions_failed
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,7 @@ async def record_failure(
     if reprocess_run_id is not None and not plan.retry:  # a retry keeps the run open
         await finish_run(session, reprocess_run_id, error=reason)
     await session.commit()
+    submissions_failed.add(1, {"reason": "temporary" if token is not None else "permanent"})
 
     if token is not None:
         logger.warning(

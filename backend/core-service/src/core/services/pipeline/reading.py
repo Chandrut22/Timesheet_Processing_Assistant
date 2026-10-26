@@ -8,11 +8,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants.timesheet_status import DocumentStatus, StepName, StepResult
 from src.core.services.activity_log import Stopwatch, record_step
+from src.core.services.documents.document_limits import DocumentTooLargeError
+from src.core.services.documents.document_reader import (
+    DocumentReadError,
+    UnreadableFileError,
+    read_document_full,
+)
 from src.data.clients import upload_buffer
-from src.data.clients.document_limits import DocumentTooLargeError
-from src.data.clients.document_reader import DocumentReadError, read_document_full
-from src.data.clients.vision_reader import VisionReadError
 from src.data.models import Document
+from src.handlers.http_clients.vision_reader import VisionReadError
 from src.utils.text import db_safe
 
 logger = logging.getLogger(__name__)
@@ -59,8 +63,8 @@ async def read_document(session: AsyncSession, document: Document) -> None:
     except (DocumentReadError, DocumentTooLargeError) as exc:
         document.status = DocumentStatus.FAILED
         document.error = (
-            str(exc)  # "has 120 pages; the limit is 50. Split it ..." / vision refusal
-            if isinstance(exc, DocumentTooLargeError) or _from_vision(exc)
+            str(exc)  # "has 120 pages; the limit is 50. Split it ..." / damaged / vision
+            if isinstance(exc, (DocumentTooLargeError, UnreadableFileError)) or _from_vision(exc)
             else friendly_read_error(document.filename, exc)
         )
         record_step(

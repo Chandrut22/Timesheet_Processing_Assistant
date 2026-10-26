@@ -2,7 +2,7 @@
 file is read and before the (slower, costlier) AI extraction.
 
 This module is pure (no network, no database): the result type, the skip rule, and the
-decision the worker takes. The Jev client is in data/clients/jev_client.py.
+decision the worker takes. The Jev client is in handlers/http_clients/jev_client.py.
 
 Safety rules (a wrongly skipped timesheet means hours that never get paid):
   - skip ONLY when the label is not "timesheet" AND P(timesheet) < CLASSIFIER_SKIP_BELOW

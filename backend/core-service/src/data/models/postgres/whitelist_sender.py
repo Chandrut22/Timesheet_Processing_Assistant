@@ -1,13 +1,12 @@
 import uuid
-from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Uuid, func
+from sqlalchemy import CheckConstraint, ForeignKey, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.data.models.base import SCHEMA, Base, UUIDPrimaryKeyMixin
+from src.data.models.postgres.base import SCHEMA, AuditMixin, Base, UUIDPrimaryKeyMixin
 
 
-class WhitelistSender(UUIDPrimaryKeyMixin, Base):
+class WhitelistSender(UUIDPrimaryKeyMixin, AuditMixin, Base):
     """Who may send timesheets for a company: one exact email, or a whole domain.
 
     value is unique across ALL companies, so an incoming email always maps to
@@ -24,4 +23,3 @@ class WhitelistSender(UUIDPrimaryKeyMixin, Base):
     )
     kind: Mapped[str] = mapped_column(String(10))  # "email" | "domain"
     value: Mapped[str] = mapped_column(String(255), unique=True)  # "payroll@acme.com" | "acme.com"
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

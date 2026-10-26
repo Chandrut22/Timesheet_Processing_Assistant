@@ -4,13 +4,10 @@ belong to a loop) are reused across tasks instead of breaking."""
 
 import asyncio
 import contextvars
-import logging
 from collections.abc import Coroutine
 from typing import Any
 
 from celery.signals import (
-    after_setup_logger,
-    after_setup_task_logger,
     worker_process_init,
     worker_process_shutdown,
     worker_ready,
@@ -19,7 +16,8 @@ from celery.signals import (
 from src.data.clients import upload_buffer
 from src.data.clients.postgres import engine
 from src.data.clients.redis import redis_client
-from src.observability.logging.setup import add_trace_ids
+from src.observability.logging.setup import flush_logs, setup_logging
+from src.observability.metrics.setup import setup_metrics, shutdown_metrics
 from src.observability.tracing.setup import setup_tracing, shutdown_tracing
 
 _runner: asyncio.Runner | None = None
@@ -45,23 +43,20 @@ async def _close_clients() -> None:
 
 @worker_process_init.connect
 def _start_tracing(**_: Any) -> None:
-    """Each worker process (after the fork) sets up its own tracing: a job continues
-    the trace of the upload / email that queued it. Only if OTEL_ENABLED."""
+    """Each worker process (after the fork) sets up its own log provider and tracing:
+    a job continues the trace of the upload / email that queued it, and its log records
+    carry that trace id. Tracing only if OTEL_ENABLED."""
+    setup_logging()  # a new process: its own provider (and batch thread)
     setup_tracing(engine=engine, celery=True)
+    setup_metrics("core-worker")  # only if OTEL_ENABLED and a collector endpoint is set
 
 
 @worker_ready.connect
 def _announce_vision(**_: Any) -> None:
     """Once per worker: say where page images go when the vision read is on."""
-    from src.data.clients.vision_reader import log_destination
+    from src.handlers.http_clients.vision_reader import log_destination
 
     log_destination()
-
-
-@after_setup_logger.connect
-@after_setup_task_logger.connect
-def _trace_ids_in_logs(logger: logging.Logger, **_: Any) -> None:
-    add_trace_ids(logger)
 
 
 @worker_process_shutdown.connect
@@ -69,4 +64,6 @@ def _shutdown(**_: Any) -> None:
     if _runner is not None:
         _runner.run(_close_clients())
         _runner.close()
+    shutdown_metrics()
     shutdown_tracing()
+    flush_logs()

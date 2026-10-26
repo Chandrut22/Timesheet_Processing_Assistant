@@ -1,15 +1,19 @@
 """Which company and which employee is each extracted timesheet for?"""
 
 import uuid
+from collections.abc import Hashable
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants.timesheet_status import StepName, StepResult
 from src.core.services.activity_log import Stopwatch, current_reprocess_run, record_step
+from src.core.services.chunking import Combined, combine_by
 from src.core.services.company_matcher import CompanyDecision, CompanyRecord, decide_company
+from src.core.services.documents.document_limits import too_large_flag
 from src.core.services.email_intake_service import BODY_FILENAME
 from src.core.services.employee_matcher import (
     EmployeeRecord,
@@ -21,12 +25,12 @@ from src.core.services.employee_matcher import (
 from src.core.services.pay_rules import PayRules, rules_from_company
 from src.core.services.pipeline.extracting import Extraction
 from src.core.services.reprocess import adopt, pick_predecessor, previous_timesheets, retire
-from src.core.services.timesheet_builder import BuildContext, build_timesheets, truncation_flag
-from src.data.clients.document_limits import too_large_flag
+from src.core.services.timesheet_builder import BuildContext, build_timesheets
 from src.data.models import Company, Document, Employee, ReprocessRun, Submission, Timesheet
 from src.data.repositories.employee_repository import EmployeeRepository
 from src.data.repositories.holiday_repository import HolidayRepository
 from src.observability.tracing.spans import finished_span, now_ns
+from src.schemas.extraction import ExtractedTimesheet
 
 
 @dataclass(slots=True)
@@ -86,15 +90,20 @@ async def match_timesheets(
     companies = await contexts.company_records()
     sender = companies.get(submission.company_id) if submission.company_id else None
     is_email_body = document.filename == BODY_FILENAME
-    truncated_flag = truncation_flag(extraction.text) if extraction.truncated else None
     size_flag = too_large_flag(document.read_limit)  # pages / sheets not read
 
     run_id = current_reprocess_run.get()
     run = await session.get(ReprocessRun, run_id) if run_id is not None else None
     olds = await previous_timesheets(session, document.id, run.id) if run is not None else []
 
-    candidates: list[tuple[Timesheet, CompanyContext, CompanyDecision]] = []
-    for extracted in extraction.result.timesheets:
+    combined = extraction.combined
+    if extraction.parts > 1:  # read in parts: join the same employee written differently
+        combined = await _combine_after_matching(
+            session, contexts, submission, document, combined, sender, companies
+        )
+
+    candidates: list[tuple[Timesheet, CompanyContext, CompanyDecision, list[dict[str, Any]]]] = []
+    for extracted, part_flags in zip(combined.result.timesheets, combined.flags, strict=True):
         decision = decide_company(extracted.company_name, sender, list(companies.values()))
         cc = await contexts.get(decision.company_id)
         ctx = BuildContext(
@@ -108,17 +117,16 @@ async def match_timesheets(
             has_handwritten_hours=document.has_handwritten_hours,
             unclear_marks=document.unclear_marks,
         )
-        candidates += [(t, cc, decision) for t in build_timesheets(extracted, ctx)]  # per week
+        per_week = build_timesheets(extracted, ctx)
+        candidates += [(t, cc, decision, part_flags) for t in per_week]
 
     built: list[tuple[Timesheet, CompanyContext]] = []
-    for candidate, cc, decision in candidates:
+    for candidate, cc, decision, part_flags in candidates:
         watch = Stopwatch()
         match_started = now_ns()
-        extra = [
-            f
-            for f in (decision.flag, truncated_flag, size_flag, extraction.missing_flag)
-            if f is not None
-        ]
+        extra = [f for f in (decision.flag, size_flag, extraction.missing_flag) if f is not None]
+        extra += extraction.size_flags  # long document: truncated / not read in full
+        extra += part_flags  # read in parts: overlap disagreements
         if extra:
             candidate.flags = [*candidate.flags, *extra]
         timesheet = candidate
@@ -126,7 +134,7 @@ async def match_timesheets(
             old = pick_predecessor(candidate, olds, only_one_new=len(candidates) == 1)
             if old is not None:
                 olds.remove(old)
-                timesheet = adopt(session, old, candidate, run)  # same row, version + 1
+                timesheet = await adopt(session, old, candidate, run)  # same row, new version
             else:
                 timesheet.reprocess_run_id = run.id  # someone / a week new in this run
         match = (
@@ -181,3 +189,68 @@ async def match_timesheets(
             retire(session, old, run)
         await session.flush()
     return built
+
+
+def _week_key(extracted: ExtractedTimesheet) -> str:
+    """The week a timesheet is for: its week start, else the Monday of its first date."""
+    if extracted.week_start:
+        return extracted.week_start.isoformat()
+    dates = [d.work_date for d in extracted.days if d.work_date]
+    if not dates:
+        return ""
+    first = min(dates)
+    return (first - timedelta(days=first.weekday())).isoformat()
+
+
+async def _combine_after_matching(
+    session: AsyncSession,
+    contexts: CompanyContexts,
+    submission: Submission,
+    document: Document,
+    combined: Combined,
+    sender: CompanyRecord | None,
+    companies: dict[uuid.UUID, CompanyRecord],
+) -> Combined:
+    """A document read in parts: timesheets from DIFFERENT parts matched to the same
+    employee and week ("R. Kumar" in part 2, "Rahul Kumar" in part 3) become one.
+    Unmatched timesheets, and two from the same part, are never joined."""
+    keys: list[Hashable | None] = []
+    for extracted in combined.result.timesheets:
+        decision = decide_company(extracted.company_name, sender, list(companies.values()))
+        cc = await contexts.get(decision.company_id)
+        match = (
+            match_employee(extracted.employee_name, extracted.employee_code, cc.records)
+            if cc.company
+            else MatchResult(None, None)
+        )
+        keys.append(
+            (decision.company_id, match.employee_id, _week_key(extracted))
+            if match.employee_id
+            else None
+        )
+    again = combine_by(combined, keys)
+    joined = len(combined.result.timesheets) - len(again.result.timesheets)
+    if joined:
+        record_step(
+            session,
+            submission_id=submission.id,
+            document_id=document.id,
+            step=StepName.MATCH,
+            result=StepResult.SUCCESS,
+            message=f"{joined} timesheet(s) from different parts of {document.filename} "
+            "were combined: the same employee and week, written differently.",
+            output={
+                "before": len(combined.result.timesheets),
+                "after": len(again.result.timesheets),
+                "timesheets": [
+                    {
+                        "employee_name": t.employee_name,
+                        "employee_code": t.employee_code,
+                        "parts": sorted(parts),
+                    }
+                    for t, parts in zip(again.result.timesheets, again.parts, strict=True)
+                    if len(parts) > 1
+                ],
+            },
+        )
+    return again

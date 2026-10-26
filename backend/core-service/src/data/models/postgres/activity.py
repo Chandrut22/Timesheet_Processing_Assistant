@@ -19,7 +19,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.constants.timesheet_status import StepName, StepResult, SubmissionState
-from src.data.models.base import SCHEMA, Base, UUIDPrimaryKeyMixin, enum_check
+from src.data.models.postgres.base import SCHEMA, Base, UUIDPrimaryKeyMixin, enum_check
 
 
 class SubmissionStateChange(UUIDPrimaryKeyMixin, Base):
@@ -90,7 +90,8 @@ class ProcessingStep(UUIDPrimaryKeyMixin, Base):
     )
     error_details: Mapped[str | None] = mapped_column(Text)  # technical, for the log only
     duration_ms: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
-    # OpenTelemetry trace this step ran in (32 hex chars), to open it in Jaeger.
+    # OpenTelemetry trace this step ran in (32 hex chars): the log records of that run
+    # carry the same id.
     # NULL when tracing is off.
     trace_id: Mapped[str | None] = mapped_column(String(32))
     # clock_timestamp(), not now(): now() is the same for a whole transaction, and

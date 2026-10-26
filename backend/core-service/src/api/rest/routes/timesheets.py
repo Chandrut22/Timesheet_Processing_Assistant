@@ -96,8 +96,11 @@ async def update_entries(
 async def set_week(
     timesheet_id: uuid.UUID, body: WeekUpdate, session: SessionDep, actor: Reviewer
 ) -> TimesheetRead:
-    """Move a weekly-total timesheet (no days) to another week."""
-    timesheet = await ReviewService(session).set_week(timesheet_id, body.week_start, actor)
+    """Move a weekly-total timesheet (no days) to another week. Saved in the current
+    version unless new_version is true."""
+    timesheet = await ReviewService(session).set_week(
+        timesheet_id, body.week_start, actor, new_version=body.new_version
+    )
     return TimesheetRead.model_validate(timesheet)
 
 
@@ -138,12 +141,12 @@ async def reject(
 
 
 def _version_fields(
-    number: int, snap: dict[str, Any], saved: TimesheetVersion | None
+    number: int, snap: dict[str, Any], saved: TimesheetVersion | None, current: bool = False
 ) -> dict[str, Any]:
     return {
         **summary(snap),
         "version": number,
-        "current": saved is None,
+        "current": current,
         "change": saved.change if saved else None,
         "changed_by_name": saved.changed_by_name if saved else None,
         "changed_at": saved.created_at if saved else None,
@@ -153,12 +156,13 @@ def _version_fields(
 
 
 def _full(
-    number: int, snap: dict[str, Any], saved: TimesheetVersion | None
+    number: int, snap: dict[str, Any], saved: TimesheetVersion | None, current: bool = False
 ) -> TimesheetVersionRead:
     return TimesheetVersionRead.model_validate(
         {
-            **_version_fields(number, snap, saved),
+            # the snapshot's days and pay; the list fields (flags as codes, ...) win
             **{k: snap.get(k) for k in TimesheetVersionRead.model_fields if k in snap},
+            **_version_fields(number, snap, saved, current),
         }
     )
 
@@ -167,12 +171,18 @@ def _full(
 async def list_versions(
     timesheet_id: uuid.UUID, session: SessionDep, _: CurrentPrincipal
 ) -> list[TimesheetVersionSummary]:
-    """Every version, newest first: the current one, then the saved ones with what
-    changed them, who and when. Only data changes make a version (approve / reject
-    are in the audit history)."""
+    """Every version, highest number first, with what made the next one, who and when.
+    The one marked current is the timesheet as it is now (after a restore it can be an
+    earlier number). Approve / reject are in the audit history, not here."""
     timesheet, saved = await ReviewService(session).versions(timesheet_id)
-    items = [_version_fields(timesheet.version, take_snapshot(timesheet), None)]
-    items += [_version_fields(v.version, v.snapshot, v) for v in reversed(saved)]
+    by_number = {v.version: v for v in saved}
+    numbers = sorted({timesheet.version, *by_number}, reverse=True)
+    items = [
+        _version_fields(n, take_snapshot(timesheet), by_number.get(n), current=True)
+        if n == timesheet.version
+        else _version_fields(n, by_number[n].snapshot, by_number[n])
+        for n in numbers
+    ]
     return [TimesheetVersionSummary.model_validate(i) for i in items]
 
 
@@ -185,9 +195,9 @@ async def get_version(
 ) -> TimesheetVersionRead:
     """One version in full: its days, hours and pay as they were."""
     timesheet, saved_versions = await ReviewService(session).versions(timesheet_id)
-    if version == timesheet.version:
-        return _full(version, take_snapshot(timesheet), None)
     saved = next((v for v in saved_versions if v.version == version), None)
+    if version == timesheet.version:
+        return _full(version, take_snapshot(timesheet), saved, current=True)
     if saved is None:
         raise NotFoundError(f"Version {version} of this timesheet was not found.")
     return _full(version, saved.snapshot, saved)
@@ -201,8 +211,9 @@ async def restore_version(
     session: SessionDep,
     actor: Reviewer,
 ) -> TimesheetRead:
-    """Roll back to an earlier version (admins and reviewers). The restored data becomes
-    a new version and goes back to review; not possible once exported to payroll."""
+    """Go back to a version (admins and reviewers): the timesheet becomes that version
+    again, number included; no new version is made, and what it had is kept under its
+    own number. It goes back to review; not possible once exported to payroll."""
     timesheet = await ReviewService(session).restore_version(
         timesheet_id, version, body.reason, actor
     )

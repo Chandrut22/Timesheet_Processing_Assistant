@@ -53,7 +53,7 @@ def set_attributes(**attributes: Any) -> None:
 
 
 def current_trace_id() -> str | None:
-    """The current trace id as 32 hex characters (as Jaeger shows it), or None when
+    """The current trace id as 32 hex characters (as the log records show it), or None when
     tracing is off or nothing is being traced."""
     context = trace.get_current_span().get_span_context()
     if not context.is_valid:

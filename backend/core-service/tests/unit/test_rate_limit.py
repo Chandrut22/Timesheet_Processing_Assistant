@@ -1,27 +1,42 @@
-"""Rate limiting: per route class, per user or IP, fixed window, 429 with Retry-After,
-fail-open / fail-closed, and X-Forwarded-For that cannot be spoofed past our proxy."""
+"""One rate limit for every endpoint: RATE_LIMIT requests per client IP, a sliding
+window shared with the other service, 429 with Retry-After, the IP from nginx's
+X-Real-IP only, health checks never counted, fail-open / fail-closed."""
 
 import os
 import uuid
-from typing import Any
+from typing import Any, Self, cast
 
 import pytest
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.testclient import TestClient
 from redis.exceptions import ConnectionError as RedisConnectionError
 
+from src.api.middleware.auth import AuthMiddleware
 from src.api.middleware.rate_limit import (
+    KEY_PREFIX,
     Limit,
     RateLimitMiddleware,
     client_ip,
-    route_class,
+    sliding_usage,
 )
+from src.main import app as real_app
+
+START = 1_000_020.0  # 16667 x 60: the start of a 60 s window
+
+
+class Clock:
+    def __init__(self) -> None:
+        self.now = START
+
+    def __call__(self) -> float:
+        return self.now
 
 
 class FakeRedis:
-    """INCR + EXPIRE NX in a MULTI pipeline, with expiry on a fake clock."""
+    """INCR + EXPIRE NX + GET in a MULTI pipeline, with expiry on a fake clock."""
 
-    def __init__(self, clock: "Clock") -> None:
+    def __init__(self, clock: Clock) -> None:
         self.clock = clock
         self.values: dict[str, int] = {}
         self.expires: dict[str, float] = {}
@@ -31,13 +46,18 @@ class FakeRedis:
         assert transaction, "the counter and its expiry must be set atomically"
         return FakePipeline(self)
 
+    def _expire_old(self, key: str) -> None:
+        if key in self.expires and self.expires[key] <= self.clock.now:
+            self.values.pop(key, None)
+            self.expires.pop(key, None)
+
 
 class FakePipeline:
     def __init__(self, redis: FakeRedis) -> None:
         self.redis = redis
         self.ops: list[tuple[str, str, int | None]] = []
 
-    async def __aenter__(self) -> "FakePipeline":
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(self, *a: Any) -> None:
@@ -50,40 +70,33 @@ class FakePipeline:
         assert nx, "EXPIRE NX: never push the expiry further"
         self.ops.append(("expire", key, seconds))
 
+    def get(self, key: str) -> None:
+        self.ops.append(("get", key, None))
+
     async def execute(self) -> list[Any]:
         r = self.redis
         if r.down:
             raise RedisConnectionError("Connection refused")
         out: list[Any] = []
         for op, key, arg in self.ops:
-            if key in r.expires and r.expires[key] <= r.clock.now:
-                r.values.pop(key, None), r.expires.pop(key, None)
+            r._expire_old(key)
             if op == "incr":
                 r.values[key] = r.values.get(key, 0) + 1
                 out.append(r.values[key])
-            else:
-                if key not in r.expires:
-                    r.expires[key] = r.clock.now + int(arg or 0)
+            elif op == "expire":
+                r.expires.setdefault(key, r.clock.now + int(arg or 0))
                 out.append(True)
+            else:
+                value = r.values.get(key)
+                out.append(None if value is None else str(value))
         return out
 
 
-class Clock:
-    def __init__(self) -> None:
-        self.now = 1_000_020.0  # 16667 x 60: the start of a 60 s window
-
-    def __call__(self) -> float:
-        return self.now
-
-
-TABLE = (("/auth/login", "strict"), ("/exports/*", "export"))
-
-
 def make(
-    *, fail_open: bool = True, hops: int = 1, limits: dict[str, Limit] | None = None
+    *, redis: FakeRedis | None = None, clock: Clock | None = None, fail_open: bool = True
 ) -> tuple[TestClient, FakeRedis, Clock]:
-    clock = Clock()
-    redis = FakeRedis(clock)
+    clock = clock or Clock()
+    redis = redis or FakeRedis(clock)
     app = FastAPI()
 
     @app.api_route("/{path:path}", methods=["GET", "POST", "OPTIONS"])
@@ -93,155 +106,156 @@ def make(
     app.add_middleware(
         RateLimitMiddleware,
         redis=redis,
-        prefix="core",
-        limits=limits or {"strict": Limit(2, 60), "export": Limit(5, 60), "default": Limit(3, 60)},
+        limit=Limit(100, 60),
         fail_open=fail_open,
-        trusted_proxy_hops=hops,
         exempt_paths=["/health"],
-        identify=lambda principal: principal,
-        table=TABLE,
         clock=clock,
     )
-
-    @app.middleware("http")  # stands in for the auth middleware: X-User -> principal
-    async def fake_auth(request: Request, call_next: Any) -> Any:
-        user = request.headers.get("x-user")
-        if user:
-            request.scope.setdefault("state", {})["principal"] = user
-        return await call_next(request)
-
     return TestClient(app), redis, clock
 
 
-def test_under_the_limit_passes_with_headers() -> None:
+def ip(address: str) -> dict[str, str]:
+    return {"x-real-ip": address}
+
+
+def test_100_a_minute_then_429_with_retry_after() -> None:
     client, _, _ = make()
-    remaining = [client.get("/timesheets").headers["x-ratelimit-remaining"] for _ in range(3)]
-    assert remaining == ["2", "1", "0"]
-    r = client.get("/companies", headers={"x-user": "u2"})
-    assert r.headers["x-ratelimit-limit"] == "3" and int(r.headers["x-ratelimit-reset"]) <= 60
-
-
-def test_over_the_limit_is_429_with_retry_after() -> None:
-    client, _, clock = make()
-    clock.now += 15  # 45 s left in the window
-    for _ in range(3):
-        assert client.get("/timesheets").status_code == 200
-    r = client.get("/timesheets")
+    codes = [client.get("/timesheets", headers=ip("203.0.113.7")).status_code for _ in range(100)]
+    assert set(codes) == {200}
+    r = client.get("/timesheets", headers=ip("203.0.113.7"))
     assert r.status_code == 429
-    assert r.headers["retry-after"] == "45"
-    assert r.json() == {
-        "detail": "Too many requests. Try again in 45 seconds.",
-        "code": "rate_limited",
-    }
+    assert r.json()["code"] == "rate_limited"
+    assert int(r.headers["retry-after"]) >= 1
     assert r.headers["x-ratelimit-remaining"] == "0"
+    assert "Try again in" in r.json()["detail"]
 
 
-def test_strict_and_default_have_separate_buckets() -> None:
+def test_headers_count_down() -> None:
     client, _, _ = make()
-    for _ in range(2):
-        assert client.post("/auth/login").status_code == 200
-    assert client.post("/auth/login").status_code == 429  # strict: 2
-    assert client.get("/timesheets").status_code == 200  # default bucket untouched
+    remaining = [
+        client.get("/x", headers=ip("203.0.113.7")).headers["x-ratelimit-remaining"]
+        for _ in range(3)
+    ]
+    assert remaining == ["99", "98", "97"]
+    assert client.get("/x").headers["x-ratelimit-limit"] == "100"
 
 
-def test_strict_is_per_ip_even_when_signed_in() -> None:
+def test_every_endpoint_shares_the_one_limit() -> None:
     client, _, _ = make()
-    client.post("/auth/login", headers={"x-user": "a"})
-    client.post("/auth/login", headers={"x-user": "b"})
-    assert client.post("/auth/login", headers={"x-user": "c"}).status_code == 429
+    paths = ["/auth/login", "/uploads", "/exports", "/timesheets", "/users/import"]
+    for n in range(100):
+        assert client.post(paths[n % len(paths)], headers=ip("203.0.113.7")).status_code == 200
+    assert client.post("/auth/login", headers=ip("203.0.113.7")).status_code == 429
 
 
-def test_signed_in_users_have_their_own_buckets_anonymous_share_the_ip() -> None:
+def test_the_other_service_counts_in_the_same_counter() -> None:
+    """auth-service and core-service share one Redis counter per IP."""
+    clock = Clock()
+    redis = FakeRedis(clock)
+    auth, _, _ = make(redis=redis, clock=clock)
+    core, _, _ = make(redis=redis, clock=clock)
+    for _ in range(60):
+        assert auth.post("/auth/refresh", headers=ip("203.0.113.7")).status_code == 200
+    codes = [core.get("/api/timesheets", headers=ip("203.0.113.7")).status_code for _ in range(41)]
+    assert codes[:40] == [200] * 40 and codes[40] == 429
+    assert all(k.startswith(f"{KEY_PREFIX}:203.0.113.7:") for k in redis.values)
+
+
+def test_ips_do_not_affect_each_other() -> None:
     client, _, _ = make()
-    for _ in range(3):
-        client.get("/timesheets", headers={"x-user": "alice"})
-    assert client.get("/timesheets", headers={"x-user": "alice"}).status_code == 429
-    assert client.get("/timesheets", headers={"x-user": "bob"}).status_code == 200
-    for _ in range(3):
-        client.get("/timesheets")
-    assert client.get("/timesheets").status_code == 429  # anonymous: by IP
+    for _ in range(101):
+        client.get("/x", headers=ip("203.0.113.7"))
+    assert client.get("/x", headers=ip("198.51.100.4")).status_code == 200
 
 
-def test_the_window_resets() -> None:
+def test_a_burst_across_the_minute_boundary_is_still_held() -> None:
     client, _, clock = make()
-    for _ in range(4):
-        client.get("/timesheets")
-    clock.now += 61
-    assert client.get("/timesheets").status_code == 200
+    clock.now = START + 59  # the last second of a window
+    assert all(client.get("/x", headers=ip("203.0.113.7")).status_code == 200 for _ in range(100))
+    clock.now = START + 61  # one second into the next window: the 100 still count
+    codes = [client.get("/x", headers=ip("203.0.113.7")).status_code for _ in range(100)]
+    # A fixed window would let another 100 through; the sliding estimate (which assumes
+    # the earlier minute's requests were spread out) lets through at most one or two.
+    assert codes.count(200) <= 2
 
 
-def test_exempt_paths_and_preflights_are_not_counted() -> None:
+def test_the_limit_frees_up_as_the_minute_slides() -> None:
+    client, _, clock = make()
+    for _ in range(100):
+        client.get("/x", headers=ip("203.0.113.7"))
+    clock.now = START + 60 + 30  # half of the earlier window is still inside the last 60 s
+    codes = [client.get("/x", headers=ip("203.0.113.7")).status_code for _ in range(60)]
+    assert codes.count(200) == 50 and codes[-1] == 429
+    clock.now = START + 60 * 3  # well later: everything has slid out
+    assert client.get("/x", headers=ip("203.0.113.7")).status_code == 200
+
+
+def test_the_ip_comes_from_x_real_ip_and_never_from_x_forwarded_for() -> None:
+    client, _, _ = make()
+    for n in range(101):  # a new X-Forwarded-For each time cannot reset the counter
+        r = client.get(
+            "/auth/login", headers={"x-real-ip": "203.0.113.7", "x-forwarded-for": f"10.0.0.{n}"}
+        )
+    assert r.status_code == 429
+
+
+def test_client_ip_rules() -> None:
+    def scope(headers: dict[str, str], socket: str = "172.18.0.5") -> dict[str, Any]:
+        raw = [(k.encode(), v.encode()) for k, v in headers.items()]
+        return {"type": "http", "headers": raw, "client": (socket, 5000)}
+
+    assert client_ip(scope({"x-real-ip": "203.0.113.7"})) == "203.0.113.7"
+    assert client_ip(scope({"x-real-ip": " 2001:db8::1 "})) == "2001:db8::1"
+    assert client_ip(scope({})) == "172.18.0.5"  # run without nginx: the socket address
+    assert client_ip(scope({"x-real-ip": "not-an-ip:*"})) == "172.18.0.5"  # never in a key
+    assert client_ip(scope({"x-forwarded-for": "203.0.113.7"})) == "172.18.0.5"
+
+
+def test_health_checks_and_preflights_are_not_counted() -> None:
     client, redis, _ = make()
-    for _ in range(10):
+    for _ in range(150):
         assert client.get("/health").status_code == 200
-        assert client.options("/timesheets").status_code == 200
+    client.options("/x")
     assert redis.values == {}
-
-
-def test_export_class_and_keys() -> None:
-    client, redis, _ = make()
-    client.get("/exports/123/download", headers={"x-user": "alice"})
-    (key,) = redis.values
-    assert key.startswith("core:rl:export:u:alice:")
 
 
 def test_fail_open_lets_requests_through_when_redis_is_down() -> None:
     client, redis, _ = make(fail_open=True)
     redis.down = True
-    r = client.get("/timesheets")
+    r = client.get("/x")
     assert r.status_code == 200 and "x-ratelimit-limit" not in r.headers
 
 
 def test_fail_closed_answers_503() -> None:
     client, redis, _ = make(fail_open=False)
     redis.down = True
-    r = client.get("/timesheets")
+    r = client.get("/x")
     assert r.status_code == 503 and r.json()["code"] == "rate_limit_unavailable"
 
 
-def test_spoofed_forwarded_for_is_ignored_beyond_the_trusted_hop() -> None:
-    client, redis, _ = make(hops=1)
-    for spoof in ("1.1.1.1", "2.2.2.2", "3.3.3.3"):
-        client.get("/timesheets", headers={"x-forwarded-for": f"{spoof}, 203.0.113.9"})
-    r = client.get("/timesheets", headers={"x-forwarded-for": "9.9.9.9, 203.0.113.9"})
-    assert r.status_code == 429  # every request counted for 203.0.113.9, whatever the client wrote
-    assert all(":ip:203.0.113.9:" in k for k in redis.values)
-
-
-def test_client_ip_rules() -> None:
-    def scope(xff: str | None) -> dict[str, Any]:
-        headers = [(b"x-forwarded-for", xff.encode())] if xff else []
-        return {"type": "http", "client": ("172.18.0.5", 5000), "headers": headers}
-
-    assert client_ip(scope("198.51.100.7"), 1) == "198.51.100.7"  # written by nginx
-    assert client_ip(scope("evil, 198.51.100.7"), 1) == "198.51.100.7"
-    assert client_ip(scope("198.51.100.7"), 0) == "172.18.0.5"  # no proxy trusted
-    assert client_ip(scope("only-one"), 2) == "172.18.0.5"  # fewer hops than trusted
-    assert client_ip(scope(None), 1) == "172.18.0.5"
-
-
-@pytest.mark.parametrize(
-    ("path", "name"),
-    [
-        ("/uploads", "upload"),
-        ("/uploads/", "upload"),
-        ("/employees/import", "upload"),
-        ("/holidays/import/template", "upload"),
-        ("/exports", "export"),
-        ("/exports/abc/download", "export"),
-        ("/exportsx", "default"),
-        ("/timesheets", "default"),
-        ("/a-route-added-next-year", "default"),
-    ],
-)
-def test_the_route_table(path: str, name: str) -> None:
-    assert route_class(path) == name
+def test_sliding_usage_maths() -> None:
+    limit = Limit(100, 60)
+    assert sliding_usage(10, 0, 0, limit).estimate == 10
+    assert sliding_usage(10, 100, 30, limit).estimate == 60  # half the previous window
+    over = sliding_usage(101, 0, 10, limit)
+    assert over.estimate > 100 and over.retry_in >= 50  # wait for this window to slide
+    shrinking = sliding_usage(50, 100, 0, limit)  # 150: wait until 50 of the 100 slid out
+    assert shrinking.retry_in == 30
 
 
 def test_limit_parsing() -> None:
-    assert Limit.parse("10/60") == Limit(10, 60)
+    assert Limit.parse("100/60") == Limit(100, 60)
     with pytest.raises(ValueError):
         Limit.parse("0/60")
+
+
+def test_the_real_app_runs_cors_then_auth_then_rate_limit() -> None:
+    order: list[Any] = [m.cls for m in real_app.user_middleware]  # outermost first
+    assert order.index(CORSMiddleware) < order.index(AuthMiddleware)
+    assert order.index(AuthMiddleware) < order.index(RateLimitMiddleware)
+    rate = next(m for m in real_app.user_middleware if cast(Any, m.cls) is RateLimitMiddleware)
+    kwargs = cast(dict[str, Any], rate.kwargs)
+    assert kwargs["limit"] == Limit(100, 60)  # the default RATE_LIMIT
 
 
 @pytest.mark.skipif(not os.environ.get("RATE_LIMIT_TEST_REDIS_URL"), reason="no test Redis")
@@ -256,12 +270,8 @@ def test_against_a_real_redis() -> None:
     async def x() -> dict[str, str]:
         return {}
 
-    app.add_middleware(
-        RateLimitMiddleware,
-        redis=redis,
-        prefix=f"test-{uuid.uuid4().hex[:6]}",
-        limits={"default": Limit(2, 60)},
-    )
+    app.add_middleware(RateLimitMiddleware, redis=redis, limit=Limit(2, 60))
+    address = f"198.51.100.{uuid.uuid4().int % 250 + 1}"
     with TestClient(app) as client:  # one event loop for the Redis connection pool
-        codes = [client.get("/x").status_code for _ in range(3)]
+        codes = [client.get("/x", headers=ip(address)).status_code for _ in range(3)]
     assert codes == [200, 200, 429]

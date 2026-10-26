@@ -12,7 +12,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.constants.timesheet_status import ReprocessStatus
-from src.data.models.base import SCHEMA, Base, UUIDPrimaryKeyMixin, enum_check
+from src.data.models.postgres.base import SCHEMA, Base, UUIDPrimaryKeyMixin, enum_check
 
 
 class ReprocessRun(UUIDPrimaryKeyMixin, Base):

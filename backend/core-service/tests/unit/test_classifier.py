@@ -18,7 +18,7 @@ from src.core.services.attachment_classifier import (
     describe,
     should_skip,
 )
-from src.data.clients import jev_client
+from src.handlers.http_clients import jev_client
 
 
 def result(label: str, p: float | None) -> ClassifierResult:

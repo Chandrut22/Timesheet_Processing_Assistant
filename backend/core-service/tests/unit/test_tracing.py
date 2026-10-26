@@ -1,5 +1,6 @@
-"""OpenTelemetry tracing: off by default, spans nest, trace ids reach the step log,
-and no query strings (names, emails) end up in request spans."""
+"""OpenTelemetry tracing: off by default, spans nest, trace ids reach the step log and
+the log records, no exporter without an endpoint, and no query strings (names, emails)
+end up in request spans."""
 
 import uuid
 from collections.abc import Iterator
@@ -7,13 +8,14 @@ from collections.abc import Iterator
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from opentelemetry.sdk._logs.export import InMemoryLogRecordExporter, SimpleLogRecordProcessor
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from src.config.settings import Settings, settings
 from src.constants.timesheet_status import StepName, StepResult
 from src.core.services.activity_log import record_step
-from src.observability.logging.setup import TraceIdFilter
+from src.observability.logging import setup as otel_logging
 from src.observability.tracing import setup as tracing
 from src.observability.tracing.spans import (
     current_trace_id,
@@ -116,18 +118,45 @@ def test_request_spans_drop_the_query_and_skip_health(traced: InMemorySpanExport
     assert not any("/health" in str((s.attributes or {}).get("http.target")) for s in spans)
 
 
-def test_log_lines_carry_the_trace_id(traced: InMemorySpanExporter) -> None:
+def test_log_records_carry_the_trace_id(traced: InMemorySpanExporter) -> None:
     import logging
 
-    record = logging.LogRecord("x", logging.INFO, __file__, 1, "hello", None, None)
-    TraceIdFilter().filter(record)
-    assert record.trace_id == "-"  # type: ignore[attr-defined]
-    with pipeline_span("submission.process"):
-        TraceIdFilter().filter(record)
-        assert record.trace_id == current_trace_id()  # type: ignore[attr-defined]
+    root = logging.getLogger()
+    handlers, level = list(root.handlers), root.level
+    logs = InMemoryLogRecordExporter()  # type: ignore[no-untyped-call]
+    try:
+        otel_logging.setup_logging(
+            "core-test", processors=[SimpleLogRecordProcessor(logs)], force=True
+        )
+        log = logging.getLogger("src.core.services.pipeline.reading")
+        log.info("outside any job")
+        with pipeline_span("submission.process"):
+            log.info("Read %s: %d characters", "t.pdf", 120)
+            trace_id = current_trace_id()
+        outside, inside = (r.log_record for r in logs.get_finished_logs())
+    finally:
+        for handler in list(root.handlers):
+            root.removeHandler(handler)
+        for handler in handlers:
+            root.addHandler(handler)
+        root.setLevel(level)
+    assert outside.trace_id == 0
+    assert inside.body == "Read t.pdf: 120 characters"
+    assert f"{inside.trace_id:032x}" == trace_id  # the same id as the step log
+
+
+def test_no_endpoint_means_no_span_exporter(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "otel_exporter_otlp_endpoint", None)
+    assert tracing._exporter_processor() is None  # trace ids only, nothing sent
+    monkeypatch.setattr(settings, "otel_exporter_otlp_endpoint", "http://collector:4318")
+    assert tracing._exporter_processor() is not None
 
 
 def test_sample_ratio_is_validated() -> None:
     with pytest.raises(ValueError):
         Settings(_env_file=None, otel_sample_ratio=1.5)
-    assert settings.otel_exporter_otlp_endpoint.startswith("http")
+    assert Settings(_env_file=None).otel_exporter_otlp_endpoint is None  # nothing sent
+    assert (
+        Settings(_env_file=None, otel_exporter_otlp_endpoint=" ").otel_exporter_otlp_endpoint
+        is None
+    )

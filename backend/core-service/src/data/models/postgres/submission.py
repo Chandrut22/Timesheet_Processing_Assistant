@@ -16,13 +16,13 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.constants.timesheet_status import SubmissionSource, SubmissionState, SubmissionStatus
-from src.data.models.base import SCHEMA, Base, TimestampMixin, UUIDPrimaryKeyMixin, enum_check
+from src.data.models.postgres.base import SCHEMA, AuditMixin, Base, UUIDPrimaryKeyMixin, enum_check
 
 if TYPE_CHECKING:
-    from src.data.models.document import Document
+    from src.data.models.postgres.document import Document
 
 
-class Submission(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class Submission(UUIDPrimaryKeyMixin, AuditMixin, Base):
     """One email or one upload. Holds one or more documents."""
 
     __tablename__ = "submissions"

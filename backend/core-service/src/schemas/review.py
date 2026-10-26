@@ -20,6 +20,9 @@ class EntriesUpdate(BaseModel):
     """The full new list of days (replaces the old one)."""
 
     entries: list[EntryInput] = Field(max_length=31)
+    # False (Save): the change is saved in the current version. True ("Create as new
+    # version"): the timesheet as it was is kept as a version and this becomes the next.
+    new_version: bool = False
 
     @field_validator("entries")
     @classmethod
@@ -34,6 +37,7 @@ class WeekUpdate(BaseModel):
     """The first day of the week (it must be the company's week-start day)."""
 
     week_start: date
+    new_version: bool = False  # as in EntriesUpdate
 
 
 class MatchRequest(BaseModel):

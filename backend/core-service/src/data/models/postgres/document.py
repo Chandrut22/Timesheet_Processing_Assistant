@@ -8,13 +8,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.constants.read_methods import ReadMethod, WritingClass
 from src.constants.timesheet_status import DocumentStatus
-from src.data.models.base import SCHEMA, Base, TimestampMixin, UUIDPrimaryKeyMixin, enum_check
+from src.data.models.postgres.base import SCHEMA, AuditMixin, Base, UUIDPrimaryKeyMixin, enum_check
 
 if TYPE_CHECKING:
-    from src.data.models.submission import Submission
+    from src.data.models.postgres.submission import Submission
 
 
-class Document(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class Document(UUIDPrimaryKeyMixin, AuditMixin, Base):
     """One attached file. The file itself is never stored: only its hash and,
     once read, its text."""
 

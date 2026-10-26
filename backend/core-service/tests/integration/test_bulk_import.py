@@ -15,7 +15,6 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from sqlalchemy import select, text
 
-from src.api.middleware.rate_limit import route_class
 from src.config.settings import settings
 from src.core.rbac import tokens
 from src.data.clients.postgres import SessionLocal, engine
@@ -329,9 +328,3 @@ async def test_a_committed_import_writes_one_audit_event(client: httpx.AsyncClie
         ).all()
     assert event.action == "holidays_imported" and event.actor_name == "Ada Admin"
     assert event.details["created"] == 1 and len(event.details["sha256"]) == 64
-
-
-def test_imports_are_in_the_upload_rate_limit_class() -> None:
-    for resource in ("employees", "companies", "holidays"):
-        assert route_class(f"/{resource}/import") == "upload"
-        assert route_class(f"/{resource}/import/template") == "upload"

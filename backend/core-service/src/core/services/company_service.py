@@ -6,8 +6,8 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions import ConflictError, NotFoundError, ValidationFailedError
+from src.core.services.transactions import commit_or_conflict
 from src.data.models import Company, Employee, WhitelistSender
-from src.data.repositories.base import commit_or_conflict
 from src.data.repositories.company_repository import CompanyRepository, WhitelistRepository
 from src.schemas.company import CompanyCreate, CompanyUpdate
 from src.utils.senders import normalize_sender

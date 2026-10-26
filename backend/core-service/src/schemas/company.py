@@ -110,8 +110,12 @@ class CompanyRead(BaseModel):
     double_time_after: HoursOut | None
     week_start: int
     is_active: bool
+    # Audit: when, and by which auth-service user (None = the system: a job or the
+    # email listener). Filled by the database layer, never by the client.
     created_at: datetime
     updated_at: datetime
+    created_by: uuid.UUID | None
+    updated_by: uuid.UUID | None
 
 
 class WhitelistCreate(BaseModel):
@@ -125,4 +129,9 @@ class WhitelistRead(BaseModel):
     company_id: uuid.UUID
     kind: str
     value: str
+    # Audit: when, and by which auth-service user (None = the system: a job or the
+    # email listener). Filled by the database layer, never by the client.
     created_at: datetime
+    updated_at: datetime
+    created_by: uuid.UUID | None
+    updated_by: uuid.UUID | None

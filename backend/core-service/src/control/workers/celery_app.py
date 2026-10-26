@@ -1,8 +1,21 @@
+from typing import Any
+
 from celery import Celery
+from celery.signals import setup_logging as celery_setup_logging
 
 from src.config.settings import settings
+from src.observability.logging.setup import setup_logging
 
 celery_app = Celery("core", broker=settings.redis_url, include=["src.control.workers.tasks"])
+
+
+@celery_setup_logging.connect
+def _logs_through_opentelemetry(**_: Any) -> None:
+    """With a receiver on this signal, Celery leaves logging alone: its own records
+    (and every task's) go through OpenTelemetry like the rest. Each forked worker
+    process makes its own log provider (runtime._start_tracing)."""
+    setup_logging()
+
 
 celery_app.conf.update(
     # Redis is shared: every Celery key starts with "core:celery:"

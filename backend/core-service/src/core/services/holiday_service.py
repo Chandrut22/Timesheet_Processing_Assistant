@@ -4,8 +4,8 @@ from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions import ConflictError, NotFoundError, ValidationFailedError
+from src.core.services.transactions import commit_or_conflict
 from src.data.models import Holiday
-from src.data.repositories.base import commit_or_conflict
 from src.data.repositories.company_repository import CompanyRepository
 from src.data.repositories.holiday_repository import HolidayRepository
 from src.schemas.holiday import HolidayCreate

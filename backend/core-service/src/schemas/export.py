@@ -146,5 +146,10 @@ class ExportBatchRead(BaseModel):
     holiday_amount: MoneyOut
     gross_amount: MoneyOut
     filename: str
-    created_by_name: str | None
+    created_by_name: str | None  # name of the user in created_by
+    # Audit: when, and by which auth-service user (None = the system: a job or the
+    # email listener). Filled by the database layer, never by the client.
     created_at: datetime
+    updated_at: datetime
+    created_by: uuid.UUID | None
+    updated_by: uuid.UUID | None

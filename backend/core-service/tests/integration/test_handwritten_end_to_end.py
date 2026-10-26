@@ -16,12 +16,14 @@ from PIL import Image
 from sqlalchemy import select, text
 
 from src.config.settings import settings
+from src.core.services.documents import document_reader
+from src.core.services.documents.document_limits import ReadLimit
 from src.core.services.pipeline import extracting
 from src.core.services.processing_service import ProcessingService
-from src.data.clients import document_reader, upload_buffer, vision_reader
-from src.data.clients.document_limits import ReadLimit
+from src.data.clients import upload_buffer
 from src.data.clients.postgres import SessionLocal, engine
 from src.data.models import Company, Document, Employee, Submission, Timesheet
+from src.handlers.http_clients import vision_reader
 from src.schemas.extraction import ExtractedDay, ExtractedTimesheet, ExtractionResult
 
 RECEIVED = datetime(2026, 10, 19, 9, tzinfo=UTC)  # Monday

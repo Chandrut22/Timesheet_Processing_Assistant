@@ -1,6 +1,7 @@
 """Version history and rollback through the HTTP API, on a real database (see
-conftest.py): data changes make versions, approve / reject do not, a rollback restores
-an earlier version as a new one, and an exported timesheet cannot be rolled back."""
+conftest.py): a plain Save edits the current version, "Create as new version" keeps the
+old data as a version, approve / reject make none, a restore goes back to a version
+(its number too) without making one, and an exported timesheet cannot be restored."""
 
 import uuid
 from collections.abc import AsyncIterator
@@ -87,7 +88,10 @@ async def seed() -> str:
             holiday_hours=Decimal("0"),
             confidence=Decimal("0.95"),
             match_method="code",
-            flags=[],
+            flags=[
+                {"code": "week_assumed", "message": "Week assumed.", "severity": "medium"},
+                {"code": "handwritten_hours", "message": "By hand.", "severity": "high"},
+            ],
             entries=[
                 TimesheetEntry(work_date=MON + timedelta(days=i), hours=Decimal("8"))
                 for i in range(5)
@@ -115,19 +119,29 @@ def days(n: int, hours: float = 8) -> list[dict[str, object]]:
     return [{"work_date": str(MON + timedelta(days=i)), "hours": hours} for i in range(n)]
 
 
-async def test_data_changes_make_versions_and_a_rollback_restores_one(
+async def test_save_edits_in_place_and_create_as_new_version_keeps_the_old_data(
     client: httpx.AsyncClient,
 ) -> None:
     ts_id = await seed()
     base = f"/timesheets/{ts_id}"
 
-    # v1 -> v2: the reviewer changes the days
-    edited = (await client.patch(f"{base}/entries", json={"entries": days(4, 9)})).json()
-    assert edited["version"] == 2
-    assert [e["hours"] for e in edited["entries"]] == [9.0, 9.0, 9.0, 9.0]
-    assert "id" not in edited["entries"][0]  # a day is known by its date
+    # Save: the change goes into version 1; nothing is kept as a version.
+    saved = (await client.patch(f"{base}/entries", json={"entries": days(5, 7)})).json()
+    assert saved["version"] == 1
+    assert [e["hours"] for e in saved["entries"]] == [7.0] * 5
+    assert len((await client.get(f"{base}/versions")).json()) == 1
 
-    # Nothing changed: recalculating makes no version; approving makes none either.
+    # "Create as new version": version 1 (as saved above) is kept, the edit is version 2.
+    edited = await client.patch(
+        f"{base}/entries", json={"entries": days(4, 9), "new_version": True}
+    )
+    assert edited.status_code == 200, edited.text
+    edited_body = edited.json()
+    assert edited_body["version"] == 2
+    assert [e["hours"] for e in edited_body["entries"]] == [9.0, 9.0, 9.0, 9.0]
+    assert "id" not in edited_body["entries"][0]  # a day is known by its date
+
+    # Recalculating and approving save in place: still version 2.
     assert (await client.post(f"{base}/recalculate")).json()["version"] == 2
     approved = (await client.post(f"{base}/approve", json={})).json()
     assert (approved["status"], approved["version"]) == ("approved", 2)
@@ -138,30 +152,59 @@ async def test_data_changes_make_versions_and_a_rollback_restores_one(
         (1, False, "entries_edited"),
     ]
     assert listing[1]["changed_by_name"] == "Rita Reviewer"
-    assert (listing[1]["days"], listing[1]["total_hours"]) == (5, 40.0)
+    assert (listing[1]["days"], listing[1]["total_hours"]) == (5, 35.0)
     assert (listing[0]["days"], listing[0]["status"]) == (4, "approved")
+    assert "handwritten_hours" in listing[1]["flags"]
 
-    v1 = (await client.get(f"{base}/versions/1")).json()
-    assert [e["hours"] for e in v1["entries"]] == [8.0] * 5
-    assert v1["gross_amount"] == 18000.0
+    # One version in full: flags come back as codes (they are stored as objects).
+    v1 = await client.get(f"{base}/versions/1")
+    assert v1.status_code == 200, v1.text
+    assert [e["hours"] for e in v1.json()["entries"]] == [7.0] * 5
+    assert v1.json()["flags"] == listing[1]["flags"]  # codes, not objects
+    gross_v1 = v1.json()["gross_amount"]
+    current = await client.get(f"{base}/versions/2")
+    assert current.status_code == 200, current.text
+    assert current.json()["current"] is True
 
-    # Roll back to v1: becomes v3, back to review, the v2 data kept as a version.
+    # Restore v1: the timesheet IS version 1 again (no new version), back to review,
+    # and the v2 data is kept as version 2.
     restored = await client.post(f"{base}/versions/1/restore", json={"reason": "typo in edit"})
     assert restored.status_code == 200, restored.text
     body = restored.json()
-    assert (body["version"], body["status"]) == (3, "needs_review")
-    assert [e["hours"] for e in body["entries"]] == [8.0] * 5
-    assert body["gross_amount"] == 18000.0
+    assert (body["version"], body["status"]) == (1, "needs_review")
+    assert [e["hours"] for e in body["entries"]] == [7.0] * 5
+    assert body["gross_amount"] == gross_v1
     assert body["reviewed_by_name"] is None
 
     listing = (await client.get(f"{base}/versions")).json()
-    assert [(v["version"], v["change"]) for v in listing] == [
-        (3, None),
-        (2, "rolled_back"),
-        (1, "entries_edited"),
+    assert [(v["version"], v["current"], v["change"]) for v in listing] == [
+        (2, False, "rolled_back"),
+        (1, True, "entries_edited"),
     ]
-    assert listing[1]["reason"] == "typo in edit"
-    assert listing[1]["status"] == "approved"  # what v2 was when it was replaced
+    assert listing[0]["reason"] == "typo in edit"
+    assert listing[0]["status"] == "approved"  # what v2 was when it was left
+    assert listing[0]["days"] == 4
+
+    # ... and back to 2: still two versions, nothing lost.
+    again = (await client.post(f"{base}/versions/2/restore", json={})).json()
+    assert again["version"] == 2
+    assert [e["hours"] for e in again["entries"]] == [9.0] * 4
+    listing = (await client.get(f"{base}/versions")).json()
+    assert [(v["version"], v["current"]) for v in listing] == [(2, True), (1, False)]
+
+    # Back on 1, a Save edits version 1; "Create as new version" takes the next free
+    # number (3), since 2 already exists.
+    await client.post(f"{base}/versions/1/restore", json={})
+    in_place = (await client.patch(f"{base}/entries", json={"entries": days(5, 6)})).json()
+    assert in_place["version"] == 1
+    newest = (
+        await client.patch(f"{base}/entries", json={"entries": days(2, 8), "new_version": True})
+    ).json()
+    assert newest["version"] == 3
+    listing = (await client.get(f"{base}/versions")).json()
+    assert [(v["version"], v["current"]) for v in listing] == [(3, True), (2, False), (1, False)]
+    v1_now = (await client.get(f"{base}/versions/1")).json()
+    assert [e["hours"] for e in v1_now["entries"]] == [6.0] * 5  # the in-place edit kept
 
     async with SessionLocal() as s:
         actions = (
@@ -171,7 +214,17 @@ async def test_data_changes_make_versions_and_a_rollback_restores_one(
                 .order_by(AuditEvent.created_at)
             )
         ).all()
-        assert actions == ["entries_edited", "recalculated", "approved", "rolled_back"]
+        assert actions == [
+            "entries_edited",
+            "entries_edited",
+            "recalculated",
+            "approved",
+            "rolled_back",
+            "rolled_back",
+            "rolled_back",
+            "entries_edited",
+            "entries_edited",
+        ]
         assert (
             await s.scalar(
                 select(TimesheetVersion.snapshot["status"].astext).where(
@@ -179,7 +232,7 @@ async def test_data_changes_make_versions_and_a_rollback_restores_one(
                     TimesheetVersion.version == 2,
                 )
             )
-        ) == "approved"
+        ) == "needs_review"  # refreshed when v2 was left the second time
 
 
 async def test_rollback_rules(client: httpx.AsyncClient) -> None:
@@ -190,9 +243,9 @@ async def test_rollback_rules(client: httpx.AsyncClient) -> None:
     assert (await client.post(f"{base}/versions/7/restore", json={})).status_code == 404
     assert (await client.get(f"{base}/versions/7")).status_code == 404
 
-    await client.patch(f"{base}/entries", json={"entries": days(3)})
+    await client.patch(f"{base}/entries", json={"entries": days(3), "new_version": True})
     admin = await client.post(f"{base}/versions/1/restore", json={}, headers=bearer("admin"))
-    assert admin.status_code == 200 and admin.json()["version"] == 3
+    assert admin.status_code == 200 and admin.json()["version"] == 1
 
     async with SessionLocal() as s:  # exported: payroll data never changes
         await s.execute(

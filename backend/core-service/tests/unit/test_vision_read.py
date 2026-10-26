@@ -17,13 +17,16 @@ from pydantic import ValidationError
 from src.config.settings import Settings, settings
 from src.constants.flags import FLAG_SEVERITY
 from src.control.agents.extraction_prompt import SYSTEM_PROMPT
+from src.core.services.documents import document_limits, document_reader
+from src.core.services.documents.document_reader import DocumentReadError, read_document_full
 from src.core.services.failures import VisionUnavailableError, explain, plan_retry
 from src.core.services.pipeline import reading
 from src.core.services.timesheet_builder import BuildContext, build_timesheets
 from src.core.services.timesheet_validation import can_auto_approve
-from src.data.clients import document_limits, document_reader, upload_buffer, vision_reader
-from src.data.clients.document_reader import DocumentReadError, read_document_full
-from src.data.clients.vision_reader import (
+from src.data.clients import upload_buffer
+from src.data.models import Document, Timesheet
+from src.handlers.http_clients import vision_reader
+from src.handlers.http_clients.vision_reader import (
     VISION_SYSTEM_PROMPT,
     PageImage,
     PageReading,
@@ -34,7 +37,6 @@ from src.data.clients.vision_reader import (
     parse_answer,
     read_page,
 )
-from src.data.models import Document, Timesheet
 from src.schemas.extraction import ExtractedDay, ExtractedTimesheet
 
 WRITING_FLAGS = {"handwritten_hours", "handwriting_present", "writing_unclear"}
@@ -275,7 +277,7 @@ def test_scanned_pdf_pages_are_rendered() -> None:
 
 def test_a_broken_image_is_a_plain_read_error(vision_on: pytest.MonkeyPatch) -> None:
     use_model(vision_on, FakeModel())
-    with pytest.raises(DocumentReadError, match="could not be opened"):
+    with pytest.raises(DocumentReadError, match="damaged or not a valid file"):
         read_document_full("broken.png", b"\x89PNG not an image" * 3000)
 
 

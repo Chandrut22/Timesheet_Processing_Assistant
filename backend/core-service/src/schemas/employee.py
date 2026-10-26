@@ -78,5 +78,9 @@ class EmployeeRead(BaseModel):
     assignment_start: date | None
     assignment_end: date | None
     is_active: bool
+    # Audit: when, and by which auth-service user (None = the system: a job or the
+    # email listener). Filled by the database layer, never by the client.
     created_at: datetime
     updated_at: datetime
+    created_by: uuid.UUID | None
+    updated_by: uuid.UUID | None

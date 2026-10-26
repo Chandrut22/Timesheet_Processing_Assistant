@@ -109,7 +109,7 @@ def conflict(text: str, constraint: str | None = None) -> IntegrityError:
 
 
 def test_conflict_messages_name_the_problem() -> None:
-    from src.api.middleware.error_handlers import GENERIC_CONFLICT, conflict_message
+    from src.api.middleware.error_handler import GENERIC_CONFLICT, conflict_message
 
     assert "only once" in conflict_message(conflict("dup", "uq_timesheet_entries_day"))
     assert "code already exists" in conflict_message(
@@ -122,7 +122,7 @@ def test_integrity_error_becomes_409() -> None:
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
 
-    from src.api.middleware.error_handlers import register_exception_handlers
+    from src.api.middleware.error_handler import register_exception_handlers
 
     app = FastAPI()
     register_exception_handlers(app)

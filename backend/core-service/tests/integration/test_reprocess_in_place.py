@@ -188,7 +188,7 @@ async def test_a_reprocess_updates_the_same_timesheets(world: dict[str, Any]) ->
 
         # ... and the reviewer can roll Grace back to what was first extracted.
         restored = await ReviewService(s).restore_version(grace.id, 1, "reprocess was wrong", RITA)
-        assert restored.version == 3
+        assert restored.version == 1  # back on version 1; version 2 is kept
         assert [e.hours for e in restored.entries] == [Decimal("8.00")] * 5
 
 

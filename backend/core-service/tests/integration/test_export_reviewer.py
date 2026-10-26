@@ -206,7 +206,7 @@ async def test_the_creator_recorded_is_the_reviewer(reviewer: httpx.AsyncClient)
     async with SessionLocal() as s:
         batch = await s.get(ExportBatch, uuid.UUID(r.json()["id"]))
         assert batch is not None
-        assert batch.created_by_id == REVIEWER_ID
+        assert batch.created_by == REVIEWER_ID
         assert batch.created_by_name == REVIEWER_NAME
         exported = (await s.scalars(select(Timesheet))).all()
         assert {t.status for t in exported} == {TimesheetStatus.EXPORTED}

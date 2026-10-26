@@ -199,7 +199,7 @@ class ExportService:
             holiday_amount=sums.holiday_amount,
             filename=export_filename(company.name, week_start, batch_id),
             csv_content=build_csv(company.name, week_start, rows),
-            created_by_id=actor.id,
+            created_by=actor.id,
             created_by_name=actor.name,
         )
         await self.exports.add(batch)

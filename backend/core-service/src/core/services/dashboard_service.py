@@ -2,8 +2,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants.timesheet_status import SubmissionStatus, TimesheetStatus
-from src.data.models.submission import Submission
-from src.data.models.timesheet import Timesheet
+from src.data.models.postgres.submission import Submission
+from src.data.models.postgres.timesheet import Timesheet
 from src.data.repositories.submission_repository import SubmissionRepository
 from src.schemas.dashboard import DashboardCounts, DashboardSnapshot
 from src.schemas.submission import SubmissionRead

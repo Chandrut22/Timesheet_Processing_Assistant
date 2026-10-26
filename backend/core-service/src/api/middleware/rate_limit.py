@@ -1,24 +1,33 @@
-"""Rate limiting for every endpoint, counted in Redis.
+"""One rate limit for every endpoint of both services, counted per client IP in Redis.
 
-Each request falls into one route class (strict / upload / export / default), resolved
-from ROUTE_CLASSES below: one table, so a new route lands in "default" automatically.
-Each class has its own limit ("requests/window_seconds" in settings) and its own
-counters, keyed by the signed-in user (request.state.principal, set by the auth
-middleware) or, for anonymous calls and the strict class, by the client IP.
+The rule: at most RATE_LIMIT requests (default "100/60": 100 per 60 seconds) from one
+client IP address, whatever the endpoint and whoever is signed in. auth-service and
+core-service use the SAME counter (the same Redis keys), so calls to /auth/... and to
+/api/... from one IP add up to the same limit. Health checks (RATE_LIMIT_EXEMPT_PATHS)
+and CORS preflights are never counted.
 
-Counting: a fixed window. INCR on core:rl:<class>:<who>:<window number> and EXPIRE NX
-run in one MULTI/EXEC transaction, so the counter and its expiry are set atomically and
-no key can be left without a TTL.
+Counting: a sliding window. Each IP has one counter per window
+(rl:ip:<ip>:<window number>); the estimate is this window's count plus the previous
+window's count weighted by how much of it is still inside the last 60 seconds. So the
+limit holds in ANY 60 seconds, not only per calendar minute (a fixed window lets 100
+through at 12:00:59 and another 100 at 12:01:00). INCR, EXPIRE NX and the read of the
+previous counter run in one MULTI/EXEC transaction: one round trip, and no key is ever
+left without an expiry.
 
-Every response gets X-RateLimit-Limit / -Remaining / -Reset (seconds until the window
-resets). Over the limit: 429 {"detail", "code": "rate_limited"} with Retry-After.
-Redis down: RATE_LIMIT_FAIL_OPEN=true lets the request through (with a warning in the
-log, at most once a minute); false answers 503.
+Every response gets X-RateLimit-Limit / -Remaining / -Reset (seconds until a request
+would pass again). Over the limit: 429 {"detail", "code": "rate_limited"} with
+Retry-After. Redis down: RATE_LIMIT_FAIL_OPEN=true lets the request through (a warning
+in the log, at most once a minute); false answers 503.
 
-Client IP: the socket address, unless TRUSTED_PROXY_HOPS > 0, then the address our own
-proxy (nginx) put in X-Forwarded-For, counted from the right; anything further left
-was written by the client and is ignored. Pure ASGI, like the auth middleware."""
+Client IP: the X-Real-IP header, which nginx sets on every request it passes on
+($remote_addr, overwriting anything a browser sent). Only nginx publishes a port in
+docker compose, so a request reaching a service has always come through nginx. Without
+the header (a service run on its own, a test) the socket address is used. X-Forwarded-For
+is never read. Should a load balancer ever sit in front of nginx, set nginx's real-IP
+module (set_real_ip_from / real_ip_header) so $remote_addr is the browser again; nothing
+changes here. Pure ASGI, like the auth middleware."""
 
+import ipaddress
 import logging
 import math
 import time
@@ -33,21 +42,8 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 logger = logging.getLogger(__name__)
 
-# path (exact, or a prefix when it ends in "/*") -> class. First match wins.
-ROUTE_CLASSES: tuple[tuple[str, str], ...] = (
-    ("/uploads", "upload"),
-    ("/uploads/*", "upload"),
-    ("/employees/import", "upload"),
-    ("/employees/import/*", "upload"),
-    ("/companies/import", "upload"),
-    ("/companies/import/*", "upload"),
-    ("/holidays/import", "upload"),
-    ("/holidays/import/*", "upload"),
-    ("/exports", "export"),
-    ("/exports/*", "export"),
-)
-DEFAULT_CLASS = "default"
-IP_ONLY_CLASSES = frozenset({"strict"})  # sign-in endpoints: always per IP
+# The same in auth-service and core-service: one counter per IP across both.
+KEY_PREFIX = "rl:ip"
 WARN_EVERY_S = 60
 
 
@@ -58,35 +54,46 @@ class Limit:
 
     @classmethod
     def parse(cls, text: str) -> "Limit":
-        """'10/60' -> 10 requests per 60 seconds."""
+        """'100/60' -> 100 requests per 60 seconds."""
         requests, _, window = text.partition("/")
         limit = cls(int(requests), int(window))
         if limit.requests < 1 or limit.window_s < 1:
-            raise ValueError(f"Rate limit must be like '10/60', got {text!r}")
+            raise ValueError(f"Rate limit must be like '100/60', got {text!r}")
         return limit
 
 
-def route_class(path: str, table: Iterable[tuple[str, str]] = ROUTE_CLASSES) -> str:
-    path = path.rstrip("/") or "/"
-    for pattern, name in table:
-        if pattern.endswith("/*"):
-            if path.startswith(pattern[:-1]):
-                return name
-        elif path == pattern:
-            return name
-    return DEFAULT_CLASS
+def client_ip(scope: Scope) -> str:
+    """X-Real-IP (set by nginx) when it holds a valid address, else the socket address."""
+    real = Headers(scope=scope).get("x-real-ip", "").strip()
+    if real:
+        try:
+            return str(ipaddress.ip_address(real))
+        except ValueError:
+            pass  # not an address: never used as part of a Redis key
+    return str((scope.get("client") or ("unknown", 0))[0])
 
 
-def client_ip(scope: Scope, trusted_hops: int) -> str:
-    """The client address: from X-Forwarded-For only as far as our own proxies wrote it."""
-    socket_ip = (scope.get("client") or ("unknown", 0))[0]
-    if trusted_hops <= 0:
-        return str(socket_ip)
-    forwarded = Headers(scope=scope).get("x-forwarded-for", "")
-    hops = [h.strip() for h in forwarded.split(",") if h.strip()]
-    if len(hops) < trusted_hops:
-        return str(socket_ip)  # fewer entries than proxies we trust: header not ours
-    return hops[-trusted_hops]
+@dataclass(frozen=True, slots=True)
+class Usage:
+    estimate: float  # requests in the last window_s seconds (sliding estimate)
+    retry_in: int  # seconds until the estimate is back under the limit (>= 1)
+
+
+def sliding_usage(current: int, previous: int, elapsed: float, limit: Limit) -> Usage:
+    """Pure. `elapsed` = seconds into the current window. The previous window counts
+    for the part of it still inside the last window_s seconds."""
+    w = limit.window_s
+    weight = 1 - elapsed / w
+    estimate = current + previous * weight
+    if estimate <= limit.requests:
+        return Usage(estimate, max(1, math.ceil(w - elapsed)))
+    if previous and current <= limit.requests:
+        # The previous window's share shrinks as time passes.
+        wait = (estimate - limit.requests) / previous * w
+    else:
+        # This window alone is over: wait for it to end and for its share to shrink.
+        wait = (w - elapsed) + (1 - limit.requests / current) * w
+    return Usage(estimate, max(1, math.ceil(wait)))
 
 
 class RateLimitMiddleware:
@@ -95,42 +102,31 @@ class RateLimitMiddleware:
         app: ASGIApp,
         *,
         redis: Any,
-        prefix: str,
-        limits: dict[str, Limit],
+        limit: Limit,
         enabled: bool = True,
         fail_open: bool = True,
-        trusted_proxy_hops: int = 1,
         exempt_paths: Iterable[str] = (),
-        identify: Callable[[Any], str | None] = lambda principal: None,
-        table: Iterable[tuple[str, str]] = ROUTE_CLASSES,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self.app = app
         self.redis = redis
-        self.prefix = prefix
-        self.limits = limits
+        self.limit = limit
         self.enabled = enabled
         self.fail_open = fail_open
-        self.hops = trusted_proxy_hops
         self.exempt = frozenset(p.rstrip("/") or "/" for p in exempt_paths)
-        self.identify = identify  # request.state.principal -> user id, or None
-        self.table = tuple(table)
         self.clock = clock
         self._last_warning = 0.0
 
-    def _who(self, scope: Scope, name: str) -> str:
-        if name not in IP_ONLY_CLASSES:
-            user = self.identify(scope.get("state", {}).get("principal"))
-            if user:
-                return f"u:{user}"
-        return f"ip:{client_ip(scope, self.hops)}"
-
-    async def _count(self, key: str, window_s: int) -> int:
+    async def _count(self, ip: str, now: float) -> Usage:
+        w = self.limit.window_s
+        window = int(now // w)
+        key = f"{KEY_PREFIX}:{ip}:{window}"
         async with self.redis.pipeline(transaction=True) as pipe:
             pipe.incr(key)
-            pipe.expire(key, window_s + 1, nx=True)
-            count, _ = await pipe.execute()
-        return int(count)
+            pipe.expire(key, 2 * w + 1, nx=True)  # still read as "previous" next window
+            pipe.get(f"{KEY_PREFIX}:{ip}:{window - 1}")
+            current, _, previous = await pipe.execute()
+        return sliding_usage(int(current), int(previous or 0), now - window * w, self.limit)
 
     def _warn(self, exc: Exception) -> None:
         now = self.clock()
@@ -148,14 +144,8 @@ class RateLimitMiddleware:
         ):
             await self.app(scope, receive, send)
             return
-        name = route_class(path, self.table)
-        limit = self.limits.get(name) or self.limits[DEFAULT_CLASS]
-        now = self.clock()
-        window = int(now // limit.window_s)
-        reset_in = max(1, math.ceil((window + 1) * limit.window_s - now))
-        key = f"{self.prefix}:rl:{name}:{self._who(scope, name)}:{window}"
         try:
-            count = await self._count(key, limit.window_s)
+            usage = await self._count(client_ip(scope), self.clock())
         except (RedisError, OSError, TimeoutError) as exc:
             if self.fail_open:
                 self._warn(exc)
@@ -172,19 +162,20 @@ class RateLimitMiddleware:
             await response(scope, receive, send)
             return
 
+        limit = self.limit.requests
         headers = {
-            "X-RateLimit-Limit": str(limit.requests),
-            "X-RateLimit-Remaining": str(max(0, limit.requests - count)),
-            "X-RateLimit-Reset": str(reset_in),
+            "X-RateLimit-Limit": str(limit),
+            "X-RateLimit-Remaining": str(max(0, limit - math.ceil(usage.estimate))),
+            "X-RateLimit-Reset": str(usage.retry_in),
         }
-        if count > limit.requests:
+        if usage.estimate > limit:
             response = JSONResponse(
                 status_code=429,
                 content={
-                    "detail": f"Too many requests. Try again in {reset_in} seconds.",
+                    "detail": f"Too many requests. Try again in {usage.retry_in} seconds.",
                     "code": "rate_limited",
                 },
-                headers={**headers, "Retry-After": str(reset_in)},
+                headers={**headers, "Retry-After": str(usage.retry_in)},
             )
             await response(scope, receive, send)
             return

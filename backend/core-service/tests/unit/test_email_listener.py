@@ -47,6 +47,8 @@ class FakeMailbox:
         self.messages = {uid: mail(uid) for uid in uids}
         self.validity = validity
         self.since_calls: list[date] = []
+        self.marked: list[int] = []  # UIDs marked as read
+        self.mark_error: Exception | None = None
 
     def status(self) -> tuple[int, int]:
         return self.validity, max(self.messages, default=0) + 1
@@ -59,6 +61,11 @@ class FakeMailbox:
     def fetch_since(self, day: date) -> list[tuple[int, Message]]:
         self.since_calls.append(day)
         return sorted(self.messages.items())
+
+    def mark_read(self, uid: int) -> None:
+        if self.mark_error is not None:
+            raise self.mark_error
+        self.marked.append(uid)
 
 
 class Recorder:
@@ -213,3 +220,70 @@ def test_database_down_never_skips_an_email(monkeypatch: pytest.MonkeyPatch) -> 
         with pytest.raises(DbDown):
             asyncio.run(process_new_mail(box, cursor, intake, batch_limit=50))
     assert asyncio.run(cursor.get()) == (1, 1)  # still waiting for the database
+
+
+# --- IMAP_MARK_AS_READ ---
+
+
+def new_mail_box(monkeypatch: pytest.MonkeyPatch, mark: bool) -> tuple[FakeMailbox, Cursor]:
+    monkeypatch.setattr(settings, "email_start_from", "new")
+    monkeypatch.setattr(settings, "imap_mark_as_read", mark)
+    cursor = Cursor(FakeRedis())  # type: ignore[arg-type]
+    box = FakeMailbox([1])
+    run(box, cursor, Recorder())  # first run: only mail after UID 1 is read
+    box.messages.update({2: mail(2), 3: mail(3)})
+    return box, cursor
+
+
+def test_mark_as_read_is_off_by_default() -> None:
+    assert type(settings).model_fields["imap_mark_as_read"].default is False
+
+
+def test_saved_emails_are_marked_as_read(monkeypatch: pytest.MonkeyPatch) -> None:
+    box, cursor = new_mail_box(monkeypatch, mark=True)
+    run(box, cursor, Recorder())
+    assert box.marked == [2, 3]
+
+
+def test_off_never_changes_the_mailbox(monkeypatch: pytest.MonkeyPatch) -> None:
+    box, cursor = new_mail_box(monkeypatch, mark=False)
+    intake = Recorder()
+    run(box, cursor, intake)
+    assert intake.ids == ["<m2@abc.com>", "<m3@abc.com>"]
+    assert box.marked == []
+
+
+def test_a_failed_save_stays_unread(monkeypatch: pytest.MonkeyPatch) -> None:
+    box, cursor = new_mail_box(monkeypatch, mark=True)
+    with pytest.raises(RuntimeError):
+        run(box, cursor, Recorder(fail_on="<m2@abc.com>"))
+    assert box.marked == []  # tried again next round, still unread
+
+
+def test_a_skipped_email_stays_unread(monkeypatch: pytest.MonkeyPatch) -> None:
+    box, cursor = new_mail_box(monkeypatch, mark=True)
+    monkeypatch.setattr(settings, "email_max_intake_failures", 1)
+    intake = Failing("<m2@abc.com>", BrokenData("invalid byte sequence"))
+
+    async def give_up(email: ParsedEmail | None, ref: str, reason: str) -> None:
+        pass
+
+    asyncio.run(process_new_mail(box, cursor, intake, batch_limit=50, give_up=give_up))
+    assert box.marked == [3]  # mail 2 was given up on: a person should see it unread
+
+
+def test_failing_to_mark_does_not_stop_the_inbox(monkeypatch: pytest.MonkeyPatch) -> None:
+    box, cursor = new_mail_box(monkeypatch, mark=True)
+    box.mark_error = OSError("connection reset")
+    intake = Recorder()
+    run(box, cursor, intake)
+    assert intake.ids == ["<m2@abc.com>", "<m3@abc.com>"]  # both saved, none twice
+    assert asyncio.run(cursor.get()) == (1, 3)
+
+
+def test_backfill_marks_as_read_too(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "email_start_from", "backfill")
+    monkeypatch.setattr(settings, "imap_mark_as_read", True)
+    box = FakeMailbox([5, 6])
+    run(box, Cursor(FakeRedis()), Recorder())  # type: ignore[arg-type]
+    assert box.marked == [5, 6]

@@ -72,14 +72,16 @@ class StepResult(StrEnum):
 
 class TimesheetChange(StrEnum):
     """What turned a timesheet version into the next one (timesheet_versions.change).
-    Only data changes make a version; approve / reject are in the audit log."""
+    A new version is made by a reprocess or a reviewer's "Create as new version". A
+    plain Save edits the current version, and a restore goes back to an existing one;
+    approve / reject are in the audit log."""
 
-    ENTRIES_EDITED = "entries_edited"  # a reviewer changed the days
-    EMPLOYEE_MATCHED = "employee_matched"  # a reviewer picked the employee
-    WEEK_CHANGED = "week_changed"  # a weekly-total timesheet moved to another week
-    RECALCULATED = "recalculated"  # pay rules run again with current rates / holidays
+    ENTRIES_EDITED = "entries_edited"  # days changed, saved as a new version
+    EMPLOYEE_MATCHED = "employee_matched"  # only in versions made before saving in place
+    WEEK_CHANGED = "week_changed"  # a weekly-total timesheet moved, saved as a new version
+    RECALCULATED = "recalculated"  # only in versions made before saving in place
     REPROCESSED = "reprocessed"  # the document was extracted again
-    ROLLED_BACK = "rolled_back"  # an earlier version was restored
+    ROLLED_BACK = "rolled_back"  # left when another version was restored
 
 
 class ReprocessStatus(StrEnum):

@@ -18,4 +18,9 @@ class HolidayRead(BaseModel):
     holiday_date: date
     name: str
     is_active: bool  # false = kept in the calendar, but not counted in pay
+    # Audit: when, and by which auth-service user (None = the system: a job or the
+    # email listener). Filled by the database layer, never by the client.
     created_at: datetime
+    updated_at: datetime
+    created_by: uuid.UUID | None
+    updated_by: uuid.UUID | None

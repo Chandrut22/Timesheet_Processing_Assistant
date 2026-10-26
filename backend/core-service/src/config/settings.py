@@ -26,17 +26,13 @@ class Settings(BaseSettings):
     auth_public_paths: list[str] = ["/health", "/health/db", "/health/redis"]
 
     # --- rate limiting (src/api/middleware/rate_limit.py) ---
-    # "requests/window_seconds" per route class; counted per user (or per IP when not
-    # signed in). Classes come from the ROUTE_CLASSES table in the middleware.
+    # One limit for every endpoint: RATE_LIMIT requests ("requests/window_seconds") per
+    # client IP, shared with auth-service (same Redis counter). The IP is the X-Real-IP header
+    # nginx sets (else the socket address). Health checks are never counted.
     rate_limit_enabled: bool = True
     rate_limit_fail_open: bool = True  # Redis down: let requests through (False: 503)
-    rate_limit_upload: str = Field(default="20/60", pattern=r"^\d+/\d+$")
-    rate_limit_export: str = Field(default="30/60", pattern=r"^\d+/\d+$")
-    rate_limit_default: str = Field(default="300/60", pattern=r"^\d+/\d+$")
+    rate_limit: str = Field(default="100/60", pattern=r"^\d+/\d+$")
     rate_limit_exempt_paths: list[str] = ["/health", "/health/db", "/health/redis"]
-    # How many proxies in front of the API we trust to write X-Forwarded-For (nginx = 1).
-    # 0 = always use the socket address (set 0 when clients reach the API directly).
-    trusted_proxy_hops: int = Field(default=1, ge=0, le=5)
 
     # --- database: shared timesheet_db, this service owns the "core" schema ---
     database_url: str = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5433/timesheet_db"
@@ -104,13 +100,18 @@ class Settings(BaseSettings):
     llm_fallback_provider: str | None = None
     llm_fallback_base_url: str | None = None
     llm_fallback_api_key: SecretStr | None = None
-    # Big sheets (many people): cut into pieces of CHUNK_PEOPLE people, one AI call per
-    # piece (at most CHUNK_PARALLEL at a time), answers merged. Only when the document's
-    # tables list more than CHUNK_ABOVE_PEOPLE people; smaller ones go in one call.
+    # Long documents (chunking.py): cut into overlapping pieces of at most
+    # CHUNK_TARGET_CHARS characters and CHUNK_PEOPLE new people, each piece starting
+    # CHUNK_OVERLAP_CHARS before the previous one ended. One AI call per piece (at most
+    # CHUNK_PARALLEL at a time; a failed piece retried CHUNK_PIECE_RETRIES times on its
+    # own), answers combined, then matching and rules once. Shorter documents: one call.
     chunking_enabled: bool = True
-    chunk_above_people: int = Field(default=25, ge=1)
-    chunk_people: int = Field(default=15, ge=1, le=100)
+    chunk_target_chars: int = Field(default=12_000, ge=2_000, le=100_000)
+    chunk_overlap_chars: int = Field(default=1_500, ge=0, le=20_000)
+    chunk_people: int = Field(default=15, ge=1, le=100)  # each person: ~200 answer tokens
+    chunk_max_parts: int = Field(default=40, ge=1, le=200)  # more = document_too_large
     chunk_parallel: int = Field(default=2, ge=1, le=8)
+    chunk_piece_retries: int = Field(default=2, ge=0, le=5)
 
     # --- vision read: photos and scanned timesheets (OFF by default) ---
     # Photos and PDFs without a text layer are read by a vision-language model (e.g. Gemma 4
@@ -156,6 +157,19 @@ class Settings(BaseSettings):
     # An email that fails to be saved this many times (not because the database or
     # Redis is down) is recorded as failed and skipped, so it cannot block the inbox.
     email_max_intake_failures: int = 3
+    # Mark each email as read in the mailbox once it is saved (or ignored / already
+    # seen). Off: the listener never changes the mailbox. A skipped (broken) email is
+    # always left unread, so a person notices it.
+    imap_mark_as_read: bool = False
+
+    # --- "Open in Gmail" links (core-service API) ---
+    # The mailbox address, as in IMAP_USER (the API does not load the IMAP settings).
+    # Empty: no links are shown.
+    mailbox_account: str | None = None
+    # {account} and {message_id} (URL-encoded, without < >) are filled in.
+    mailbox_link_template: str = (
+        "https://mail.google.com/mail/?authuser={account}#search/rfc822msgid%3A{message_id}"
+    )
 
     # --- worker retries (temporary failures: AI model down, database / Redis unreachable) ---
     worker_max_attempts: int = 3  # runs per job, including the first
@@ -186,13 +200,18 @@ class Settings(BaseSettings):
     jev_model: str = "jev-1.13.0"  # pinned: "latest" could change answers silently
     jev_url: str = "https://api.typesafe.ai/v1/systemone"
 
-    # --- tracing (OpenTelemetry) ---
-    # Off by default. In docker compose it is on and traces go to Jaeger
-    # (UI at http://localhost:16686). The state log and step log in PostgreSQL stay the
-    # record of what happened; traces show timings across API -> queue -> worker.
+    # --- OpenTelemetry: logs and traces (src/observability) ---
+    # Logs always go through OpenTelemetry (observability/logging/setup.py). OTEL_ENABLED turns on
+    # traces, so every log line written inside a request or job carries its trace id
+    # (the same id is saved on each step-log row). Nothing leaves the process unless
+    # OTEL_EXPORTER_OTLP_ENDPOINT is set (an OpenTelemetry Collector, Grafana, SigNoz...).
     otel_enabled: bool = False
     otel_service_name: str = "core-service"  # compose sets core-worker / core-email
-    otel_exporter_otlp_endpoint: str = "http://127.0.0.1:4318"  # OTLP over HTTP
+    otel_exporter_otlp_endpoint: str | None = None  # e.g. http://otel-collector:4318
+    otel_logs_console: bool = True  # log records on stdout
+    # stdout format: "text" = a normal log line per record, "json" = one JSON object
+    # per line (for a log shipper reading the container output)
+    otel_logs_format: Literal["text", "json"] = "text"
     otel_sample_ratio: float = Field(default=1.0, ge=0, le=1)  # share of traces kept
 
     # --- sweeper (Celery beat): re-queue work that was lost ---
@@ -208,6 +227,7 @@ class Settings(BaseSettings):
         "llm_fallback_provider",
         "llm_fallback_base_url",
         "llm_fallback_api_key",
+        "otel_exporter_otlp_endpoint",
         mode="before",
     )
     @classmethod

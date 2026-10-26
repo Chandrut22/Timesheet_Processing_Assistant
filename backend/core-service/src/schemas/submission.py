@@ -2,9 +2,11 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
+from src.config.settings import settings
 from src.schemas.review import AuditEventRead
+from src.utils.mail_link import mail_url
 
 
 class DocumentRead(BaseModel):
@@ -25,7 +27,12 @@ class DocumentRead(BaseModel):
     writing_confidence: float | None = None
     has_handwritten_hours: bool = False
     writing_reason: str | None = None
+    # Audit: when, and by which auth-service user (None = the system: a job or the
+    # email listener). Filled by the database layer, never by the client.
     created_at: datetime
+    updated_at: datetime
+    created_by: uuid.UUID | None
+    updated_by: uuid.UUID | None
 
 
 class SubmissionRead(BaseModel):
@@ -46,7 +53,24 @@ class SubmissionRead(BaseModel):
     error: str | None  # plain message; technical details are in the processing log
     attempts: int  # runs of the current job (reset by a reprocess)
     retry_at: datetime | None  # next automatic run after a temporary failure
+    # Audit: when, and by which auth-service user (None = the system: a job or the
+    # email listener). Filled by the database layer, never by the client.
+    created_at: datetime
+    updated_at: datetime
+    created_by: uuid.UUID | None
+    updated_by: uuid.UUID | None
     documents: list[DocumentRead]
+    # Only used to build mail_url; not sent to the browser.
+    message_id: str | None = Field(default=None, exclude=True)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def mail_url(self) -> str | None:
+        """Opens this email in the mailbox (Gmail); None for uploads or when
+        MAILBOX_ACCOUNT is not set."""
+        return mail_url(
+            self.source, self.message_id, settings.mailbox_account, settings.mailbox_link_template
+        )
 
 
 class StateChangeRead(BaseModel):
@@ -74,7 +98,7 @@ class ProcessingStepRead(BaseModel):
     error_details: str | None
     duration_ms: int
     reprocess_run_id: uuid.UUID | None  # set on steps written during a reprocess
-    trace_id: str | None  # OpenTelemetry trace (open in Jaeger); None when tracing is off
+    trace_id: str | None  # OpenTelemetry trace: search the logs by it; None when tracing is off
     created_at: datetime
 
 

@@ -17,7 +17,7 @@ from src.core.services.version_history import (
     take_snapshot,
 )
 from src.data.models import Timesheet, TimesheetEntry, TimesheetVersion
-from src.data.models.timesheet_entry import EntryList, check_entries
+from src.data.models.postgres.timesheet_entry import EntryList, check_entries
 
 MON = date(2026, 10, 12)
 TUE = date(2026, 10, 13)
@@ -56,6 +56,13 @@ class FakeSession:
 
     def add(self, obj: object) -> None:
         self.added.append(obj)
+
+    async def scalar(self, statement: object) -> object:
+        """The highest version number kept (max query); no row for the current one."""
+        if "max(" in str(statement).lower():
+            numbers = [v.version for v in self.added if isinstance(v, TimesheetVersion)]
+            return max(numbers, default=None)
+        return None
 
 
 # --- entries as JSONB --------------------------------------------------------------------
@@ -123,16 +130,17 @@ def test_only_data_changes_count() -> None:
     assert data_changed(before, take_snapshot(timesheet))
 
 
-def test_save_version_keeps_the_old_data_and_bumps_the_version() -> None:
+async def test_save_version_keeps_the_old_data_and_bumps_the_version() -> None:
     session = FakeSession()
     timesheet = sheet()
     before = take_snapshot(timesheet)
 
-    assert save_version(session, timesheet, before, TimesheetChange.RECALCULATED) is None  # type: ignore[arg-type]
+    unchanged = await save_version(session, timesheet, before, TimesheetChange.RECALCULATED)  # type: ignore[arg-type]
+    assert unchanged is None
     assert timesheet.version == 1 and session.added == []
 
     timesheet.entries = [day(MON, "4")]
-    saved = save_version(
+    saved = await save_version(
         session,  # type: ignore[arg-type]
         timesheet,
         before,
@@ -144,7 +152,7 @@ def test_save_version_keeps_the_old_data_and_bumps_the_version() -> None:
     assert saved.snapshot == before
     assert timesheet.version == 2
 
-    forced = save_version(
+    forced = await save_version(
         session,  # type: ignore[arg-type]
         timesheet,
         take_snapshot(timesheet),

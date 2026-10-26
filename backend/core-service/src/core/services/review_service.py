@@ -35,7 +35,7 @@ from src.core.services.timesheet_validation import (
     other_paid_timesheet,
     validate_duplicates,
 )
-from src.core.services.version_history import restore_snapshot, save_version, take_snapshot
+from src.core.services.version_history import save_version, switch_to_version, take_snapshot
 from src.data.models import Company, Document, Employee, Timesheet, TimesheetEntry, TimesheetVersion
 from src.data.repositories.holiday_repository import HolidayRepository
 from src.schemas.review import BulkItemResult, BulkResult, EntriesUpdate
@@ -51,6 +51,7 @@ ENTRY_FLAG_CODES = frozenset(
         "no_entries",
         "total_mismatch",
         "conflicting_hours",
+        "overlap_disagreement",  # the reviewer has checked the days against the original
         # A weekly-total timesheet becomes a normal one once the reviewer enters days.
         WEEKLY_TOTAL_FLAG,
         WEEK_ASSUMED_FLAG,
@@ -58,6 +59,23 @@ ENTRY_FLAG_CODES = frozenset(
 )
 # Company flags raised at extraction: settled once a reviewer picks the employee.
 COMPANY_FLAG_CODES = frozenset({"company_mismatch", "company_from_sheet", "company_guessed"})
+
+
+async def _new_version_if_asked(
+    session: AsyncSession,
+    timesheet: Timesheet,
+    before: dict[str, Any],
+    change: TimesheetChange,
+    actor: Principal,
+    asked: bool,
+) -> bool:
+    """A reviewer's edit is saved in the current version. Only when they click "Create
+    as new version" is the timesheet as it was kept as a version (this becomes the
+    next one). A reprocess always makes a version (reprocess.py)."""
+    if not asked:
+        return False
+    await save_version(session, timesheet, before, change, actor=actor, force=True)
+    return True
 
 
 def _totals(timesheet: Timesheet) -> dict[str, float | None]:
@@ -201,7 +219,9 @@ class ReviewService:
         _refresh_entry_flags(timesheet)
         await self._recompute(timesheet)
         self._back_to_review(timesheet)
-        save_version(self.session, timesheet, snap, TimesheetChange.ENTRIES_EDITED, actor=actor)
+        made = await _new_version_if_asked(
+            self.session, timesheet, snap, TimesheetChange.ENTRIES_EDITED, actor, data.new_version
+        )
 
         record_event(
             self.session,
@@ -209,7 +229,13 @@ class ReviewService:
             entity_id=timesheet.id,
             action="entries_edited",
             actor=actor,
-            details={"before": before, "after": _totals(timesheet), "days": len(data.entries)},
+            details={
+                "before": before,
+                "after": _totals(timesheet),
+                "days": len(data.entries),
+                "version": timesheet.version,
+                "new_version": made,
+            },
         )
         return await self._save(timesheet, actor)
 
@@ -218,7 +244,6 @@ class ReviewService:
     ) -> Timesheet:
         timesheet = await self._get(timesheet_id)
         self._ensure_editable(timesheet)
-        snap = take_snapshot(timesheet)
 
         employee = await self.session.get(Employee, employee_id)
         if employee is None or not employee.is_active:
@@ -237,8 +262,7 @@ class ReviewService:
         ]
         apply_match(timesheet, MatchResult(employee.id, "manual"), matched=to_record(employee))
         await self._recompute(timesheet)
-        self._back_to_review(timesheet)
-        save_version(self.session, timesheet, snap, TimesheetChange.EMPLOYEE_MATCHED, actor=actor)
+        self._back_to_review(timesheet)  # saved in the current version
 
         record_event(
             self.session,
@@ -251,7 +275,12 @@ class ReviewService:
         return await self._save(timesheet, actor)
 
     async def set_week(
-        self, timesheet_id: uuid.UUID, week_start: date, actor: Principal
+        self,
+        timesheet_id: uuid.UUID,
+        week_start: date,
+        actor: Principal,
+        *,
+        new_version: bool = False,
     ) -> Timesheet:
         """Move a weekly-total timesheet (no days) to another week, e.g. when the week
         was assumed. A timesheet with days moves with its days (update_entries)."""
@@ -277,14 +306,21 @@ class ReviewService:
         ]  # the reviewer chose it: no longer an assumption
         await self._recompute(timesheet)  # pay, and the duplicate check for the new week
         self._back_to_review(timesheet)
-        save_version(self.session, timesheet, snap, TimesheetChange.WEEK_CHANGED, actor=actor)
+        made = await _new_version_if_asked(
+            self.session, timesheet, snap, TimesheetChange.WEEK_CHANGED, actor, new_version
+        )
         record_event(
             self.session,
             entity_type="timesheet",
             entity_id=timesheet.id,
             action="week_changed",
             actor=actor,
-            details={"before": str(before) if before else None, "after": str(week_start)},
+            details={
+                "before": str(before) if before else None,
+                "after": str(week_start),
+                "version": timesheet.version,
+                "new_version": made,
+            },
         )
         return await self._save(timesheet, actor)
 
@@ -295,13 +331,10 @@ class ReviewService:
         timesheet = await self._get(timesheet_id)
         self._ensure_editable(timesheet)
         before = _totals(timesheet)
-        snap = take_snapshot(timesheet)
-        await self._recompute(timesheet)
+        await self._recompute(timesheet)  # saved in the current version
         after = _totals(timesheet)
         if after != before:
             self._back_to_review(timesheet)
-        # A version only when something really changed (pay, flags, holidays).
-        save_version(self.session, timesheet, snap, TimesheetChange.RECALCULATED, actor=actor)
 
         record_event(
             self.session,
@@ -416,18 +449,18 @@ class ReviewService:
     async def restore_version(
         self, timesheet_id: uuid.UUID, number: int, reason: str | None, actor: Principal
     ) -> Timesheet:
-        """Roll back: the timesheet gets version `number`'s days, employee, week, pay and
-        flags again, as a NEW version (nothing is lost, the rollback can be undone), and
-        goes back to review. Not possible once exported to payroll."""
+        """Go back to version `number`: the timesheet gets its days, employee, week, pay
+        and flags, and its number (no new version is made). What it had is kept under
+        its own number, so you can switch back. It goes back to review. Not possible
+        once exported to payroll."""
         timesheet = await self._get(timesheet_id)
         self._ensure_editable(timesheet)
         if number == timesheet.version:
             raise ConflictError(f"Version {number} is already the current version.")
         saved = await self.version(timesheet_id, number)
         current = timesheet.version
-        snap = take_snapshot(timesheet)
 
-        restore_snapshot(timesheet, saved.snapshot)
+        await switch_to_version(self.session, timesheet, saved, actor=actor, reason=reason)
         timesheet.status = TimesheetStatus.NEEDS_REVIEW  # a person checks the restored data
         timesheet.reviewed_by_id = None
         timesheet.reviewed_by_name = None
@@ -441,15 +474,6 @@ class ReviewService:
             else None
         )
         await validate_duplicates(self.session, timesheet, document)
-        save_version(
-            self.session,
-            timesheet,
-            snap,
-            TimesheetChange.ROLLED_BACK,
-            actor=actor,
-            reason=reason,
-            force=True,
-        )
         record_event(
             self.session,
             entity_type="timesheet",
@@ -459,7 +483,6 @@ class ReviewService:
             details={
                 "restored_version": number,
                 "from_version": current,
-                "new_version": timesheet.version,
                 "reason": reason,
             },
         )

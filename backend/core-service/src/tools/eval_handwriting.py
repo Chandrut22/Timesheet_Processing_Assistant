@@ -40,7 +40,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from src.config.settings import settings
-from src.data.clients.vision_reader import VisionResult, read_with_vision
+from src.handlers.http_clients.vision_reader import VisionResult, read_with_vision
 from src.schemas.extraction import ExtractionResult
 
 SUPPORTED = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp", ".pdf"}
@@ -285,7 +285,7 @@ def _cell(text: str) -> str:
 
 def configure(model: str | None, base_url: str | None) -> None:
     """Point the vision reader at the model under test (this process only)."""
-    from src.data.clients.llm import get_vision_model
+    from src.handlers.http_clients.llm import get_vision_model
 
     if model:
         settings.vision_model = model
