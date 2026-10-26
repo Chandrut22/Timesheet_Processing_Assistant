@@ -4,10 +4,10 @@ from typing import TYPE_CHECKING
 from sqlalchemy import CheckConstraint, String, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.data.models.base import Base
+from src.data.models.postgres.base import Base
 
 if TYPE_CHECKING:  # only for type hints; avoids a circular import at runtime
-    from src.data.models.user import User
+    from src.data.models.postgres.user import User
 
 
 class Role(Base):

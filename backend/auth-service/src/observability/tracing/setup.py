@@ -1,7 +1,9 @@
 """OpenTelemetry tracing for auth-service: one span per request, plus SQL and Redis.
 
-Off unless OTEL_ENABLED=true. Spans are sent in the background; if Jaeger is down they
-are dropped and sign-in is never slowed down. Request spans keep the path but not the
+Off unless OTEL_ENABLED=true. When on, log records written inside a request carry its
+trace id (observability/logging/setup.py). Spans leave the process only when OTEL_EXPORTER_OTLP_ENDPOINT
+is set (an OpenTelemetry Collector); if it is down they are dropped and sign-in is never
+slowed down. Request spans keep the path but not the
 query string, and never carry passwords, tokens or request bodies."""
 
 import logging
@@ -40,7 +42,7 @@ def setup_tracing(
     global _provider
     if (not settings.otel_enabled and processor is None) or _provider is not None:
         return _provider is not None
-    if processor is None:
+    if processor is None and settings.otel_exporter_otlp_endpoint:
         from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
             OTLPSpanExporter,
         )
@@ -57,7 +59,8 @@ def setup_tracing(
         ),
         sampler=ParentBased(TraceIdRatioBased(settings.otel_sample_ratio)),
     )
-    _provider.add_span_processor(processor)
+    if processor is not None:  # None: no endpoint, trace ids in logs only
+        _provider.add_span_processor(processor)
     trace.set_tracer_provider(_provider)
     try:
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -78,7 +81,7 @@ def setup_tracing(
     logger.info(
         "Tracing on: %s -> %s",
         settings.otel_service_name,
-        settings.otel_exporter_otlp_endpoint,
+        settings.otel_exporter_otlp_endpoint or "trace ids in logs only (no endpoint)",
     )
     return True
 

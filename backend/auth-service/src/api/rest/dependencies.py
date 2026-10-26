@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants.roles import RoleName
 from src.core.security import InvalidTokenError, decode_access_token, user_id_from
+from src.data.actor import current_actor
 from src.data.clients.postgres import get_session
 from src.data.clients.redis import get_redis
 from src.data.models import User
@@ -58,6 +59,8 @@ async def get_current_user(
     # Checked on every request, so a deactivated user is locked out at once.
     if user is None or not user.is_active:
         raise UNAUTHORIZED
+    # Rows this request creates or changes record this user (created_by / updated_by).
+    current_actor.set(user.id)
     return user
 
 

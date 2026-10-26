@@ -1,6 +1,6 @@
 """Startup seed: the rows the app cannot work without.
 
-Runs every time the server starts (see lifespan in main.py). Safe to repeat:
+Runs every time the server starts (see lifespan in api/rest/app.py). Safe to repeat:
 existing rows are left alone, and two servers starting together cannot
 create duplicates (the database's unique constraints decide).
 

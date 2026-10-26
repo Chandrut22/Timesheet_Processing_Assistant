@@ -1,6 +1,7 @@
 from pathlib import Path
+from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -32,17 +33,13 @@ class Settings(BaseSettings):
     ]
 
     # --- rate limiting (src/api/middleware/rate_limit.py) ---
-    # "requests/window_seconds" per route class. strict = sign-in, refresh and password
-    # endpoints, always per IP; the others per signed-in user (or per IP when anonymous).
+    # One limit for every endpoint: RATE_LIMIT requests ("requests/window_seconds") per
+    # client IP, shared with core-service (same Redis counter). The IP is the X-Real-IP header
+    # nginx sets (else the socket address). Health checks are never counted.
     rate_limit_enabled: bool = True
     rate_limit_fail_open: bool = True  # Redis down: let requests through (False: 503)
-    rate_limit_strict: str = Field(default="10/60", pattern=r"^\d+/\d+$")
-    rate_limit_upload: str = Field(default="20/60", pattern=r"^\d+/\d+$")
-    rate_limit_default: str = Field(default="300/60", pattern=r"^\d+/\d+$")
+    rate_limit: str = Field(default="100/60", pattern=r"^\d+/\d+$")
     rate_limit_exempt_paths: list[str] = ["/health", "/health/db"]
-    # How many proxies in front of the API we trust to write X-Forwarded-For (nginx = 1).
-    # 0 = always use the socket address (set 0 when clients reach the API directly).
-    trusted_proxy_hops: int = Field(default=1, ge=0, le=5)
 
     # --- Bulk import of users (POST /users/import) ---------------------------
     max_import_mb: int = Field(default=5, ge=1, le=50)  # largest file accepted
@@ -84,12 +81,25 @@ class Settings(BaseSettings):
     # True in production (HTTPS). Set REFRESH_COOKIE_SECURE=false for local http.
     refresh_cookie_secure: bool = True
 
-    # --- Tracing (OpenTelemetry) -----------------------------------------------
-    # Off by default; on in docker compose (traces go to Jaeger, UI on port 16686).
+    # --- Logs and traces (OpenTelemetry, src/observability) ----------------------
+    # Logs always go through OpenTelemetry (observability/logging/setup.py). OTEL_ENABLED turns on
+    # traces, so log lines written inside a request carry its trace id. Nothing leaves
+    # the process unless OTEL_EXPORTER_OTLP_ENDPOINT is set (an OpenTelemetry Collector).
+    log_level: str = "INFO"
     otel_enabled: bool = False
     otel_service_name: str = "auth-service"
-    otel_exporter_otlp_endpoint: str = "http://127.0.0.1:4318"  # OTLP over HTTP
+    otel_exporter_otlp_endpoint: str | None = None  # e.g. http://otel-collector:4318
+    otel_logs_console: bool = True  # log records on stdout
+    # stdout format: "text" = a normal log line per record, "json" = one JSON object
+    # per line (for a log shipper reading the container output)
+    otel_logs_format: Literal["text", "json"] = "text"
     otel_sample_ratio: float = Field(default=1.0, ge=0, le=1)
+
+    @field_validator("otel_exporter_otlp_endpoint", mode="before")
+    @classmethod
+    def blank_endpoint_is_unset(cls, value: object) -> object:
+        """OTEL_EXPORTER_OTLP_ENDPOINT= (blank) in .env means "do not send"."""
+        return None if isinstance(value, str) and not value.strip() else value
 
     # --- Redis (password-reset codes and lockouts) ---------------------------
     redis_url: str = (

@@ -10,7 +10,6 @@ import openpyxl
 import pytest
 from sqlalchemy import select, text
 
-from src.api.middleware.rate_limit import route_class
 from src.api.rest.routes import users as users_routes
 from src.config.settings import settings
 from src.core.security import create_access_token, hash_password, verify_password
@@ -265,8 +264,3 @@ async def test_committed_import_is_logged_without_passwords(
     assert len(lines) == 1
     assert str(admin.id) in lines[0] and "created=1" in lines[0]
     assert "Secret-pass-9" not in caplog.text
-
-
-def test_import_counts_as_an_upload_for_rate_limits() -> None:
-    assert route_class("/users/import") == "upload"
-    assert route_class("/users/import/template") == "upload"

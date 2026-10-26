@@ -18,7 +18,11 @@ class UserRead(BaseModel):
     role: str
     is_active: bool
     last_login_at: datetime | None
+    # Audit: when, and by which user (None = the system, e.g. the seed script).
     created_at: datetime
+    updated_at: datetime
+    created_by: uuid.UUID | None
+    updated_by: uuid.UUID | None
 
     @classmethod
     def from_user(cls, user: User) -> "UserRead":
@@ -30,6 +34,9 @@ class UserRead(BaseModel):
             is_active=user.is_active,
             last_login_at=user.last_login_at,
             created_at=user.created_at,
+            updated_at=user.updated_at,
+            created_by=user.created_by,
+            updated_by=user.updated_by,
         )
 
 

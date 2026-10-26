@@ -25,6 +25,7 @@ from src.config.settings import settings
 from src.core.exceptions import TooManyRequestsError, ValidationFailedError
 from src.core.security import hash_password
 from src.core.services.email_service import send_email
+from src.data.actor import current_actor
 from src.data.repositories.user_repository import UserRepository
 
 logger = logging.getLogger(__name__)
@@ -149,6 +150,7 @@ class PasswordResetService:
             )
 
         user.password_hash = hash_password(new_password)
+        current_actor.set(user.id)  # the user changed their own row (updated_by)
         await self.session.commit()
         await self.redis.delete(keys["otp"], keys["attempts"])  # one code, one use
 

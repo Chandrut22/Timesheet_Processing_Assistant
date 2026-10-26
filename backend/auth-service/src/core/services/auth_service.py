@@ -14,8 +14,10 @@ from src.core.security import (
     user_id_from,
     verify_password,
 )
+from src.data.actor import current_actor
 from src.data.models import User
 from src.data.repositories.user_repository import UserRepository
+from src.observability.metrics.instruments import logins
 from src.schemas.auth import TokenResponse
 
 
@@ -57,10 +59,13 @@ class AuthService:
         # Always verify (even when the user is missing) to keep timing equal.
         password_ok = verify_password(password, user.password_hash if user else None)
         if user is None or not password_ok or not user.is_active:
+            logins.add(1, {"result": "failed"})
             raise InvalidCredentialsError
 
         user.last_login_at = datetime.now(UTC)
+        current_actor.set(user.id)  # the user changed their own row (updated_by)
         await self.session.commit()
+        logins.add(1, {"result": "success"})
         return _issue(user)
 
     async def refresh(self, refresh_token: str | None) -> IssuedTokens:
