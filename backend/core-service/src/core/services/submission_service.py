@@ -4,7 +4,10 @@ Nothing is deleted: the worker extracts, matches and checks the document(s) agai
 with the CURRENT master data (employees, aliases, rates, holidays) and updates the
 existing timesheets in place; what they were before is kept in timesheet_versions.
 Approvals are cleared when the reprocess starts (given back if it cannot start).
-Files are read once; a reprocess uses the text saved from the first read."""
+Files are read once; a reprocess uses the text saved from the first read. When that
+text is missing (a file failed or expired, or the email was ignored) the worker first
+fetches the email again from the mailbox (pipeline/fetching.py); refetch=True asks for
+that even when the text is there."""
 
 import uuid
 from collections.abc import Sequence
@@ -15,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants.timesheet_status import (
     DocumentStatus,
+    RefetchMode,
     ReprocessStatus,
     SubmissionSource,
     SubmissionState,
@@ -31,6 +35,7 @@ from src.core.exceptions import (
 from src.core.rbac.principal import Principal
 from src.core.services.activity_log import set_state
 from src.core.services.audit import record_event
+from src.core.services.pipeline.fetching import blocker, needs_refetch
 from src.core.services.reprocess import finish_run, snapshot
 from src.core.services.sweeper import is_stuck
 from src.data.models import Document, ReprocessRun, Submission, Timesheet
@@ -49,6 +54,22 @@ class SubmissionService:
             raise NotFoundError("Submission not found.")
         return submission
 
+    async def _refetch_mode(
+        self, submission: Submission, documents: Sequence[Document], asked: bool | None
+    ) -> RefetchMode | None:
+        """Fetch the email again from the mailbox? asked=None: only when the saved text is
+        not enough and the mailbox can be used; True: always (409 when it can't)."""
+        if asked is False:
+            return None
+        cannot = blocker(submission)
+        if asked:
+            if cannot is not None:
+                raise ConflictError(cannot)
+            return RefetchMode.ALL
+        if cannot is None and await needs_refetch(submission, documents):
+            return RefetchMode.MISSING
+        return None
+
     async def runs(self, submission_id: uuid.UUID) -> Sequence[ReprocessRun]:
         if await self.session.get(Submission, submission_id) is None:
             raise NotFoundError("Submission not found.")
@@ -66,6 +87,7 @@ class SubmissionService:
         actor: Principal,
         *,
         document_id: uuid.UUID | None = None,
+        refetch: bool | None = None,
         confirm_approved: bool = False,
     ) -> ReprocessRun:
         reason = reason.strip()
@@ -80,13 +102,6 @@ class SubmissionService:
             SubmissionStatus.PROCESSING,
         ) and not is_stuck(submission, datetime.now(UTC)):
             raise ConflictError("This email is already queued or being processed. Try again later.")
-        if submission.status == SubmissionStatus.IGNORED:
-            raise ConflictError(
-                "This email was ignored when it arrived "
-                f"({submission.state_reason or 'sender not accepted'}), so its attachments "
-                "were never saved. Fix the cause (e.g. add the sender to the whitelist) and "
-                "ask the sender to send it again."
-            )
         running = await self.session.scalar(
             select(ReprocessRun.id).where(
                 ReprocessRun.submission_id == submission_id,
@@ -101,19 +116,39 @@ class SubmissionService:
             documents = [d for d in documents if d.id == document_id]
             if not documents:
                 raise NotFoundError("Attachment not found in this email.")
-            if documents[0].status != DocumentStatus.PARSED:
+        mode = await self._refetch_mode(submission, documents, refetch)
+        cannot = blocker(submission)
+
+        if submission.status == SubmissionStatus.IGNORED:
+            if mode is None:
                 raise ConflictError(
-                    f"'{documents[0].filename}' was never read successfully "
-                    f"({documents[0].error or documents[0].status}), and the file is no longer "
-                    "stored. Ask the sender for a new copy or upload it again."
+                    "This email was ignored when it arrived "
+                    f"({submission.state_reason or 'sender not accepted'}), so its "
+                    f"attachments were never saved. {cannot or ''}".strip()
                 )
+            if not submission.sender_email or (
+                await WhitelistRepository(self.session).find_company_id_for_sender(
+                    submission.sender_email
+                )
+                is None
+            ):
+                raise ConflictError(
+                    f"The sender ({submission.sender_email or 'unknown'}) is still not on any "
+                    "company's whitelist. Add them first, then reprocess."
+                )
+        if document_id is not None and documents[0].status != DocumentStatus.PARSED and not mode:
+            raise ConflictError(
+                f"'{documents[0].filename}' was never read successfully "
+                f"({documents[0].error or documents[0].status}), and the file is no longer "
+                f"stored. {cannot or 'Upload it again.'}"
+            )
         readable = [
             d for d in documents if d.status in (DocumentStatus.PARSED, DocumentStatus.PENDING)
         ]
-        if not readable:
+        if not readable and not mode:
             raise ConflictError(
                 "Nothing to reprocess: no attachment of this email could be read, and the files "
-                "are no longer stored. Ask the sender for new copies or upload them again."
+                f"are no longer stored. {cannot or 'Upload them again.'}"
             )
 
         # --- the timesheets being redone ----------------------------------------------
@@ -146,6 +181,7 @@ class SubmissionService:
             submission_id=submission.id,
             document_id=document_id,
             reason=reason,
+            refetch=mode.value if mode else None,
             requested_by_id=actor.id,
             requested_by_name=actor.name,
             status=ReprocessStatus.RUNNING,
@@ -189,6 +225,7 @@ class SubmissionService:
                 "reprocess_run_id": str(run.id),
                 "reason": reason,
                 "document_id": str(document_id) if document_id else None,
+                "refetch": mode.value if mode else None,
                 "timesheets": [str(t.id) for t in current],
                 "approvals_cleared": [str(t.id) for t in approved],
                 "company_changed": submission.company_id != company_before,

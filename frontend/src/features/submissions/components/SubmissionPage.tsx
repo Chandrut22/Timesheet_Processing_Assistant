@@ -2,10 +2,14 @@ import { getRouteApi, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { isApiError } from "@/services/apiErrors";
 import type { SubmissionRead } from "../types/submission";
 import {
   FlagBadges,
+  MatchAction,
+  MatchEmployeeDialog,
+  nextUnmatched,
   SeverityDot,
   TimesheetStatusBadge,
   timesheetEmployeeName,
@@ -91,6 +95,12 @@ export function SubmissionPage() {
   });
   const companies = useCompanyMap();
   const employees = useEmployeeMap((timesheets.data?.items ?? []).map((t) => t.company_id));
+
+  // "Match employee" on a timesheet of this submission (followed by id across refreshes).
+  const [matchingId, setMatchingId] = useState<string | null>(null);
+  const tsItems = timesheets.data?.items ?? [];
+  const matching = matchingId ? tsItems.find((t) => t.id === matchingId) : undefined;
+  const matchNext = matching ? nextUnmatched(tsItems, matching.id) : null;
 
   // Polling stops the moment the timeline says processing is done, and the last
   // timesheet fetch can be up to 3 s older than that. Fetch once more on the
@@ -222,7 +232,7 @@ export function SubmissionPage() {
                   {timesheets.data.items.map((t) => {
                     const e = timesheetEmployeeName(t, employees);
                     return (
-                      <TableRow key={t.id}>
+                      <TableRow key={t.id} className="group">
                         <TableCell>
                           <SeverityDot severity={t.severity} />
                         </TableCell>
@@ -232,11 +242,24 @@ export function SubmissionPage() {
                             params={{ timesheetId: t.id }}
                             className="font-medium hover:underline"
                           >
-                            {e.matched ? e.name : `Unmatched: «${e.name}»`}
+                            {e.matched ? (
+                              e.name
+                            ) : (
+                              <span className="text-amber-800">Unmatched: «{e.name}»</span>
+                            )}
                           </Link>
                           {t.version > 1 ? (
                             <span className="ml-1 text-xs text-muted-foreground">v{t.version}</span>
                           ) : null}
+                          {e.code ? (
+                            <span className="block text-xs text-muted-foreground">{e.code}</span>
+                          ) : null}
+                          <MatchAction
+                            t={t}
+                            name={e.name}
+                            onMatch={() => setMatchingId(t.id)}
+                            disabled={busy}
+                          />
                         </TableCell>
                         <TableCell>{formatWeek(t.week_start)}</TableCell>
                         <TableCell className="tabular text-right">
@@ -338,6 +361,24 @@ export function SubmissionPage() {
       </div>
 
       <ReprocessDialog submission={s} open={reprocessOpen} onOpenChange={setReprocessOpen} />
+      {matching ? (
+        <MatchEmployeeDialog
+          key={matching.id}
+          t={matching}
+          open
+          onOpenChange={(o) => {
+            if (!o) setMatchingId(null);
+          }}
+          onMatchNext={() => {
+            if (matchNext) {
+              setMatchingId(matchNext.id);
+            } else {
+              setMatchingId(null);
+              toast.success("All unmatched timesheets in this submission are done.");
+            }
+          }}
+        />
+      ) : null}
     </>
   );
 }

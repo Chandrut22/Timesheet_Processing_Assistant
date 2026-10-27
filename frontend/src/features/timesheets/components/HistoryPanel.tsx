@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { JsonBlock } from "@/components/common/JsonBlock";
+// import { JsonBlock } from "@/components/common/JsonBlock";
 import { ErrorState } from "@/components/common/States";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -47,7 +47,7 @@ export function HistoryPanel({
                   {Object.keys(e.details ?? {}).length > 0 ? (
                     <details className="mt-1">
                       <summary className="cursor-pointer text-xs text-primary">Details</summary>
-                      <JsonBlock value={e.details} className="mt-1" />
+                      {/* <JsonBlock value={e.details} className="mt-1" /> */}
                     </details>
                   ) : null}
                 </li>

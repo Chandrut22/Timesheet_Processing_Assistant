@@ -55,6 +55,7 @@ class StepName(StrEnum):
     """One row in the step-by-step log."""
 
     COLLECT = "collect"
+    FETCH = "fetch"  # a reprocess fetched the email again from the mailbox
     READ = "read"
     CLASSIFY = "classify"  # optional: is the document a timesheet? (attachment classifier)
     EXTRACT = "extract"
@@ -90,3 +91,11 @@ class ReprocessStatus(StrEnum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+
+
+class RefetchMode(StrEnum):
+    """What a reprocess fetches again from the mailbox (reprocess_runs.refetch; NULL =
+    nothing: the saved text is used)."""
+
+    MISSING = "missing"  # only the files no longer stored (failed, expired, ignored email)
+    ALL = "all"  # every attachment in scope is read again from the original email

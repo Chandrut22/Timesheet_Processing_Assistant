@@ -1,7 +1,19 @@
 import uuid
 from datetime import date
 
-from sqlalchemy import CheckConstraint, Date, ForeignKey, String, UniqueConstraint, Uuid, text, true
+from sqlalchemy import (
+    CheckConstraint,
+    Computed,
+    Date,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+    Uuid,
+    text,
+    true,
+)
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,6 +31,13 @@ class Employee(UUIDPrimaryKeyMixin, AuditMixin, Base):
             "assignment_end IS NULL OR assignment_start IS NULL "
             "OR assignment_end >= assignment_start",
             name="assignment_dates",
+        ),
+        # Close spellings (pg_trgm): see name_keys.
+        Index(
+            "ix_employees_name_keys_trgm",
+            "name_keys",
+            postgresql_using="gin",
+            postgresql_ops={"name_keys": "gin_trgm_ops"},
         ),
     )
 
@@ -38,6 +57,13 @@ class Employee(UUIDPrimaryKeyMixin, AuditMixin, Base):
     assignment_start: Mapped[date | None] = mapped_column(Date)
     assignment_end: Mapped[date | None] = mapped_column(Date)
     is_active: Mapped[bool] = mapped_column(default=True, server_default=true())
+    # Every name (full name + aliases) cleaned for fuzzy search: lowercase, no accents,
+    # punctuation as spaces ("john smith bob"). Postgres computes it on every insert /
+    # update (a generated column, see migration c4d8a2e6f0b3): never set it in code.
+    name_keys: Mapped[str | None] = mapped_column(
+        Text,
+        Computed("core.employee_name_keys(full_name, aliases::text[])", persisted=True),
+    )
 
     def __repr__(self) -> str:
         return f"<Employee {self.employee_code} {self.full_name}>"

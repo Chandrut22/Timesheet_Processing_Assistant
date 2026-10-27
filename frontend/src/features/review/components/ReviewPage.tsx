@@ -2,11 +2,15 @@ import { getRouteApi, Link } from "@tanstack/react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { SlidersHorizontal, RotateCcw } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   TIMESHEET_STATUSES,
   type TimesheetRead,
   type TimesheetSort,
   FlagBadges,
+  MatchAction,
+  MatchEmployeeDialog,
+  nextUnmatched,
   SeverityDot,
   TimesheetStatusBadge,
   timesheetCompanyName,
@@ -100,6 +104,12 @@ export function ReviewQueuePage() {
       else next.add(id);
       return next;
     });
+
+  // "Match employee" on a row. The dialog follows the row by id, so the list refreshing
+  // after a match never closes it on the wrong timesheet.
+  const [matchingId, setMatchingId] = useState<string | null>(null);
+  const matching = matchingId ? items.find((t) => t.id === matchingId) : undefined;
+  const matchNext = matching ? nextUnmatched(items, matching.id) : null;
 
   const labelFor = (id: string) => {
     const t = items.find((x) => x.id === id);
@@ -370,6 +380,7 @@ export function ReviewQueuePage() {
                     onToggle={() => toggle(t.id)}
                     employee={timesheetEmployeeName(t, employees)}
                     company={timesheetCompanyName(t, companies)}
+                    onMatch={() => setMatchingId(t.id)}
                   />
                 ))}
               </TableBody>
@@ -385,6 +396,25 @@ export function ReviewQueuePage() {
       </Card>
 
       <BulkBar selected={[...selected]} labelFor={labelFor} onDone={() => setSelected(new Set())} />
+
+      {matching ? (
+        <MatchEmployeeDialog
+          key={matching.id}
+          t={matching}
+          open
+          onOpenChange={(o) => {
+            if (!o) setMatchingId(null);
+          }}
+          onMatchNext={() => {
+            if (matchNext) {
+              setMatchingId(matchNext.id);
+            } else {
+              setMatchingId(null);
+              toast.success("All unmatched timesheets on this page are done.");
+            }
+          }}
+        />
+      ) : null}
     </>
   );
 }
@@ -396,6 +426,7 @@ function QueueRow({
   onToggle,
   employee,
   company,
+  onMatch,
 }: {
   t: TimesheetRead;
   selected: boolean;
@@ -403,9 +434,10 @@ function QueueRow({
   onToggle: () => void;
   employee: { name: string; matched: boolean; code: string | null };
   company: string;
+  onMatch: () => void;
 }) {
   return (
-    <TableRow data-state={selected ? "selected" : undefined}>
+    <TableRow className="group" data-state={selected ? "selected" : undefined}>
       <TableCell>
         <Checkbox
           aria-label={`Select ${employee.name}`}
@@ -432,6 +464,7 @@ function QueueRow({
         {employee.code ? (
           <span className="text-xs text-muted-foreground">{employee.code}</span>
         ) : null}
+        <MatchAction t={t} name={employee.name} onMatch={onMatch} />
       </TableCell>
       <TableCell className="max-w-48 truncate">{company}</TableCell>
       <TableCell>{formatWeek(t.week_start)}</TableCell>

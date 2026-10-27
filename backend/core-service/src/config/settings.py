@@ -138,6 +138,19 @@ class Settings(BaseSettings):
     auto_approve_enabled: bool = True
     auto_approve_min_confidence: float = 0.85
 
+    # --- employee matching: close spellings (pg_trgm finds, difflib decides) ---
+    # When no exact rule fits (code, name, alias, word order, initial + surname), Postgres
+    # (pg_trgm) shortlists names at least MATCH_TRGM_MIN_SIMILARITY alike (low on purpose:
+    # trigrams score short typos low), then difflib scores the spelling. A close spelling
+    # is SUGGESTED (method "fuzzy", confidence 0.75: always reviewed, never auto-approved)
+    # only when its spelling score is >= MATCH_FUZZY_ACCEPT, it leads the next employee by
+    # >= MATCH_FUZZY_MARGIN and pg_trgm ranks the same employee first. With no company
+    # known, close names from every company are listed as suggestions only.
+    match_fuzzy_enabled: bool = True
+    match_trgm_min_similarity: float = Field(default=0.2, ge=0.05, le=1)
+    match_fuzzy_accept: float = Field(default=0.85, ge=0.5, le=1)
+    match_fuzzy_margin: float = Field(default=0.10, ge=0, le=1)
+
     # --- email listener (IMAP): only the core-email container uses these ---
     email_enabled: bool = False
     imap_host: str | None = None  # imap.gmail.com
@@ -161,6 +174,19 @@ class Settings(BaseSettings):
     # seen). Off: the listener never changes the mailbox. A skipped (broken) email is
     # always left unread, so a person notices it.
     imap_mark_as_read: bool = False
+    # Dashboard "Check mail now" (core-service API): the least time between two manual
+    # checks (for everyone together), and how old the listener's heartbeat may be before
+    # the listener counts as not running.
+    email_manual_check_cooldown_seconds: int = Field(default=30, ge=5, le=3600)
+    email_listener_stale_seconds: int = Field(default=300, ge=60)
+    # Reprocess can fetch an email again from the mailbox (by its Message-ID) when its
+    # files are no longer stored: an attachment that failed or expired, or an email that
+    # was ignored. The worker searches IMAP_FOLDER, then these folders (Gmail keeps
+    # archived mail in "[Gmail]/All Mail"; a folder the server does not have is skipped).
+    # Read-only: nothing in the mailbox changes. In .env as JSON, e.g.
+    # IMAP_REFETCH_FOLDERS=["[Gmail]/All Mail"]
+    email_refetch_enabled: bool = True
+    imap_refetch_folders: list[str] = ["[Gmail]/All Mail"]
 
     # --- "Open in Gmail" links (core-service API) ---
     # The mailbox address, as in IMAP_USER (the API does not load the IMAP settings).

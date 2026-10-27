@@ -77,6 +77,9 @@ export const SubmissionReadSchema = z.object({
   // Opens the original email in the mailbox (Gmail); null for uploads or when links
   // are turned off (MAILBOX_ACCOUNT not set). Optional: older servers do not send it.
   mail_url: z.string().url().nullish(),
+  // Why Reprocess cannot fetch this email again from the mailbox; null = it can.
+  // Optional: older servers do not send it.
+  refetch_blocked: z.string().nullish(),
 });
 
 export const SubmissionPageSchema = pageOf(SubmissionReadSchema);
@@ -111,6 +114,8 @@ export const ReprocessRunReadSchema = z.object({
   submission_id: uuid,
   document_id: uuid.nullable(),
   reason: z.string(),
+  // "missing" | "all": the email was fetched again from the mailbox first; null: saved text.
+  refetch: z.string().nullish(),
   requested_by_name: z.string(),
   status: z.string(),
   before_result: jsonObject,

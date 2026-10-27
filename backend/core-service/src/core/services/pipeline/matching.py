@@ -2,13 +2,14 @@
 
 import uuid
 from collections.abc import Hashable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config.settings import settings
 from src.constants.timesheet_status import StepName, StepResult
 from src.core.services.activity_log import Stopwatch, current_reprocess_run, record_step
 from src.core.services.chunking import Combined, combine_by
@@ -18,8 +19,11 @@ from src.core.services.email_intake_service import BODY_FILENAME
 from src.core.services.employee_matcher import (
     EmployeeRecord,
     MatchResult,
+    Shortlisted,
     apply_match,
     match_employee,
+    normalize,
+    rank_shortlist,
     to_record,
 )
 from src.core.services.pay_rules import PayRules, rules_from_company
@@ -72,6 +76,77 @@ class CompanyContexts:
                 employees={e.id: e for e in active},
             )
         return self._contexts[company_id]
+
+
+SHORTLIST_SIZE = 10
+FUZZY_MIN_CHARS = 3  # "Al" is too short to compare letter by letter
+
+
+def _fuzzy_wanted(name: str | None) -> bool:
+    return settings.match_fuzzy_enabled and len(normalize(name).replace(" ", "")) >= FUZZY_MIN_CHARS
+
+
+async def find_employee(
+    session: AsyncSession,
+    cc: CompanyContext,
+    name: str | None,
+    code: str | None,
+    companies: dict[uuid.UUID, CompanyRecord],
+) -> MatchResult:
+    """Who is this timesheet for? The exact rules first (no database). Only when they find
+    nobody: close spellings, shortlisted by pg_trgm and decided by difflib. With no company
+    known, close names from every company are listed (suggestions, never a match)."""
+    repo = EmployeeRepository(session)
+    if cc.company is not None:
+        exact = match_employee(name, code, cc.records)
+        if exact.employee_id is not None or exact.ambiguous or not _fuzzy_wanted(name):
+            return exact
+        rows = await repo.similar_names(
+            name or "",
+            company_id=cc.company.id,
+            min_similarity=settings.match_trgm_min_similarity,
+            limit=SHORTLIST_SIZE,
+        )
+        shortlist = [Shortlisted(cc.by_id[eid], score) for eid, _, score in rows if eid in cc.by_id]
+        fuzzy = rank_shortlist(
+            name,
+            shortlist,
+            accept=settings.match_fuzzy_accept,
+            margin=settings.match_fuzzy_margin,
+        )
+        if fuzzy.employee_id is None and not fuzzy.candidates:
+            return exact  # pg_trgm found nobody: keep difflib's closest from the full list
+        return replace(fuzzy, code_not_found=exact.code_not_found)
+
+    if not _fuzzy_wanted(name):
+        return MatchResult(None, None)
+    rows = await repo.similar_names(
+        name or "",
+        company_id=None,
+        min_similarity=settings.match_trgm_min_similarity,
+        limit=SHORTLIST_SIZE,
+    )
+    if not rows:
+        return MatchResult(None, None)
+    found = await session.scalars(select(Employee).where(Employee.id.in_([r[0] for r in rows])))
+    by_id = {e.id: e for e in found.all()}
+    shortlist = [
+        Shortlisted(
+            to_record(by_id[eid]),
+            score,
+            company_id=cid,
+            company_name=companies[cid].name if cid in companies else None,
+        )
+        for eid, cid, score in rows
+        if eid in by_id
+    ]
+    return rank_shortlist(
+        name,
+        shortlist,
+        accept=settings.match_fuzzy_accept,
+        margin=settings.match_fuzzy_margin,
+        allow_match=False,
+    )
 
 
 async def match_timesheets(
@@ -137,10 +212,8 @@ async def match_timesheets(
                 timesheet = await adopt(session, old, candidate, run)  # same row, new version
             else:
                 timesheet.reprocess_run_id = run.id  # someone / a week new in this run
-        match = (
-            match_employee(timesheet.extracted_name, timesheet.extracted_code, cc.records)
-            if cc.company
-            else MatchResult(None, None)
+        match = await find_employee(
+            session, cc, timesheet.extracted_name, timesheet.extracted_code, companies
         )
         employee = cc.by_id.get(match.employee_id) if match.employee_id else None
         apply_match(timesheet, match, company_known=cc.company is not None, matched=employee)
@@ -175,7 +248,14 @@ async def match_timesheets(
                 "method": match.method,
                 "confidence": float(timesheet.confidence or 0),
                 "candidates": [
-                    {"name": c.full_name, "code": c.code, "score": round(c.score, 2)}
+                    {
+                        "name": c.full_name,
+                        "code": c.code,
+                        "score": round(c.score, 2),
+                        **({"spelling": c.spelling} if c.spelling is not None else {}),
+                        **({"trigram": c.trigram} if c.trigram is not None else {}),
+                        **({"company": c.company_name} if c.company_name else {}),
+                    }
                     for c in match.candidates
                 ],
                 "version": timesheet.version,

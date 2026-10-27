@@ -47,6 +47,7 @@ FLAG_SEVERITY: dict[str, Severity] = {
     "company_mismatch": Severity.MEDIUM,  # the sheet names another / unknown company
     "company_guessed": Severity.MEDIUM,  # no company on the upload; partial name / close spelling
     "name_mismatch": Severity.MEDIUM,
+    "fuzzy_match": Severity.MEDIUM,  # matched by a close spelling: a reviewer confirms
     "unknown_code": Severity.MEDIUM,
     "undated_days": Severity.MEDIUM,
     "model_issue": Severity.MEDIUM,

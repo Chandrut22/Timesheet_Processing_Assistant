@@ -109,14 +109,22 @@ def test_listener_logs_one_line_and_reconnects_quickly(
     async def caught_up(source: Any, cursor: Any) -> None:
         return None
 
-    async def fake_sleep(seconds: float) -> None:
+    async def fake_sleep(checks: Any, seconds: float) -> None:
         sleeps.append(seconds)
         if len(sleeps) >= 2:
             raise asyncio.CancelledError  # stop the endless loop
 
+    async def nothing(*a: Any, **k: Any) -> None:
+        return None
+
+    async def no_watcher(*a: Any) -> None:
+        await asyncio.Event().wait()  # like the real one: runs until cancelled
+
     monkeypatch.setattr(el, "ImapSource", Source)
     monkeypatch.setattr(el, "_catch_up", caught_up)
-    monkeypatch.setattr("src.control.workers.email_listener.asyncio.sleep", fake_sleep)
+    monkeypatch.setattr(el, "_sleep_or_wake", fake_sleep)
+    monkeypatch.setattr(el, "_beat", nothing)  # no Redis in unit tests
+    monkeypatch.setattr(el, "_watch_requests", no_watcher)
     caplog.set_level(logging.INFO, logger="email_listener")
     with pytest.raises(asyncio.CancelledError):
         asyncio.run(el.run())

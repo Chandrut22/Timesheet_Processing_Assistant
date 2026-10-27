@@ -11,7 +11,7 @@ from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Tex
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.constants.timesheet_status import ReprocessStatus
+from src.constants.timesheet_status import RefetchMode, ReprocessStatus
 from src.data.models.postgres.base import SCHEMA, Base, UUIDPrimaryKeyMixin, enum_check
 
 
@@ -19,6 +19,7 @@ class ReprocessRun(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "reprocess_runs"
     __table_args__ = (
         enum_check("status", ReprocessStatus),
+        enum_check("refetch", RefetchMode),  # NULL passes: nothing fetched
         CheckConstraint("length(btrim(reason)) >= 3", name="reason_not_blank"),
         CheckConstraint(
             "(status = 'running') = (completed_at IS NULL)", name="completion_consistent"
@@ -46,6 +47,8 @@ class ReprocessRun(UUIDPrimaryKeyMixin, Base):
         Uuid, ForeignKey(f"{SCHEMA}.documents.id", ondelete="SET NULL")
     )
     reason: Mapped[str] = mapped_column(Text)
+    # Fetch the email again from the mailbox first (RefetchMode), or NULL: use the saved text.
+    refetch: Mapped[str | None] = mapped_column(String(10))
     # auth-service user: UUID + name snapshot, no foreign key
     requested_by_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     requested_by_name: Mapped[str] = mapped_column(String(150))

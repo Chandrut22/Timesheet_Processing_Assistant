@@ -25,7 +25,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config.settings import settings
-from src.constants.timesheet_status import DocumentStatus, SubmissionState, SubmissionStatus
+from src.constants.timesheet_status import (
+    DocumentStatus,
+    RefetchMode,
+    SubmissionState,
+    SubmissionStatus,
+)
 from src.core.services.activity_log import current_reprocess_run, set_state
 from src.core.services.failures import JobTooSlowError, TooManyRunsError
 from src.core.services.pipeline.claiming import CLAIMABLE, claim, claimable
@@ -33,6 +38,7 @@ from src.core.services.pipeline.classifying import classified_as_not_timesheet
 from src.core.services.pipeline.deciding import check_and_decide
 from src.core.services.pipeline.extracting import extract_document
 from src.core.services.pipeline.failing import RetryLater, record_failure
+from src.core.services.pipeline.fetching import refetch_from_mailbox
 from src.core.services.pipeline.finishing import already_extracted, finish
 from src.core.services.pipeline.matching import CompanyContexts, match_timesheets
 from src.core.services.pipeline.reading import friendly_read_error, read_document
@@ -112,6 +118,7 @@ class ProcessingService:
             else None
         )
         only_document = run.document_id if run is not None else None
+        refetch = RefetchMode(run.refetch) if run is not None and run.refetch else None
 
         submission = await self.session.get(Submission, submission_id, populate_existing=True)
         if submission is None:
@@ -129,7 +136,7 @@ class ProcessingService:
             deadline = asyncio.timeout(limit)
             try:
                 async with deadline:
-                    await self._steps(submission, company, only_document, reprocess_run_id)
+                    await self._steps(submission, company, only_document, reprocess_run_id, refetch)
             except TimeoutError as exc:
                 if deadline.expired():  # our limit, not a timeout inside a library
                     raise JobTooSlowError(limit) from exc
@@ -152,11 +159,17 @@ class ProcessingService:
         company: Company | None,
         only_document: uuid.UUID | None,
         reprocess_run_id: uuid.UUID | None,
+        refetch: RefetchMode | None = None,
     ) -> None:
-        """Read, extract, match, rules, decide; then the final state."""
-        # 1. Read every file that is waiting
+        """(Fetch from the mailbox,) read, extract, match, rules, decide; then the final state."""
+        # 0. A reprocess that needs the original email fetches it again first
         set_state(self.session, submission, SubmissionState.READING)
+        if refetch is not None:
+            with pipeline_span("submission.refetch", mode=refetch.value):
+                await refetch_from_mailbox(self.session, submission, refetch, only_document)
         await self.session.commit()
+
+        # 1. Read every file that is waiting
         for document in submission.documents:
             if document.status == DocumentStatus.PENDING:
                 with pipeline_span(

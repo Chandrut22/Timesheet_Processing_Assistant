@@ -2,9 +2,10 @@ import { ArrowRight, CircleCheck, CircleAlert, CircleDot, History, CircleX } fro
 import type { AuditEventRead } from "@/features/audit";
 import type { ProcessingStepRead, StateChangeRead, SubmissionTimeline } from "../types/submission";
 import { SubmissionStateBadge } from "./SubmissionBadges";
-import { JsonBlock } from "@/components/common/JsonBlock";
+// import { JsonBlock } from "@/components/common/JsonBlock";
 import { formatDateTime, formatDuration, humanize } from "@/utils/format";
 import { cn } from "@/lib/utils";
+import { stepLabel } from "../utils/refetch";
 
 type Item =
   | { kind: "state"; at: string; v: StateChangeRead }
@@ -109,16 +110,16 @@ function StateRow({ v }: { v: StateChangeRead }) {
 }
 
 function StepRow({ v, documentName }: { v: ProcessingStepRead; documentName: string | null }) {
-  const hasInput = Object.keys(v.input ?? {}).length > 0;
-  const hasOutput = Object.keys(v.output ?? {}).length > 0;
+  // const hasInput = Object.keys(v.input ?? {}).length > 0;
+  // const hasOutput = Object.keys(v.output ?? {}).length > 0;
   return (
     <details className="group">
       <summary className="cursor-pointer list-none rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
         <p className="text-sm">
-          <span className="font-medium">{humanize(v.step)}</span>
+          <span className="font-medium">{stepLabel(v.step) ?? humanize(v.step)}</span>
           <span className="text-muted-foreground"> · {humanize(v.result)}</span>
-          <span className="ml-2 text-xs text-primary group-open:hidden">Show details</span>
-          <span className="ml-2 hidden text-xs text-primary group-open:inline">Hide details</span>
+          {/* <span className="ml-2 text-xs text-primary group-open:hidden">Show details</span>
+          <span className="ml-2 hidden text-xs text-primary group-open:inline">Hide details</span> */}
         </p>
         {v.message ? <p className="text-sm text-muted-foreground">{v.message}</p> : null}
         <When
@@ -126,7 +127,7 @@ function StepRow({ v, documentName }: { v: ProcessingStepRead; documentName: str
           extra={[formatDuration(v.duration_ms), documentName].filter(Boolean).join(" · ")}
         />
       </summary>
-      <div className="mt-2 grid gap-2 lg:grid-cols-2">
+      {/* <div className="mt-2 grid gap-2 lg:grid-cols-2">
         <div>
           <p className="mb-1 text-xs font-medium text-muted-foreground">Input</p>
           {hasInput ? (
@@ -149,7 +150,7 @@ function StepRow({ v, documentName }: { v: ProcessingStepRead; documentName: str
             <JsonBlock value={v.error_details} className="border-red-200 bg-red-50" />
           </div>
         ) : null}
-      </div>
+      </div> */}
     </details>
   );
 }
@@ -161,12 +162,12 @@ function AuditRow({ v }: { v: AuditEventRead }) {
         <span className="font-medium">{humanize(v.action)}</span>
       </p>
       <When at={v.created_at} extra={v.actor_name ?? "System"} />
-      {Object.keys(v.details ?? {}).length > 0 ? (
+      {/* {Object.keys(v.details ?? {}).length > 0 ? (
         <details className="mt-1">
           <summary className="cursor-pointer text-xs text-primary">Details</summary>
           <JsonBlock value={v.details} className="mt-1" />
         </details>
-      ) : null}
+      ) : null} */}
     </div>
   );
 }

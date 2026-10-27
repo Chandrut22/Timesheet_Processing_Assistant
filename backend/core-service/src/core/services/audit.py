@@ -11,7 +11,14 @@ def record_event(
     session: AsyncSession,
     *,
     entity_type: Literal[
-        "timesheet", "submission", "export", "import", "employee", "company", "holiday"
+        "timesheet",
+        "submission",
+        "export",
+        "import",
+        "employee",
+        "company",
+        "holiday",
+        "mailbox",
     ],
     entity_id: uuid.UUID,
     action: str,

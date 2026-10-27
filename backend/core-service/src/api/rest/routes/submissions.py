@@ -91,6 +91,7 @@ async def reprocess(
         body.reason,
         actor,
         document_id=body.document_id,
+        refetch=body.refetch,
         confirm_approved=body.confirm_approved,
     )
     return ReprocessRunRead.model_validate(run)

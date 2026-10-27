@@ -79,6 +79,10 @@ export function buildApiError(status: number, data: unknown, retryAfterHeader?: 
       retryAfter: parseRetryAfter(retryAfterHeader),
     });
   }
+  // A part of the system is not running (e.g. the email listener): its message says which.
+  if (status === 503 && code === "email_listener_down" && typeof detail === "string") {
+    return new ApiError({ status, message: detail, code });
+  }
   if (status >= 500) return new ApiError({ status, message: SERVER_MESSAGE, code });
 
   if (status === 429) {
@@ -86,6 +90,9 @@ export function buildApiError(status: number, data: unknown, retryAfterHeader?: 
     // reset-code lockout from auth-service, which is about attempts.
     const what = code === "rate_limited" ? "Too many requests" : "Too many attempts";
     const retryAfter = parseRetryAfter(retryAfterHeader);
+    if (code === "check_cooldown" && typeof detail === "string") {
+      return new ApiError({ status, message: detail, code, retryAfter });
+    }
     const message =
       retryAfter !== null
         ? `${what}. Try again in ${retryAfter} ${retryAfter === 1 ? "second" : "seconds"}.`

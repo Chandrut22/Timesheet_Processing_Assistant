@@ -1,5 +1,7 @@
 // Public API of the timesheets feature: other parts of the app import only from here.
 export { FlagBadges, SeverityDot, TimesheetStatusBadge } from "./components/TimesheetBadges";
+export { MatchAction } from "./components/MatchAction";
+export { MatchEmployeeDialog } from "./components/MatchEmployeeDialog";
 export { TimesheetPage } from "./components/TimesheetPage";
 export { timesheetKeys } from "./queries/timesheetQueries";
 export { timesheetService } from "./services/timesheetService";
@@ -30,6 +32,7 @@ export type {
   TimesheetSort,
   TimesheetStatus,
 } from "./types/timesheet";
-export { flagLabel } from "./utils/flags";
+export { flagLabel, matchMethodLabel } from "./utils/flags";
+export { canMatch, isUnmatched, nextUnmatched } from "./utils/match";
 export { timesheetCompanyName, timesheetEmployeeName } from "./utils/names";
 export { sortFlags } from "./utils/severity";

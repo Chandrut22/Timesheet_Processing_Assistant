@@ -36,3 +36,17 @@ class ForbiddenError(AppError):
 class ValidationFailedError(AppError):
     status_code = 422
     code = "validation_failed"
+
+
+class TooManyRequestsError(AppError):
+    """Asked again too soon (pass Retry-After in headers)."""
+
+    status_code = 429
+    code = "too_many_requests"
+
+
+class ServiceUnavailableError(AppError):
+    """A part of the system the request needs is not running right now."""
+
+    status_code = 503
+    code = "service_unavailable"

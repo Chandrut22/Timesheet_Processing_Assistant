@@ -8,7 +8,7 @@ from email.message import EmailMessage
 from PIL import Image
 
 from src.constants.timesheet_status import DocumentStatus
-from src.core.services.email_intake_service import _document_for
+from src.core.services.email_intake_service import document_for
 from src.handlers.email.parser import Attachment, parse_message
 from tests.unit.test_email_parser import make_email
 
@@ -26,7 +26,7 @@ def inline(data: bytes, filename: str = "1000248415.jpg", mime: str = "image/jpe
 
 
 def test_a_photo_in_the_email_body_is_read() -> None:
-    document, read = _document_for(inline(picture(1200, 1600)))
+    document, read = document_for(inline(picture(1200, 1600)))
     assert read and document.status == DocumentStatus.PENDING and document.error is None
 
 
@@ -44,13 +44,13 @@ def test_a_photo_pasted_from_a_phone_is_found_in_the_email() -> None:
     )
     (attachment,) = parse_message(msg, fallback_id="x").attachments
     assert attachment.is_inline
-    document, read = _document_for(attachment)
+    document, read = document_for(attachment)
     assert read, document.error
 
 
 def test_logos_and_signature_banners_are_still_skipped() -> None:
     for width, height in ((200, 200), (900, 120)):  # logo, signature banner
-        document, read = _document_for(
+        document, read = document_for(
             inline(picture(width, height, "PNG"), "logo.png", "image/png")
         )
         assert not read and document.status == DocumentStatus.UNSUPPORTED
@@ -58,10 +58,10 @@ def test_logos_and_signature_banners_are_still_skipped() -> None:
 
 
 def test_an_unnamed_inline_photo_gets_its_type_from_the_mime_type() -> None:
-    document, read = _document_for(inline(picture(1000, 1000), filename="unnamed"))
+    document, read = document_for(inline(picture(1000, 1000), filename="unnamed"))
     assert read and document.filename == "unnamed.jpg"
 
 
 def test_tiny_images_are_skipped_by_size_too() -> None:
-    document, read = _document_for(inline(b"\xff\xd8 tiny", "icon.jpg"))
+    document, read = document_for(inline(b"\xff\xd8 tiny", "icon.jpg"))
     assert not read and document.error is not None

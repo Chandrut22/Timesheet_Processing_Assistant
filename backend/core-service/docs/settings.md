@@ -113,6 +113,10 @@ them in `.env` only (never committed). Generated from settings.py.
 |---|---|---|
 | `AUTO_APPROVE_ENABLED` | `True` |  |
 | `AUTO_APPROVE_MIN_CONFIDENCE` | `0.85` |  |
+| `MATCH_FUZZY_ENABLED` | `true` | When no exact rule fits, look for a close spelling: pg_trgm (Postgres) shortlists similar names, difflib decides. A close spelling is only suggested (method "fuzzy", confidence 0.75, flag fuzzy_match): a reviewer always confirms it. With no company known, close names from every company are listed as suggestions. |
+| `MATCH_TRGM_MIN_SIMILARITY` | `0.2` | pg_trgm shortlist threshold (0..1). Low on purpose: trigrams score short typos low ("Jon Smth" vs "John Smith" is 0.33). |
+| `MATCH_FUZZY_ACCEPT` | `0.85` | difflib spelling score (0..1) a close spelling needs to be suggested. |
+| `MATCH_FUZZY_MARGIN` | `0.10` | How far the best employee must be ahead of the next one; closer than this, a reviewer chooses. |
 
 ## Email listener (IMAP): only the core-email container uses these
 
@@ -132,6 +136,10 @@ them in `.env` only (never committed). Generated from settings.py.
 | `EMAIL_MAX_ATTACHMENTS` | `20` |  |
 | `EMAIL_MAX_INTAKE_FAILURES` | `3` | An email that fails to be saved this many times (not because the database or Redis is down) is recorded as failed and skipped, so it cannot block the inbox. |
 | `IMAP_MARK_AS_READ` | `False` | Mark each email as read in the mailbox once it is saved (or ignored / already seen). Off: the listener never changes the mailbox. A skipped (broken) email is always left unread, so a person notices it. |
+| `EMAIL_MANUAL_CHECK_COOLDOWN_SECONDS` | `30` | Dashboard "Check mail now" (core-service API): the least time between two manual checks (for everyone together), and how old the listener's heartbeat may be before the listener counts as not running. |
+| `EMAIL_LISTENER_STALE_SECONDS` | `300` |  |
+| `EMAIL_REFETCH_ENABLED` | `true` | Reprocess can fetch an email again from the mailbox (by its Message-ID) when its files are no longer stored: a failed or expired attachment, or an ignored email. Read-only: nothing in the mailbox changes. |
+| `IMAP_REFETCH_FOLDERS` | `["[Gmail]/All Mail"]` | Folders searched after IMAP_FOLDER when fetching an email again (Gmail keeps archived mail in "[Gmail]/All Mail"; a folder the server does not have is skipped). In .env as JSON. |
 
 ## "Open in Gmail" links (core-service API)
 

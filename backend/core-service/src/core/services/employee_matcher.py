@@ -11,6 +11,15 @@ Order:
   4. Same words, other order   "Kumar, Robert"
   5. Initial + surname         "R. Kumar" / "Kumar R"  (only if exactly one fits)
   6. First name only           "John"  (only if exactly one John; never auto-approved)
+  7. Close spelling            "Jon Smth" -> John Smith  (rank_shortlist; never auto-approved)
+
+Step 7 combines two scorers. pg_trgm (Postgres, EmployeeRepository.similar_names, on the
+indexed employees.name_keys column) finds the names that share enough letter triples,
+fast and regardless of word order, with a low threshold so short typos are not lost.
+difflib (here) then scores the spelling (as written and with the words sorted). A
+close spelling is suggested only when difflib is sure (>= MATCH_FUZZY_ACCEPT), the next
+employee is clearly behind (MATCH_FUZZY_MARGIN) and
+pg_trgm ranks the same person first; otherwise the best ones are listed for a reviewer.
 
 Each method has a confidence, and every result has a short reason a reviewer can read,
 e.g. "Matched Rahul Kumar (SYN-EMP-001) by initial + surname 'R. Kumar'" or
@@ -41,6 +50,7 @@ METHOD_CONFIDENCE: dict[str, float] = {
     "name_reordered": 0.9,
     "initial_surname": 0.85,
     "first_name": 0.7,
+    "fuzzy": 0.75,
 }
 METHOD_LABEL: dict[str, str] = {
     "code": "employee code",
@@ -50,10 +60,14 @@ METHOD_LABEL: dict[str, str] = {
     "name_reordered": "name in another order",
     "initial_surname": "initial + surname",
     "first_name": "first name only",
+    "fuzzy": "close spelling",
 }
 
 # Flags this module owns: removed and recomputed on every (re)match.
-MATCH_FLAG_CODES = frozenset({"employee_unmatched", "name_mismatch", "unknown_code", "no_company"})
+MATCH_FLAG_CODES = frozenset(
+    {"employee_unmatched", "name_mismatch", "unknown_code", "no_company", "fuzzy_match"}
+)
+SPELLING_WEIGHT = 0.6  # combined score (for ordering the list): 0.6 spelling + 0.4 trigram
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,6 +84,20 @@ class Candidate:
     code: str
     full_name: str
     score: float
+    spelling: float | None = None  # difflib, for close spellings
+    trigram: float | None = None  # pg_trgm, for close spellings
+    company_id: uuid.UUID | None = None  # set when suggested from another / unknown company
+    company_name: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Shortlisted:
+    """One employee pg_trgm found, with its trigram similarity."""
+
+    record: EmployeeRecord
+    trigram: float
+    company_id: uuid.UUID | None = None
+    company_name: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,6 +141,70 @@ def _all_names(employee: EmployeeRecord) -> list[str]:
 
 def _score(name: str, employee: EmployeeRecord) -> float:
     return max((SequenceMatcher(None, name, n).ratio() for n in _all_names(employee)), default=0.0)
+
+
+def spelling_score(name: str, employee: EmployeeRecord) -> float:
+    """difflib ratio against the full name and each alias, as written and with the words
+    sorted ("Kumar Rahul" = "Rahul Kumar"); the best one."""
+    ordered = " ".join(sorted(name.split()))
+    best = 0.0
+    for known in _all_names(employee):
+        best = max(
+            best,
+            SequenceMatcher(None, name, known).ratio(),
+            SequenceMatcher(None, ordered, " ".join(sorted(known.split()))).ratio(),
+        )
+    return best
+
+
+def rank_shortlist(
+    name: str | None,
+    shortlist: Sequence[Shortlisted],
+    *,
+    accept: float,
+    margin: float,
+    allow_match: bool = True,
+    limit: int = 3,
+) -> MatchResult:
+    """Pure: the close spellings pg_trgm found, scored by difflib. Returns a "fuzzy" match
+    when it is safe (see the module docstring), else the best candidates (score =
+    combined, with both scores kept). allow_match=False: suggestions only (no company)."""
+    norm = normalize(name)
+    if not norm or not shortlist:
+        return MatchResult(None, None)
+    scored: list[tuple[Shortlisted, float, float]] = []  # (item, spelling, combined)
+    for item in shortlist:
+        spelling = spelling_score(norm, item.record)
+        combined = SPELLING_WEIGHT * spelling + (1 - SPELLING_WEIGHT) * item.trigram
+        scored.append((item, spelling, combined))
+    ranked = sorted(scored, key=lambda s: (-s[2], s[0].record.full_name))
+    candidates = tuple(
+        Candidate(
+            item.record.id,
+            item.record.code,
+            item.record.full_name,
+            round(combined, 2),
+            spelling=round(spelling, 2),
+            trigram=round(item.trigram, 2),
+            company_id=item.company_id,
+            company_name=item.company_name,
+        )
+        for item, spelling, combined in ranked[:limit]
+    )
+    by_spelling = sorted(scored, key=lambda s: (-s[1], s[0].record.full_name))
+    top, top_spelling, _ = by_spelling[0]
+    runner_up = by_spelling[1][1] if len(by_spelling) > 1 else 0.0
+    best_trigram = max(item.trigram for item in shortlist)
+    safe = (
+        allow_match
+        and len(norm.split()) >= 2  # one word ("John") is the first-name rule's job
+        and top_spelling >= accept
+        and top_spelling - runner_up >= margin
+        and top.trigram >= best_trigram  # pg_trgm ranks the same person first
+    )
+    if safe:
+        return MatchResult(top.record.id, "fuzzy", candidates=candidates)
+    return MatchResult(None, None, candidates=candidates)
 
 
 def _only_one(found: list[EmployeeRecord]) -> EmployeeRecord | None:
@@ -215,8 +307,43 @@ def _ambiguous(found: list[EmployeeRecord], code_not_found: bool) -> MatchResult
     return MatchResult(None, None, candidates=tied, code_not_found=code_not_found, ambiguous=tied)
 
 
+def describe(c: Candidate) -> str:
+    """'John Smith (E7) at Lakeside (spelling 0.89, trigram 0.33)'"""
+    text = f"{c.full_name} ({c.code})"
+    if c.company_name:
+        text += f" at {c.company_name}"
+    if c.spelling is not None and c.trigram is not None:
+        text += f" (spelling {c.spelling:.2f}, trigram {c.trigram:.2f})"
+    return text
+
+
+def candidate_json(c: Candidate) -> dict[str, Any]:
+    """A candidate as stored in a flag (the review page lists them as suggestions)."""
+    item: dict[str, Any] = {"id": str(c.id), "code": c.code, "name": c.full_name, "score": c.score}
+    if c.spelling is not None:
+        item["spelling"] = c.spelling
+    if c.trigram is not None:
+        item["trigram"] = c.trigram
+    if c.company_id is not None:
+        item["company_id"] = str(c.company_id)
+    if c.company_name:
+        item["company"] = c.company_name
+    return item
+
+
 def match_reason(result: MatchResult, who: str, matched: EmployeeRecord | None) -> str:
     """One plain sentence: why this employee, or why nobody."""
+    if result.method == "fuzzy" and matched is not None:
+        scores = next((c for c in result.candidates if c.id == matched.id), None)
+        how = (
+            f" (spelling {scores.spelling:.2f}, trigram {scores.trigram:.2f})"
+            if scores and scores.spelling is not None and scores.trigram is not None
+            else ""
+        )
+        return (
+            f"Suggested {matched.full_name} ({matched.code}): close spelling of '{who}'{how}. "
+            "A reviewer must confirm it."
+        )
     if result.employee_id is not None and matched is not None:
         how = METHOD_LABEL.get(result.method or "", result.method or "?")
         return (
@@ -227,7 +354,7 @@ def match_reason(result: MatchResult, who: str, matched: EmployeeRecord | None) 
         names = ", ".join(f"{c.full_name} ({c.code})" for c in result.ambiguous)
         return f"{len(result.ambiguous)} employees fit '{who}': {names}. A reviewer must choose."
     if result.candidates:
-        names = ", ".join(f"{c.full_name} ({c.code})" for c in result.candidates)
+        names = ", ".join(describe(c) for c in result.candidates)
         return f"No exact match for '{who}'. Closest: {names}."
     return f"No employee found for '{who}'."
 
@@ -267,17 +394,32 @@ def apply_match(
     shown = (
         timesheet.extracted_code if result.method == "code" and timesheet.extracted_code else who
     )
+    suggestions = ", ".join(describe(c) for c in result.candidates)
     timesheet.match_reason = (
         match_reason(result, shown, matched)
         if company_known
         else "No company known, so no employee list to match against."
+        + (f" Close names in other companies: {suggestions}." if suggestions else "")
     )
 
     if not company_known:
         flags.append(
             {
                 "code": "no_company",
-                "message": "No company set: choose the company and employee in review.",
+                "message": "No company set: choose the company and employee in review."
+                + (f" Possible: {suggestions}." if suggestions else ""),
+                "candidates": [candidate_json(c) for c in result.candidates],
+            }
+        )
+    elif result.method == "fuzzy" and matched is not None:
+        others = [describe(c) for c in result.candidates if c.id != matched.id]
+        flags.append(
+            {
+                "code": "fuzzy_match",
+                "message": f"'{who}' is not written exactly like {matched.full_name}'s name "
+                "(close spelling). Check it is the same person."
+                + (f" Others: {', '.join(others)}." if others else ""),
+                "candidates": [candidate_json(c) for c in result.candidates],
             }
         )
     elif result.employee_id is None:
@@ -293,10 +435,7 @@ def apply_match(
             {
                 "code": "employee_unmatched",
                 "message": message,
-                "candidates": [
-                    {"id": str(c.id), "code": c.code, "name": c.full_name, "score": c.score}
-                    for c in result.candidates
-                ],
+                "candidates": [candidate_json(c) for c in result.candidates],
             }
         )
     if result.name_mismatch:

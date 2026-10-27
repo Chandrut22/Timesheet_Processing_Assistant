@@ -29,6 +29,7 @@ import { submissionService, submissionKeys } from "@/features/submissions";
 import { timesheetService } from "../services/timesheetService";
 import { timesheetKeys } from "../queries/timesheetQueries";
 import { BackButton } from "@/components/common/BackButton";
+import { matchMethodLabel } from "../utils/flags";
 
 const routeApi = getRouteApi("/_app/timesheets/$timesheetId");
 
@@ -234,7 +235,7 @@ function DetailsPanel({ t, employeeCode }: { t: TimesheetRead; employeeCode: str
     ["Name on the sheet", t.extracted_name ?? "—"],
     ["Code on the sheet", t.extracted_code ?? "—"],
     ["Company on the sheet", t.extracted_company_name ?? "—"],
-    ["Match", t.match_method ? humanize(t.match_method) : "—"],
+    ["Match", matchMethodLabel(t.match_method)],
     ["Why", t.match_reason ?? "—"],
     ["Confidence", formatPercent(t.confidence)],
     ["Reading confidence", formatPercent(t.read_confidence)],

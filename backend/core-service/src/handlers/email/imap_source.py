@@ -5,16 +5,27 @@ imap-tools is blocking, so the listener calls these methods in a thread."""
 import contextlib
 import functools
 import imaplib
-from collections.abc import Callable
+import re
+from collections.abc import Callable, Sequence
 from datetime import date
 from email.message import Message
 from types import TracebackType
 
-from imap_tools import AND, MailBox, MailMessageFlags, U
+from imap_tools import AND, H, MailBox, MailMessageFlags, U
+from imap_tools.errors import MailboxFolderSelectError
+from imap_tools.query import LogicOperator
 
 from src.config.settings import settings
 
 FETCH_LIMIT = 50  # at most this many emails per round; the rest come next round
+# The id the listener makes up for an email without a Message-ID: <uid-VALIDITY-UID@...>
+_PLACEHOLDER = re.compile(r"^<uid-(\d+)-(\d+)@imap\.local>$")
+
+
+def placeholder_uid(message_id: str) -> tuple[int, int] | None:
+    """(UIDVALIDITY, UID) from a made-up Message-ID, or None for a real one."""
+    found = _PLACEHOLDER.match(message_id.strip())
+    return (int(found[1]), int(found[2])) if found else None
 
 
 class MailConnectionLost(Exception):
@@ -103,6 +114,37 @@ class ImapSource:
         """Set the \\Seen flag on one email (IMAP_MARK_AS_READ). The folder is open
         read-write (SELECT), so no other permission is needed."""
         self.mailbox.flag(str(uid), MailMessageFlags.SEEN, True)
+
+    @_mail_call
+    def find_message(self, message_id: str, folders: Sequence[str] = ()) -> Message | None:
+        """The email with this Message-ID, or None. Searches IMAP_FOLDER, then `folders`
+        (a folder this server does not have is skipped). Opens each folder READ-ONLY and
+        fetches with mark_seen=False, so nothing in the mailbox changes.
+
+        An id the listener made up (<uid-VALIDITY-UID@imap.local>) is found by its UID in
+        IMAP_FOLDER, but only while the folder's UIDVALIDITY is the same: after a reset
+        the number may belong to another email."""
+        placeholder = placeholder_uid(message_id)
+        if placeholder is not None:
+            validity, uid = placeholder
+            self.mailbox.folder.set(settings.imap_folder, readonly=True)
+            if self.status()[0] != validity:
+                return None
+            return self._first(AND(uid=str(uid)))
+        for folder in dict.fromkeys([settings.imap_folder, *folders]):
+            try:
+                self.mailbox.folder.set(folder, readonly=True)
+            except MailboxFolderSelectError:
+                continue
+            found = self._first(AND(header=H("Message-ID", message_id.strip())))
+            if found is not None:
+                return found
+        return None
+
+    def _first(self, criteria: LogicOperator) -> Message | None:
+        for msg in self.mailbox.fetch(criteria, mark_seen=False, limit=1, bulk=True):
+            return msg.obj
+        return None
 
     @_mail_call
     def wait(self, timeout: int) -> bool:

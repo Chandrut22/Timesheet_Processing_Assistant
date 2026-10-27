@@ -52,6 +52,8 @@ logger = logging.getLogger(__name__)
 
 BODY_FILENAME = "email-body.txt"
 MIN_BODY_CHARS = 20  # "Thanks" or a signature alone is not a timesheet
+# An ignored email's attachments are recorded with this error (a reprocess fetches them).
+IGNORED_NOT_READ = "Not read: the email was ignored."
 MIN_INLINE_IMAGE_SIDE = 300  # px: logos, icons and signature banners are smaller
 
 
@@ -82,7 +84,7 @@ def _inline_image_reason(data: bytes) -> str | None:
     return None
 
 
-def _document_for(attachment: Attachment) -> tuple[Document, bool]:
+def document_for(attachment: Attachment) -> tuple[Document, bool]:
     """Document row for one attachment, and whether its bytes should be read."""
     filename = _safe_filename(attachment.filename)
     if not PurePath(filename).suffix and attachment.content_type.startswith("image/"):
@@ -126,7 +128,7 @@ def _document_for(attachment: Attachment) -> tuple[Document, bool]:
     return document, reason is None
 
 
-def _body_document(body: str) -> Document:
+def body_document(body: str) -> Document:
     """The email text itself, already 'read': the worker goes straight to extraction."""
     data = body.encode("utf-8")
     return Document(
@@ -184,11 +186,11 @@ class EmailIntakeService:
         to_buffer: list[tuple[Document, bytes]] = []
 
         for attachment in email.attachments[: settings.email_max_attachments]:
-            document, readable = _document_for(attachment)
+            document, readable = document_for(attachment)
 
             if ignore_reason:
                 document.status = DocumentStatus.UNSUPPORTED
-                document.error = "Not read: the email was ignored."
+                document.error = IGNORED_NOT_READ
             elif readable:
                 to_buffer.append((document, attachment.data))
 
@@ -200,9 +202,9 @@ class EmailIntakeService:
             body = (email.body_text or "").strip()
 
             if len(body) >= MIN_BODY_CHARS:
-                body_document = _body_document(body)
-                submission.documents.append(body_document)
-                documents.append(body_document)
+                body_doc = body_document(body)
+                submission.documents.append(body_doc)
+                documents.append(body_doc)
             else:
                 outcome = IntakeOutcome.EMPTY
                 ignore_reason = "No timesheet attachment and no timesheet text in the email."

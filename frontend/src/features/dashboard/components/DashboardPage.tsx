@@ -16,7 +16,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useDashboard, type StreamState } from "../hooks/useDashboard";
+// import { useDashboard, type StreamState } from "../hooks/useDashboard";
+import { useDashboard } from "../hooks/useDashboard";
+
+import { MailCheckButton } from "./MailCheckButton";
 import { formatRelative } from "@/utils/format";
 import { cn } from "@/lib/utils";
 
@@ -39,8 +42,9 @@ export function DashboardPage() {
         description="What needs attention today."
       />
 
-      <div className="mb-3 flex justify-end">
-        <LiveBadge state={dash.stream} />
+      <div className="mb-3 flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+        <MailCheckButton />
+        {/* <LiveBadge state={dash.stream} /> */}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -191,17 +195,17 @@ function StatCard({
   );
 }
 
-function LiveBadge({ state }: { state: StreamState }) {
-  const live = state === "live";
-  return (
-    <span role="status" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-      <span
-        className={cn(
-          "size-2 rounded-full",
-          live ? "bg-emerald-500" : "bg-amber-500 motion-safe:animate-pulse",
-        )}
-      />
-      {live ? "Live" : "Reconnecting…"}
-    </span>
-  );
-}
+// function LiveBadge({ state }: { state: StreamState }) {
+//   const live = state === "live";
+//   return (
+//     <span role="status" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+//       <span
+//         className={cn(
+//           "size-2 rounded-full",
+//           live ? "bg-emerald-500" : "bg-amber-500 motion-safe:animate-pulse",
+//         )}
+//       />
+//       {live ? "Live" : "Reconnecting…"}
+//     </span>
+//   );
+// }

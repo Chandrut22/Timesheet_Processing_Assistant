@@ -43,7 +43,10 @@ async def read_document(session: AsyncSession, document: Document) -> None:
     data = await upload_buffer.get_file(document.id)
     if data is None:
         document.status = DocumentStatus.FAILED
-        document.error = "The file expired before it was processed. Upload it again."
+        document.error = (
+            "The file expired before it was processed. Reprocess the email to fetch it "
+            "again from the mailbox, or upload it again."
+        )
         record_step(
             session,
             submission_id=document.submission_id,

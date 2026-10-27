@@ -26,6 +26,11 @@ export function isWeeklyTotal(t: { entries: unknown[]; flags: FlagRead[] }): boo
 }
 
 /** Pulls employee candidates from a flag's extra keys, whatever shape they arrive in. */
+/**
+ * The employees the matcher suggested, from the flags. The label is "Name (CODE)", plus
+ * the company when it was suggested from another company (no company known), and the
+ * close-spelling scores when there are any.
+ */
 export function flagCandidates(flags: FlagRead[]): { id: string; label: string | null }[] {
   const out = new Map<string, string | null>();
   for (const f of flags) {
@@ -39,8 +44,15 @@ export function flagCandidates(flags: FlagRead[]): { id: string; label: string |
         if (typeof id !== "string") continue;
         const name = obj["full_name"] ?? obj["name"];
         const code = obj["employee_code"] ?? obj["code"];
+        const company = obj["company"];
+        const spelling = obj["spelling"];
         const label =
-          [typeof name === "string" ? name : null, typeof code === "string" ? `(${code})` : null]
+          [
+            typeof name === "string" ? name : null,
+            typeof code === "string" ? `(${code})` : null,
+            typeof company === "string" ? `· ${company}` : null,
+            typeof spelling === "number" ? `· spelling ${Math.round(spelling * 100)}%` : null,
+          ]
             .filter(Boolean)
             .join(" ") || null;
         out.set(id, label ?? out.get(id) ?? null);

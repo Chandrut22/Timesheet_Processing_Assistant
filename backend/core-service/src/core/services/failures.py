@@ -77,6 +77,16 @@ class VisionUnavailableError(Exception):
     the reader, so this module needs no AI or imaging library."""
 
 
+class MailboxUnavailableError(Exception):
+    """A reprocess could not reach the mail server to fetch the email again (network,
+    timeout, server closed the connection). Temporary: the worker tries again later."""
+
+
+class MailboxRefusedError(Exception):
+    """The mail server refused the login (or IMAP is not set up) when fetching an email
+    again. Not temporary: an admin must fix IMAP_USER / IMAP_PASSWORD."""
+
+
 class JobTooSlowError(Exception):
     """The job ran longer than WORKER_JOB_TIMEOUT_SECONDS and was stopped."""
 
@@ -144,6 +154,19 @@ def explain(exc: BaseException) -> Failure:
             temporary=True,
             advice="Check that the vision model server is running (VISION_BASE_URL), then "
             "reprocess.",
+        )
+    if any(isinstance(e, MailboxUnavailableError) for e in chain):
+        return Failure(
+            "The mail server could not be reached to fetch the email again.",
+            temporary=True,
+            advice="Check the network and IMAP_HOST, then reprocess.",
+        )
+    if any(isinstance(e, MailboxRefusedError) for e in chain):
+        return Failure(
+            f"The mailbox could not be opened to fetch the email again: {exc}",
+            temporary=False,
+            advice="An admin must check IMAP_HOST / IMAP_USER / IMAP_PASSWORD (Gmail: an "
+            "App Password); then reprocess.",
         )
     if any(marker in str(e).lower() for e in chain for marker in CONTEXT_LIMIT_MARKERS):
         return Failure(

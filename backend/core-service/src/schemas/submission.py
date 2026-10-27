@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 from src.config.settings import settings
 from src.schemas.review import AuditEventRead
 from src.utils.mail_link import mail_url
+from src.utils.refetch import refetch_blocker
 
 
 class DocumentRead(BaseModel):
@@ -72,6 +73,17 @@ class SubmissionRead(BaseModel):
             self.source, self.message_id, settings.mailbox_account, settings.mailbox_link_template
         )
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def refetch_blocked(self) -> str | None:
+        """Why Reprocess cannot fetch this email again from the mailbox (None = it can)."""
+        return refetch_blocker(
+            self.source,
+            self.message_id,
+            enabled=settings.email_refetch_enabled,
+            imap_ready=bool(settings.imap_host and settings.imap_user and settings.imap_password),
+        )
+
 
 class StateChangeRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -111,6 +123,13 @@ class ReprocessRequest(BaseModel):
     document_id: uuid.UUID | None = Field(
         default=None, description="Reprocess only this attachment (default: the whole email)"
     )
+    refetch: bool | None = Field(
+        default=None,
+        description="Fetch the email again from the mailbox (by its Message-ID) and read "
+        "the attachments again. Left out: only when needed (a file failed or expired, or the "
+        "email was ignored). false: never; true: always (409 for uploads, or when "
+        "fetching is not possible).",
+    )
     confirm_approved: bool = Field(
         default=False,
         description="Needed when approved timesheets would be replaced: they go back to "
@@ -128,6 +147,7 @@ class ReprocessRunRead(BaseModel):
     submission_id: uuid.UUID
     document_id: uuid.UUID | None
     reason: str
+    refetch: str | None  # missing | all: fetched again from the mailbox; None: saved text used
     requested_by_name: str
     status: str  # running | completed | failed
     before_result: dict[str, Any]

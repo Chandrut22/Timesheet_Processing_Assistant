@@ -1,13 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { errorMessage, isApiError } from "@/services/apiErrors";
 import type { ReprocessRunRead, SubmissionRead } from "../types/submission";
 import { Field, FormError } from "@/components/forms/Field";
-import { JsonBlock } from "@/components/common/JsonBlock";
+// import { JsonBlock } from "@/components/common/JsonBlock";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,11 +18,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { NativeSelect, Textarea } from "@/components/ui/input";
+import { Checkbox, NativeSelect, Textarea } from "@/components/ui/input";
 import { formatDateTime, humanize } from "@/utils/format";
 import { submissionService } from "../services/submissionService";
 import { submissionKeys } from "../queries/submissionQueries";
 import { timesheetKeys } from "@/features/timesheets";
+import { canFetchFromMailbox, fetchesFromMailbox } from "../utils/refetch";
 
 const schema = z.object({
   reason: z
@@ -31,6 +32,7 @@ const schema = z.object({
     .min(3, "Say why, in at least 3 characters")
     .max(1000, "At most 1000 characters"),
   document_id: z.string(),
+  refetch: z.boolean(),
 });
 type Values = z.infer<typeof schema>;
 
@@ -46,7 +48,7 @@ export function ReprocessDialog({
   const queryClient = useQueryClient();
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { reason: "", document_id: "" },
+    defaultValues: { reason: "", document_id: "", refetch: false },
   });
   // Set when the backend answers 409 confirmation_required: some timesheets are
   // already approved. Its message says which; the reviewer can go back, or send
@@ -59,6 +61,7 @@ export function ReprocessDialog({
         v.reason.trim(),
         v.document_id || null,
         confirmApproved,
+        v.refetch,
       ),
     meta: { silentError: true },
     onError: (err, { v }) => {
@@ -79,6 +82,9 @@ export function ReprocessDialog({
   });
 
   const needsConfirm = confirm !== null;
+  const documentId = useWatch({ control: form.control, name: "document_id" }) || null;
+  const autoFetch = fetchesFromMailbox(submission, documentId);
+  const canFetch = canFetchFromMailbox(submission);
   // Any other error (other 409s: already queued, submission ignored) is shown as the backend wrote it.
   const otherError =
     m.error && !(isApiError(m.error, 409) && m.error.code === "confirmation_required")
@@ -153,6 +159,26 @@ export function ReprocessDialog({
                 ))}
               </NativeSelect>
             </Field>
+            {autoFetch ? (
+              <p className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+                {submission.status === "ignored"
+                  ? "This email was ignored when it arrived, so its attachments were never saved. "
+                  : "Some files are no longer stored. "}
+                They will be fetched again from the original email in the mailbox.
+              </p>
+            ) : canFetch ? (
+              <label className="flex items-start gap-2 text-sm">
+                <Checkbox className="mt-0.5" {...form.register("refetch")} />
+                <span>
+                  Read the attachments again from the original email
+                  <span className="block text-xs text-muted-foreground">
+                    Otherwise the text saved from the first read is used.
+                  </span>
+                </span>
+              </label>
+            ) : submission.source === "email" && submission.refetch_blocked ? (
+              <p className="text-xs text-muted-foreground">{submission.refetch_blocked}</p>
+            ) : null}
             <Field
               label="Reason"
               htmlFor="rp-reason"
@@ -218,10 +244,13 @@ export function ReprocessRuns({
                   ? `only ${documentName(r.document_id) ?? "one document"}`
                   : "whole submission"}
               </span>
+              {r.refetch ? (
+                <span className="text-muted-foreground">· fetched from the mailbox</span>
+              ) : null}
             </div>
             <p className="mt-1 text-sm">“{r.reason}”</p>
             {r.error ? <p className="mt-1 text-sm text-red-700">{r.error}</p> : null}
-            <details className="mt-2">
+            {/* <details className="mt-2">
               <summary className="cursor-pointer text-xs text-primary">Before and after</summary>
               <div className="mt-2 grid gap-2 lg:grid-cols-2">
                 <div>
@@ -237,7 +266,7 @@ export function ReprocessRuns({
                   )}
                 </div>
               </div>
-            </details>
+            </details> */}
           </li>
         ))}
     </ul>

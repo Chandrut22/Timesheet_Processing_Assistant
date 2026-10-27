@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Check, Search } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { errorMessage } from "@/services/apiErrors";
 import {
   type EmployeeRead,
@@ -34,13 +34,19 @@ export function MatchEmployeeDialog({
   t,
   open,
   onOpenChange,
+  onMatchNext,
 }: {
   t: TimesheetRead;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Shows "Match & next unmatched": after the match, called instead of closing. */
+  onMatchNext?: () => void;
 }) {
+  const goNext = useRef(false);
   const [q, setQ] = useState(t.extracted_name ?? "");
-  const [chosen, setChosen] = useState<string | null>(null);
+  // A close-spelling match is only a suggestion: it is pre-selected, so "Match" confirms it.
+  const fuzzy = t.match_method === "fuzzy";
+  const [chosen, setChosen] = useState<string | null>(fuzzy ? t.employee_id : null);
   const query = useDebounce(q.trim());
   const params = {
     company_id: t.company_id ?? undefined,
@@ -54,14 +60,17 @@ export function MatchEmployeeDialog({
     enabled: open,
   });
   const companyEmployees = useEmployeeMap([t.company_id]);
-  const candidates = flagCandidates(t.flags).filter((c) => c.id !== t.employee_id);
+  const candidates = flagCandidates(t.flags).filter((c) => fuzzy || c.id !== t.employee_id);
 
   const m = useTimesheetMutation(
     (employeeId: string) => timesheetService.matchEmployee(t.id, employeeId),
     {
       success: "Employee matched. Pay was recalculated.",
       silentError: true,
-      onSuccess: () => onOpenChange(false),
+      onSuccess: () => {
+        if (goNext.current && onMatchNext) onMatchNext();
+        else onOpenChange(false);
+      },
     },
   );
 
@@ -89,7 +98,11 @@ export function MatchEmployeeDialog({
           </span>
         </span>
         <span className="flex shrink-0 items-center gap-2">
-          {suggested ? <Badge variant="info">Suggested</Badge> : null}
+          {suggested ? (
+            <Badge variant="info">
+              {fuzzy && e.id === t.employee_id ? "Suggested · close spelling" : "Suggested"}
+            </Badge>
+          ) : null}
           {e.is_active === false ? <Badge variant="muted">Inactive</Badge> : null}
           {chosen === e.id ? <Check className="size-4 text-primary" /> : null}
         </span>
@@ -174,7 +187,27 @@ export function MatchEmployeeDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={m.isPending}>
             Cancel
           </Button>
-          <Button onClick={() => chosen && m.mutate(chosen)} disabled={!chosen || m.isPending}>
+          {onMatchNext ? (
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (!chosen) return;
+                goNext.current = true;
+                m.mutate(chosen);
+              }}
+              disabled={!chosen || m.isPending}
+            >
+              Match &amp; next unmatched
+            </Button>
+          ) : null}
+          <Button
+            onClick={() => {
+              if (!chosen) return;
+              goNext.current = false;
+              m.mutate(chosen);
+            }}
+            disabled={!chosen || m.isPending}
+          >
             {m.isPending ? "Matching…" : "Match"}
           </Button>
         </DialogFooter>
