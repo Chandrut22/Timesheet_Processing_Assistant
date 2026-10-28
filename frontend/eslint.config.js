@@ -55,6 +55,8 @@ export default defineConfig([
     languageOptions: { globals: globals.browser },
     rules: {
       "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/explicit-function-return-type": ["warn", { allowExpressions: true }],
+      "@typescript-eslint/no-floating-promises": "error",
     },
   },
   {

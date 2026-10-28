@@ -24,3 +24,11 @@ check-core:
 migrate:
 	$(MAKE) -C auth-service migrate
 	$(MAKE) -C core-service migrate
+
+
+validate: lint typecheck test
+
+audit:
+	uv run ruff check .
+	uv run ruff format --check .
+	uv run mypy src

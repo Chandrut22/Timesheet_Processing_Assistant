@@ -34,3 +34,11 @@ worker:
 
 email:
 	uv run python -m src.control.workers.email_listener
+
+
+validate: lint typecheck test
+
+audit:
+	uv run ruff check .
+	uv run ruff format --check .
+	uv run mypy src
