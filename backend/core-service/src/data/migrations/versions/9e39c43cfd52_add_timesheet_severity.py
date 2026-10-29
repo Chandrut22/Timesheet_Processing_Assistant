@@ -25,7 +25,9 @@ SCHEMA = "core"
 
 def upgrade() -> None:
     op.add_column(
-        "timesheets", sa.Column("severity", sa.String(length=10), nullable=True), schema=SCHEMA
+        "timesheets",
+        sa.Column("severity", sa.String(length=10), nullable=True),
+        schema=SCHEMA,
     )
     op.create_check_constraint(
         op.f("ck_timesheets_severity_valid"),
@@ -33,7 +35,9 @@ def upgrade() -> None:
         "severity IN ('high', 'medium', 'low')",
         schema=SCHEMA,
     )
-    op.create_index(op.f("ix_core_timesheets_severity"), "timesheets", ["severity"], schema=SCHEMA)
+    op.create_index(
+        op.f("ix_core_timesheets_severity"), "timesheets", ["severity"], schema=SCHEMA
+    )
 
     # Backfill: add "severity" to each stored flag and set the column.
     conn = op.get_bind()
@@ -45,12 +49,18 @@ def upgrade() -> None:
                 f"UPDATE {SCHEMA}.timesheets "
                 "SET flags = CAST(:flags AS jsonb), severity = :severity WHERE id = :id"
             ),
-            {"flags": json.dumps(enriched), "severity": highest_severity(enriched), "id": row_id},
+            {
+                "flags": json.dumps(enriched),
+                "severity": highest_severity(enriched),
+                "id": row_id,
+            },
         )
 
 
 def downgrade() -> None:
-    op.drop_index(op.f("ix_core_timesheets_severity"), table_name="timesheets", schema=SCHEMA)
+    op.drop_index(
+        op.f("ix_core_timesheets_severity"), table_name="timesheets", schema=SCHEMA
+    )
     op.drop_constraint(
         op.f("ck_timesheets_severity_valid"), "timesheets", type_="check", schema=SCHEMA
     )

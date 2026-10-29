@@ -30,9 +30,16 @@ from src.core.services.processing_service import ProcessingService
 from src.core.services.submission_service import SubmissionService
 from src.data.clients import upload_buffer
 from src.data.clients.postgres import SessionLocal, engine
-from src.data.models import Company, Document, Employee, Submission, Timesheet, WhitelistSender
+from src.data.models import (
+    Company,
+    Document,
+    Employee,
+    Submission,
+    Timesheet,
+    WhitelistSender,
+)
 from src.data.models.postgres.activity import ProcessingStep
-from src.handlers.email.imap_source import MailConnectionLost
+from src.handlers.email.imap_source import MailConnectionLostError
 from src.schemas.extraction import ExtractedDay, ExtractedTimesheet, ExtractionResult
 
 RECEIVED = datetime(2026, 10, 19, 9, tzinfo=UTC)
@@ -40,7 +47,9 @@ WEEK = date(2026, 10, 12)
 SENDER = "payroll@lakeside.example"
 MID = "<week41-abc@lakeside.example>"
 CSV = b"name,date,hours\nGrace Hopper,2026-10-12,8\nGrace Hopper,2026-10-13,8\n"
-RITA = Principal(id=uuid.uuid4(), role=RoleName.REVIEWER, name="Rita", email="rita@example.com")
+RITA = Principal(
+    id=uuid.uuid4(), role=RoleName.REVIEWER, name="Rita", email="rita@example.com"
+)
 
 
 def original(files: list[tuple[str, bytes]], sender: str = SENDER) -> Message:
@@ -52,12 +61,16 @@ def original(files: list[tuple[str, bytes]], sender: str = SENDER) -> Message:
     m["Date"] = "Mon, 19 Oct 2026 09:00:00 +0000"
     m.set_content("Hi, the hours for week 41 are attached. Thanks, Payroll")
     for name, data in files:
-        m.add_attachment(data, maintype="application", subtype="octet-stream", filename=name)
+        m.add_attachment(
+            data, maintype="application", subtype="octet-stream", filename=name
+        )
     return m
 
 
 @pytest.fixture
-async def world(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> AsyncIterator[dict[str, Any]]:
+async def world(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> AsyncIterator[dict[str, Any]]:
     monkeypatch.setattr(settings, "upload_dir", str(tmp_path / "uploads"))
     monkeypatch.setattr(settings, "imap_host", "imap.example.com")
     monkeypatch.setattr(settings, "imap_user", "timesheets@example.com")
@@ -83,7 +96,8 @@ async def world(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> AsyncIterator
                     employee_name="Grace Hopper",
                     week_start=WEEK,
                     days=[
-                        ExtractedDay(work_date=WEEK + timedelta(days=i), hours=8) for i in range(2)
+                        ExtractedDay(work_date=WEEK + timedelta(days=i), hours=8)
+                        for i in range(2)
                     ],
                     confidence=0.95,
                 )
@@ -108,7 +122,11 @@ async def world(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> AsyncIterator
         )
         s.add(company)
         await s.flush()
-        s.add(Employee(company_id=company.id, employee_code="E001", full_name="Grace Hopper"))
+        s.add(
+            Employee(
+                company_id=company.id, employee_code="E001", full_name="Grace Hopper"
+            )
+        )
         await s.commit()
         mailbox["company_id"] = company.id
     mailbox["extracted"] = extracted
@@ -153,7 +171,9 @@ async def saved_email(
                 sha256=hashlib.sha256(CSV).hexdigest(),
                 status=doc_status,
                 error=doc_error,
-                extracted_text="name,date,hours\nold text" if doc_status == "parsed" else None,
+                extracted_text="name,date,hours\nold text"
+                if doc_status == "parsed"
+                else None,
             )
         )
         await s.commit()
@@ -162,7 +182,9 @@ async def saved_email(
 
 async def reprocess(submission_id: uuid.UUID, **kwargs: Any) -> uuid.UUID:
     async with SessionLocal() as s:
-        run = await SubmissionService(s).reprocess(submission_id, "Fix the file", RITA, **kwargs)
+        run = await SubmissionService(s).reprocess(
+            submission_id, "Fix the file", RITA, **kwargs
+        )
         return run.id
 
 
@@ -176,19 +198,24 @@ async def state(submission_id: uuid.UUID) -> dict[str, Any]:
         submission = await s.get(Submission, submission_id)
         assert submission is not None
         documents = (
-            await s.scalars(select(Document).where(Document.submission_id == submission_id))
+            await s.scalars(
+                select(Document).where(Document.submission_id == submission_id)
+            )
         ).all()
         steps = (
             await s.scalars(
                 select(ProcessingStep)
                 .where(
-                    ProcessingStep.submission_id == submission_id, ProcessingStep.step == "fetch"
+                    ProcessingStep.submission_id == submission_id,
+                    ProcessingStep.step == "fetch",
                 )
                 .order_by(ProcessingStep.created_at)
             )
         ).all()
         timesheets = (
-            await s.scalars(select(Timesheet).where(Timesheet.submission_id == submission_id))
+            await s.scalars(
+                select(Timesheet).where(Timesheet.submission_id == submission_id)
+            )
         ).all()
         return {
             "submission": submission,
@@ -198,7 +225,9 @@ async def state(submission_id: uuid.UUID) -> dict[str, Any]:
         }
 
 
-async def test_a_failed_attachment_is_fetched_from_the_mailbox(world: dict[str, Any]) -> None:
+async def test_a_failed_attachment_is_fetched_from_the_mailbox(
+    world: dict[str, Any],
+) -> None:
     world["message"] = original([("grace.csv", CSV)])
     submission_id = await saved_email(world)
     async with SessionLocal() as s:
@@ -210,7 +239,9 @@ async def test_a_failed_attachment_is_fetched_from_the_mailbox(world: dict[str, 
     after = await state(submission_id)
     assert world["searched"] == [MID]
     document = after["documents"]["grace.csv"]
-    assert document.id == document_id  # the same document: no duplicate-file flag on itself
+    assert (
+        document.id == document_id
+    )  # the same document: no duplicate-file flag on itself
     assert document.status == "parsed"
     assert "Grace Hopper" in (document.extracted_text or "")
     assert len(after["timesheets"]) == 1
@@ -219,12 +250,16 @@ async def test_a_failed_attachment_is_fetched_from_the_mailbox(world: dict[str, 
     assert step.result == "success"
     assert step.output["fetched"] == ["grace.csv"]
     assert step.reprocess_run_id == run_id
-    assert await upload_buffer.get_file(document_id) is None  # read, so the bytes are gone
+    assert (
+        await upload_buffer.get_file(document_id) is None
+    )  # read, so the bytes are gone
     async with SessionLocal() as s:
         from src.data.models import ReprocessRun
 
         run = await s.get(ReprocessRun, run_id)
-        assert run is not None and run.refetch == "missing" and run.status == "completed"
+        assert (
+            run is not None and run.refetch == "missing" and run.status == "completed"
+        )
 
 
 async def test_an_ignored_email_is_processed_once_the_sender_is_whitelisted(
@@ -296,7 +331,9 @@ async def test_a_new_attachment_in_the_original_is_added(world: dict[str, Any]) 
     assert all(d.status == "parsed" for d in after["documents"].values())
 
 
-async def test_saved_text_is_used_unless_refetch_is_asked(world: dict[str, Any]) -> None:
+async def test_saved_text_is_used_unless_refetch_is_asked(
+    world: dict[str, Any],
+) -> None:
     world["message"] = original([("grace.csv", CSV)])
     submission_id = await saved_email(world, doc_status="parsed", doc_error=None)
 
@@ -339,8 +376,10 @@ async def test_turned_off_it_says_to_ask_the_sender(
         await reprocess(submission_id)
 
 
-async def test_a_mail_server_that_is_down_is_tried_again_later(world: dict[str, Any]) -> None:
-    world["error"] = MailConnectionLost("TimeoutError: timed out")
+async def test_a_mail_server_that_is_down_is_tried_again_later(
+    world: dict[str, Any],
+) -> None:
+    world["error"] = MailConnectionLostError("TimeoutError: timed out")
     submission_id = await saved_email(world)
     run_id = await reprocess(submission_id)
 

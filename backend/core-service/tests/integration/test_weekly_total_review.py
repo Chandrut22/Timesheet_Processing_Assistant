@@ -24,7 +24,9 @@ from src.schemas.extraction import ExtractedTimesheet
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 PUBLIC = (
     KEY.public_key()
-    .public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
+    .public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
+    )
     .decode()
 )
 RECEIVED = datetime(2026, 10, 20, 9, tzinfo=UTC)  # Tuesday
@@ -48,7 +50,8 @@ def bearer() -> dict[str, str]:
 
 
 async def seed(hours: float) -> str:
-    """One totals-only timesheet ("Saran - 42 h"), built and priced like the worker does."""
+    """One totals-only timesheet ("Saran - 42 h"), built and priced like the worker
+    does."""
     async with SessionLocal() as s:
         await s.execute(
             text(
@@ -64,7 +67,9 @@ async def seed(hours: float) -> str:
         )
         s.add(company)
         await s.flush()
-        employee = Employee(company_id=company.id, employee_code="E001", full_name="Saran")
+        employee = Employee(
+            company_id=company.id, employee_code="E001", full_name="Saran"
+        )
         submission = Submission(
             source="upload",
             status="processed",
@@ -82,7 +87,10 @@ async def seed(hours: float) -> str:
             week_start_day=company.week_start,
         )
         [timesheet] = build_timesheets(
-            ExtractedTimesheet(employee_name="Saran", stated_total=hours, confidence=0.95), ctx
+            ExtractedTimesheet(
+                employee_name="Saran", stated_total=hours, confidence=0.95
+            ),
+            ctx,
         )
         timesheet.employee_id = employee.id
         recalculate(timesheet, rules_from_company(company), set())
@@ -113,7 +121,11 @@ async def test_the_reviewer_sees_the_total_and_can_approve_and_export_it(
     ts_id = await seed(42)
     ts = (await client.get(f"/timesheets/{ts_id}")).json()
     assert ts["entries"] == []
-    assert (ts["regular_hours"], ts["overtime_hours"], ts["stated_total"]) == (40, 2, 42)
+    assert (ts["regular_hours"], ts["overtime_hours"], ts["stated_total"]) == (
+        40,
+        2,
+        42,
+    )
     assert ts["week_start"] == ASSUMED_WEEK.isoformat()
     assert {"weekly_total_only", "week_assumed"} <= set(codes(ts))
     assert ts["status"] == "needs_review"
@@ -134,13 +146,19 @@ async def test_the_reviewer_sees_the_total_and_can_approve_and_export_it(
     )
 
 
-async def test_the_reviewer_can_move_it_to_the_right_week(client: httpx.AsyncClient) -> None:
+async def test_the_reviewer_can_move_it_to_the_right_week(
+    client: httpx.AsyncClient,
+) -> None:
     ts_id = await seed(40)
-    wednesday = await client.patch(f"/timesheets/{ts_id}/week", json={"week_start": "2026-10-07"})
+    wednesday = await client.patch(
+        f"/timesheets/{ts_id}/week", json={"week_start": "2026-10-07"}
+    )
     assert wednesday.status_code == 422
     assert "Monday" in wednesday.json()["detail"]
 
-    moved = await client.patch(f"/timesheets/{ts_id}/week", json={"week_start": "2026-10-05"})
+    moved = await client.patch(
+        f"/timesheets/{ts_id}/week", json={"week_start": "2026-10-05"}
+    )
     assert moved.status_code == 200, moved.text
     body = moved.json()
     assert body["week_start"] == "2026-10-05"
@@ -149,7 +167,9 @@ async def test_the_reviewer_can_move_it_to_the_right_week(client: httpx.AsyncCli
     assert body["regular_hours"] == 40
 
 
-async def test_entering_days_makes_it_a_normal_timesheet(client: httpx.AsyncClient) -> None:
+async def test_entering_days_makes_it_a_normal_timesheet(
+    client: httpx.AsyncClient,
+) -> None:
     ts_id = await seed(42)
     days = [
         {"work_date": f"2026-10-{d:02d}", "hours": 8, "double_time_marked": False}
@@ -165,5 +185,7 @@ async def test_entering_days_makes_it_a_normal_timesheet(client: httpx.AsyncClie
     assert body["regular_hours"] == 40
 
     # With days, the week follows the days: the week endpoint refuses.
-    refused = await client.patch(f"/timesheets/{ts_id}/week", json={"week_start": "2026-10-05"})
+    refused = await client.patch(
+        f"/timesheets/{ts_id}/week", json={"week_start": "2026-10-05"}
+    )
     assert refused.status_code == 422

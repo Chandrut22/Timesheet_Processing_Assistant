@@ -7,8 +7,19 @@ from src.api.rest.dependencies import Admin, CurrentPrincipal, SessionDep
 from src.api.rest.routes.importing import add_import_routes
 from src.core.services.bulk_status import BulkStatusService
 from src.core.services.holiday_service import HolidayService
-from src.schemas.bulk import BulkDeleteResult, BulkIds, BulkStatusRequest, BulkStatusResult
-from src.schemas.holiday import HolidayCreate, HolidayRead
+from src.schemas.bulk import (
+    BulkDeleteResult,
+    BulkIds,
+    BulkStatusRequest,
+    BulkStatusResult,
+)
+from src.schemas.holiday import (
+    HolidayBulkCreate,
+    HolidayBulkResult,
+    HolidayCopy,
+    HolidayCreate,
+    HolidayRead,
+)
 
 router = APIRouter(prefix="/holidays", tags=["holidays"])
 
@@ -21,6 +32,7 @@ async def list_holidays(
     year: Annotated[int | None, Query(ge=2000, le=2100)] = None,
     is_active: bool | None = None,
 ) -> list[HolidayRead]:
+    """One company's holidays (company_id), or every company's."""
     holidays = await HolidayService(session).list(
         company_id=company_id, year=year, is_active=is_active
     )
@@ -28,8 +40,28 @@ async def list_holidays(
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-async def create_holiday(body: HolidayCreate, session: SessionDep, _: Admin) -> HolidayRead:
+async def create_holiday(
+    body: HolidayCreate, session: SessionDep, _: Admin
+) -> HolidayRead:
     return HolidayRead.model_validate(await HolidayService(session).create(body))
+
+
+@router.post("/bulk/create", status_code=status.HTTP_201_CREATED)
+async def bulk_create_holidays(
+    body: HolidayBulkCreate, session: SessionDep, _: Admin
+) -> HolidayBulkResult:
+    """The same holiday for several companies at once (one transaction). A company that
+    already has a holiday on that date is skipped and listed in `skipped`."""
+    return await HolidayService(session).bulk_create(body)
+
+
+@router.post("/copy", status_code=status.HTTP_201_CREATED)
+async def copy_holidays(
+    body: HolidayCopy, session: SessionDep, _: Admin
+) -> HolidayBulkResult:
+    """Copy a company's holidays (one year, or all) to other companies, e.g. a new one.
+    Dates a target already has are skipped and listed."""
+    return await HolidayService(session).copy(body)
 
 
 @router.post("/bulk/status")
@@ -55,4 +87,6 @@ async def delete_holiday(holiday_id: uuid.UUID, session: SessionDep, _: Admin) -
     await HolidayService(session).delete(holiday_id)
 
 
-add_import_routes(router, "holidays")  # GET /holidays/import/template, POST /holidays/import
+add_import_routes(
+    router, "holidays"
+)  # GET /holidays/import/template, POST /holidays/import

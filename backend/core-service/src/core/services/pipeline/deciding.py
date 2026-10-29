@@ -43,12 +43,18 @@ async def check_and_decide(
 ) -> None:
     # Hold (employee, week) locks until this document is committed, so two workers
     # handling the same resent email cannot both miss each other's timesheet.
-    await lock_employee_weeks(session, [(t.employee_id, t.week_start) for t, _ in built])
+    await lock_employee_weeks(
+        session, [(t.employee_id, t.week_start) for t, _ in built]
+    )
     for timesheet, cc in built:
         watch = Stopwatch()
         rules_started = now_ns()
-        recalculate(timesheet, cc.rules, cc.holidays, default_rules_used=cc.company is None)
-        placed = cc.employees.get(timesheet.employee_id) if timesheet.employee_id else None
+        recalculate(
+            timesheet, cc.rules, cc.holidays, default_rules_used=cc.company is None
+        )
+        placed = (
+            cc.employees.get(timesheet.employee_id) if timesheet.employee_id else None
+        )
         if placed is not None:
             check_assignment(timesheet, placed.assignment_start, placed.assignment_end)
         await validate_duplicates(session, timesheet, document)

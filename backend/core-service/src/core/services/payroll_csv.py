@@ -184,7 +184,9 @@ def build_csv(company_name: str, week_start: date, rows: Sequence[ExportRow]) ->
                 _money(row.holiday_amount),
                 _money(row.gross),
                 safe_cell(row.approved_by or "auto-approved"),
-                row.approved_at.isoformat(timespec="seconds") if row.approved_at else "",
+                row.approved_at.isoformat(timespec="seconds")
+                if row.approved_at
+                else "",
                 str(row.timesheet_id),
             ]
         )

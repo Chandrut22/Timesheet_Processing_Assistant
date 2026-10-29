@@ -4,7 +4,7 @@
 // Approve / reject are not versions: they are in the History panel.
 import { useQuery } from "@tanstack/react-query";
 import { History, RotateCcw } from "lucide-react";
-import { useState } from "react";
+import { useState, type JSX } from "react";
 import { errorMessage } from "@/services/apiErrors";
 import type { TimesheetChange, TimesheetRead, TimesheetVersionSummary } from "../types/timesheet";
 import { Field, FormError } from "@/components/forms/Field";
@@ -38,7 +38,13 @@ const CHANGE_LABELS: Record<TimesheetChange, string> = {
   rolled_back: "Left when another version was restored",
 };
 
-export function VersionsPanel({ t, readOnly }: { t: TimesheetRead; readOnly: boolean }) {
+export function VersionsPanel({
+  t,
+  readOnly,
+}: {
+  t: TimesheetRead;
+  readOnly: boolean;
+}): JSX.Element {
   const q = useQuery({
     queryKey: timesheetKeys.versions(t.id),
     queryFn: () => timesheetService.listVersions(t.id),
@@ -115,7 +121,7 @@ export function VersionsPanel({ t, readOnly }: { t: TimesheetRead; readOnly: boo
   );
 }
 
-function VersionDays({ id, version }: { id: string; version: number }) {
+function VersionDays({ id, version }: { id: string; version: number }): JSX.Element {
   const q = useQuery({
     queryKey: timesheetKeys.version(id, version),
     queryFn: () => timesheetService.getVersion(id, version),
@@ -173,7 +179,7 @@ function RestoreDialog({
   t: TimesheetRead;
   version: TimesheetVersionSummary;
   onClose: () => void;
-}) {
+}): JSX.Element {
   const [reason, setReason] = useState("");
   const m = useTimesheetMutation(
     () => timesheetService.restoreVersion(t.id, version.version, reason.trim()),

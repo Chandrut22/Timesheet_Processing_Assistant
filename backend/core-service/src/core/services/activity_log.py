@@ -17,7 +17,12 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.constants.timesheet_status import StepName, StepResult, SubmissionState, TimesheetStatus
+from src.constants.timesheet_status import (
+    StepName,
+    StepResult,
+    SubmissionState,
+    TimesheetStatus,
+)
 from src.core.rbac.principal import Principal
 from src.data.models import ProcessingStep, Submission, SubmissionStateChange, Timesheet
 from src.observability.tracing.spans import current_trace_id
@@ -51,7 +56,8 @@ def set_state(
 ) -> None:
     """Move the submission to `state` and log the change (no row if nothing changed).
     The submission must already have its id (flush a new one first).
-    first=True = the submission was just created: log "received" with no previous state."""
+    first=True = the submission was just created: log "received" with no previous
+    state."""
     if not first and submission.state == state and submission.state_reason == reason:
         return
     session.add(
@@ -62,7 +68,9 @@ def set_state(
             reason=reason,
             actor_id=actor.id if actor else None,
             actor_name=actor.name if actor else None,
-            created_at=datetime.now(UTC),  # set here: the order rows were made in is the order
+            created_at=datetime.now(
+                UTC
+            ),  # set here: the order rows were made in is the order
         )
     )
     submission.state = state
@@ -122,7 +130,8 @@ def state_from_timesheets(statuses: Iterable[str]) -> SubmissionState | None:
 async def refresh_state(
     session: AsyncSession, submission_id: uuid.UUID, *, actor: Principal | None = None
 ) -> None:
-    """After a review or an export: move the submission to the state its timesheets show."""
+    """After a review or an export: move the submission to the state its timesheets
+    show."""
     submission = await session.get(Submission, submission_id)
     if submission is None:
         return

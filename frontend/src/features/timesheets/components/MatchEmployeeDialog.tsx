@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Check, Search } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef, useState, type JSX } from "react";
 import { errorMessage } from "@/services/apiErrors";
 import {
   type EmployeeRead,
@@ -41,7 +41,7 @@ export function MatchEmployeeDialog({
   onOpenChange: (open: boolean) => void;
   /** Shows "Match & next unmatched": after the match, called instead of closing. */
   onMatchNext?: () => void;
-}) {
+}): JSX.Element {
   const goNext = useRef(false);
   const [q, setQ] = useState(t.extracted_name ?? "");
   // A close-spelling match is only a suggestion: it is pre-selected, so "Match" confirms it.
@@ -77,7 +77,7 @@ export function MatchEmployeeDialog({
   const row = (
     e: Pick<EmployeeRead, "id" | "full_name" | "employee_code"> & Partial<EmployeeRead>,
     suggested = false,
-  ) => (
+  ): JSX.Element => (
     <li key={`${suggested ? "s" : "r"}-${e.id}`}>
       <button
         type="button"

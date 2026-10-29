@@ -1,5 +1,5 @@
-"""Optional attachment classifier (Jev): the skip rule, the decisions, the request we
-send, the answers we accept, and every failure falling back to normal extraction."""
+"""Optional attachment classifier (Jev): the skip rule, the decisions, the metadata we
+send, the answers we accept, and every failure falling back to reading the file."""
 
 import asyncio
 import json
@@ -16,16 +16,20 @@ from src.core.services.attachment_classifier import (
     Decision,
     decide,
     describe,
+    metadata_text,
     should_skip,
 )
 from src.handlers.http_clients import jev_client
 
 
 def result(label: str, p: float | None) -> ClassifierResult:
-    return ClassifierResult(label=label, p_timesheet=p, model="jev-1.13.0", duration_ms=12)
+    return ClassifierResult(
+        label=label, p_timesheet=p, model="jev-1.13.0", duration_ms=12
+    )
 
 
-# --- the skip rule ---------------------------------------------------------------------
+# --- the skip rule
+# ---------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -41,7 +45,9 @@ def result(label: str, p: float | None) -> ClassifierResult:
         ("payslip", 0.0, True),
     ],
 )
-def test_skip_only_when_clearly_not_a_timesheet(label: str, p: float | None, skip: bool) -> None:
+def test_skip_only_when_clearly_not_a_timesheet(
+    label: str, p: float | None, skip: bool
+) -> None:
     assert should_skip(result(label, p), 0.2) is skip
 
 
@@ -51,7 +57,11 @@ def test_decisions() -> None:
 
     def run(found: ClassifierResult | None, enabled: bool, shadow: bool) -> Decision:
         return decide(
-            found, enabled=enabled, shadow_only=shadow, is_manual_reprocess=False, threshold=0.2
+            found,
+            enabled=enabled,
+            shadow_only=shadow,
+            is_manual_reprocess=False,
+            threshold=0.2,
         )
 
     assert run(sure_no, False, False) == Decision.OFF
@@ -61,14 +71,21 @@ def test_decisions() -> None:
     assert run(yes, True, True) == Decision.SHADOW_CONTINUE
     assert run(None, True, False) == Decision.ERROR
     assert (
-        decide(sure_no, enabled=True, shadow_only=False, is_manual_reprocess=True, threshold=0.2)
+        decide(
+            sure_no,
+            enabled=True,
+            shadow_only=False,
+            is_manual_reprocess=True,
+            threshold=0.2,
+        )
         == Decision.BYPASSED
     )
     assert describe(sure_no) == "invoice, 3% timesheet"
     assert describe(result("other", None)) == "other, unknown timesheet"
 
 
-# --- settings ----------------------------------------------------------------------------
+# --- settings
+# ----------------------------------------------------------------------------
 
 
 def test_off_by_default_and_needs_a_key_to_switch_on() -> None:
@@ -83,21 +100,35 @@ def test_off_by_default_and_needs_a_key_to_switch_on() -> None:
         Settings(_env_file=None, classifier_skip_below=1.5)
 
 
-# --- the request we send -------------------------------------------------------------------
+# --- the request we send
+# -------------------------------------------------------------------
 
 
-def test_request_sends_only_the_start_of_the_document(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_request_sends_only_the_start_of_the_document(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(settings, "classifier_max_chars", 500)
     body = jev_client.build_request("x" * 2000)
     assert body["model"] == "jev-1.13.0"
     assert len(body["state"]) == 500
     question = body["questions"]["document_kind"]
     assert question["type"] == "choice"
-    assert set(question["criteria"]) == {"timesheet", "invoice", "payslip", "other", "unclear"}
-    assert set(body) == {"model", "state", "questions"}  # no file name, sender or email text
+    assert set(question["criteria"]) == {
+        "timesheet",
+        "invoice",
+        "payslip",
+        "other",
+        "unclear",
+    }
+    assert set(body) == {
+        "model",
+        "state",
+        "questions",
+    }  # no file name, sender or email text
 
 
-# --- the answers we accept -------------------------------------------------------------------
+# --- the answers we accept
+# -------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -109,7 +140,10 @@ def test_request_sends_only_the_start_of_the_document(monkeypatch: pytest.Monkey
             0.05,
         ),
         (
-            {"choice": "other", "options": [{"option": "timesheet", "probability": 0.12}]},
+            {
+                "choice": "other",
+                "options": [{"option": "timesheet", "probability": 0.12}],
+            },
             "other",
             0.12,
         ),
@@ -130,17 +164,25 @@ def test_answer_shapes(answer: dict[str, Any], label: str, p: float | None) -> N
 
 @pytest.mark.parametrize(
     "data",
-    [{}, {"answers": {}}, {"answers": {"document_kind": {"choice": "receipt"}}}, ["nope"]],
+    [
+        {},
+        {"answers": {}},
+        {"answers": {"document_kind": {"choice": "receipt"}}},
+        ["nope"],
+    ],
 )
 def test_unusable_answers_raise(data: Any) -> None:
     with pytest.raises(ClassifierError):
         jev_client.parse_response(data)
 
 
-# --- the HTTP call ------------------------------------------------------------------------
+# --- the HTTP call
+# ------------------------------------------------------------------------
 
 
-def call(handler: Any, monkeypatch: pytest.MonkeyPatch, text: str = "Mon 8 Tue 8") -> Any:
+def call(
+    handler: Any, monkeypatch: pytest.MonkeyPatch, text: str = "Mon 8 Tue 8"
+) -> Any:
     monkeypatch.setattr(settings, "jev_api_key", SecretStr("test-key"))
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     return asyncio.run(jev_client.classify(text, client=client))
@@ -171,7 +213,9 @@ def test_classify_posts_with_the_key(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda request: httpx.Response(200, text="not json"),
     ],
 )
-def test_failures_become_classifier_errors(handler: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_failures_become_classifier_errors(
+    handler: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
     with pytest.raises(ClassifierError):
         call(handler, monkeypatch)
 
@@ -190,6 +234,34 @@ def test_no_key_or_no_text(monkeypatch: pytest.MonkeyPatch) -> None:
         asyncio.run(jev_client.classify("text"))
     with pytest.raises(ClassifierError, match="No text"):
         call(lambda request: httpx.Response(200), monkeypatch, text="   ")
+
+
+# --- the metadata we send
+# ------------------------------------------------------------------
+
+
+def test_metadata_for_one_attachment() -> None:
+    assert metadata_text(
+        "week41.pdf", " Hours ", "Hi,\r\n\r\nattached   the hours.", body_max=100
+    ) == ("File: week41.pdf\nSubject: Hours\nBody: Hi, attached the hours.")
+
+
+def test_metadata_names_the_other_attachments() -> None:
+    first = metadata_text(
+        "inv.pdf", "x", "y", ["week41.pdf", "logo.png"], body_max=10
+    ).splitlines()[0]
+    assert first == "File: inv.pdf (1 of 3 attachments; others: week41.pdf, logo.png)"
+
+
+def test_metadata_for_the_email_body_and_empty_fields() -> None:
+    assert metadata_text(None, None, "", body_max=10) == (
+        "File: none (the email body itself)\nSubject: (none)\nBody: (empty)"
+    )
+
+
+def test_metadata_cuts_the_body() -> None:
+    sent = metadata_text("a.pdf", "s", "word " * 1000, body_max=20)
+    assert sent.splitlines()[2] == "Body: word word word word"
 
 
 # --- the evaluation tool --------------------------------------------------------------

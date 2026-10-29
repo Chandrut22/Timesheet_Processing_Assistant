@@ -62,7 +62,9 @@ class FileResult:
     seconds: float = 0.0
     unclear_marks: int = 0
     writing_class: str = ""  # printed_only / mixed / handwritten_only / ...
-    names: list[tuple[str, str, float]] = field(default_factory=list)  # expected, got, CER
+    names: list[tuple[str, str, float]] = field(
+        default_factory=list
+    )  # expected, got, CER
     days: int = 0
     dates_ok: int = 0
     hours_ok: int = 0
@@ -75,7 +77,8 @@ Reader = Callable[[str, str, bytes], VisionResult]
 Extractor = Callable[[str, str], Awaitable[ExtractionResult]]
 
 
-# --- inputs ------------------------------------------------------------------------------
+# --- inputs
+# ------------------------------------------------------------------------------
 
 
 def load_expected(path: Path) -> dict[str, list[ExpectedDay]]:
@@ -85,7 +88,9 @@ def load_expected(path: Path) -> dict[str, list[ExpectedDay]]:
         reader = csv.DictReader(handle)
         missing = set(EXPECTED_COLUMNS) - set(reader.fieldnames or [])
         if missing:
-            raise ValueError(f"{path.name} needs the columns {', '.join(EXPECTED_COLUMNS)}")
+            raise ValueError(
+                f"{path.name} needs the columns {', '.join(EXPECTED_COLUMNS)}"
+            )
         for line, row in enumerate(reader, start=2):
             try:
                 day = ExpectedDay(
@@ -100,7 +105,8 @@ def load_expected(path: Path) -> dict[str, list[ExpectedDay]]:
     return dict(by_file)
 
 
-# --- scoring -----------------------------------------------------------------------------
+# --- scoring
+# -----------------------------------------------------------------------------
 
 
 def _norm(name: str | None) -> str:
@@ -112,7 +118,9 @@ def levenshtein(a: str, b: str) -> int:
     for i, ca in enumerate(a, start=1):
         current = [i]
         for j, cb in enumerate(b, start=1):
-            current.append(min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (ca != cb)))
+            current.append(
+                min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (ca != cb))
+            )
         previous = current
     return previous[-1]
 
@@ -129,7 +137,9 @@ def cer(expected: str, got: str | None) -> float:
     return min(1.0, levenshtein(truth, guess) / len(truth))
 
 
-def score(result: FileResult, expected: list[ExpectedDay], extracted: ExtractionResult) -> None:
+def score(
+    result: FileResult, expected: list[ExpectedDay], extracted: ExtractionResult
+) -> None:
     """Fill the name / date / hours / [UNCLEAR] counts for one file."""
     sheets = extracted.timesheets
     by_person: dict[str, list[ExpectedDay]] = defaultdict(list)
@@ -140,7 +150,9 @@ def score(result: FileResult, expected: list[ExpectedDay], extracted: Extraction
         best = min(sheets, key=lambda s: cer(person, s.employee_name), default=None)
         got_name = best.employee_name if best else None
         result.names.append((person, got_name or "", cer(person, got_name)))
-        found = {d.work_date: d.hours for d in (best.days if best else []) if d.work_date}
+        found = {
+            d.work_date: d.hours for d in (best.days if best else []) if d.work_date
+        }
         unreadable = set(best.unreadable_days) if best else set()
         for day in days:
             result.days += 1
@@ -161,11 +173,14 @@ def score(result: FileResult, expected: list[ExpectedDay], extracted: Extraction
                 result.misses.append(f"{person} {iso}: not found")
 
 
-# --- the run -----------------------------------------------------------------------------
+# --- the run
+# -----------------------------------------------------------------------------
 
 
 def files_in(folder: Path) -> list[Path]:
-    return sorted(p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in SUPPORTED)
+    return sorted(
+        p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in SUPPORTED
+    )
 
 
 async def evaluate(
@@ -189,14 +204,18 @@ async def evaluate(
             result.pages = vision.pages_read
             result.unclear_marks = vision.unclear_marks
             result.writing_class = vision.writing_class
-            score(result, expected[path.name], await extract(vision.markdown, path.name))
+            score(
+                result, expected[path.name], await extract(vision.markdown, path.name)
+            )
         except Exception as exc:  # one bad file must not stop the comparison
             result.error = f"{type(exc).__name__}: {str(exc)[:200]}"
         results.append(result)
         status = result.error or f"{result.hours_ok}/{result.days} days right"
         print(f"  {path.name:<40} {status}")
     for name in sorted(set(expected) - {p.name for p in files_in(folder)}):
-        results.append(FileResult(name, error="FileNotFoundError: listed in expected.csv"))
+        results.append(
+            FileResult(name, error="FileNotFoundError: listed in expected.csv")
+        )
     return results
 
 
@@ -238,15 +257,16 @@ def _pct(value: float | None) -> str:
 def render_report(results: list[FileResult], *, model: str, base_url: str) -> str:
     s = summarize(results)
     host = urlparse(base_url).netloc or base_url
+    cer = "—" if s.name_cer is None else f"{s.name_cer:.3f}"
     lines = [
         f"# Handwriting evaluation: {model}",
         "",
-        f"Server: {host} · {datetime.now(UTC):%Y-%m-%d %H:%M} UTC · "
-        f"{s.files} files, {s.failed} failed",
+        f"Server: {host} · {datetime.now(UTC):%Y-%m-%d %H:%M} UTC · {s.files} files, "
+        f"{s.failed} failed",
         "",
         "| Metric | Value |",
         "|---|---|",
-        f"| Name CER (lower is better) | {'—' if s.name_cer is None else f'{s.name_cer:.3f}'} |",
+        f"| Name CER (lower is better) | {cer} |",
         f"| Date exact match | {_pct(s.date_match)} |",
         f"| Hours exact match (per day) | {_pct(s.hours_match)} |",
         f"| Days marked [UNCLEAR] | {_pct(s.unreadable_rate)} |",
@@ -257,7 +277,8 @@ def render_report(results: list[FileResult], *, model: str, base_url: str) -> st
         "",
         "## Per file",
         "",
-        "| File | Class | Pages | s/page | [UNCLEAR] marks | Name (CER) | Dates | Hours | Error |",
+        "| File | Class | Pages | s/page | [UNCLEAR] marks | Name (CER) | Dates | "
+        "Hours | Error |",
         "|---|---|---|---|---|---|---|---|---|",
     ]
     for r in results:
@@ -265,9 +286,8 @@ def render_report(results: list[FileResult], *, model: str, base_url: str) -> st
         per_page = f"{r.seconds / r.pages:.1f}" if r.pages else "—"
         lines.append(
             f"| {_cell(r.file)} | {r.writing_class or '—'} | {r.pages} | {per_page} | "
-            f"{r.unclear_marks} | "
-            f"{_cell(names)} | {r.dates_ok}/{r.days} | {r.hours_ok}/{r.days} | "
-            f"{_cell(r.error or '')} |"
+            f"{r.unclear_marks} | {_cell(names)} | {r.dates_ok}/{r.days} | "
+            f"{r.hours_ok}/{r.days} | {_cell(r.error or '')} |"
         )
     misses = [(r.file, m) for r in results for m in r.misses]
     if misses:
@@ -280,7 +300,8 @@ def _cell(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ")
 
 
-# --- command line ------------------------------------------------------------------------
+# --- command line
+# ------------------------------------------------------------------------
 
 
 def configure(model: str | None, base_url: str | None) -> None:
@@ -308,13 +329,20 @@ async def _extract(markdown: str, filename: str) -> ExtractionResult:
 
 
 def main(
-    argv: list[str] | None = None, *, read: Reader = _read, extract: Extractor | None = None
+    argv: list[str] | None = None,
+    *,
+    read: Reader = _read,
+    extract: Extractor | None = None,
 ) -> int:
-    parser = argparse.ArgumentParser(description="Compare vision models on handwritten sheets")
+    parser = argparse.ArgumentParser(
+        description="Compare vision models on handwritten sheets"
+    )
     parser.add_argument("folder", type=Path, help="images / scans plus expected.csv")
     parser.add_argument("--expected", type=Path, help="default: <folder>/expected.csv")
     parser.add_argument("--model", help="model name exactly as the server lists it")
-    parser.add_argument("--base-url", help="OpenAI-compatible endpoint, e.g. http://host:11434/v1")
+    parser.add_argument(
+        "--base-url", help="OpenAI-compatible endpoint, e.g. http://host:11434/v1"
+    )
     parser.add_argument("--out", type=Path, default=Path("eval-report.md"))
     args = parser.parse_args(argv)
 
@@ -329,17 +357,24 @@ def main(
         return 2
     configure(args.model, args.base_url)
     if not settings.vision_model or not settings.vision_base_url:
-        print("Give --model and --base-url (or VISION_MODEL / VISION_BASE_URL in .env).")
+        print(
+            "Give --model and --base-url (or VISION_MODEL / VISION_BASE_URL in .env)."
+        )
         return 2
 
-    print(f"Model {settings.vision_model} on {urlparse(settings.vision_base_url).netloc}")
+    print(
+        f"Model {settings.vision_model} on {urlparse(settings.vision_base_url).netloc}"
+    )
     results = asyncio.run(evaluate(args.folder, expected, read, extract or _extract))
-    report = render_report(results, model=settings.vision_model, base_url=settings.vision_base_url)
+    report = render_report(
+        results, model=settings.vision_model, base_url=settings.vision_base_url
+    )
     args.out.write_text(report, encoding="utf-8")
     s = summarize(results)
     print(
         f"\nHours right: {_pct(s.hours_match)} · dates right: {_pct(s.date_match)} · "
-        f"[UNCLEAR]: {_pct(s.unreadable_rate)} · failures: {s.failed}\nReport: {args.out}"
+        f"[UNCLEAR]: {_pct(s.unreadable_rate)} · failures: {s.failed}\nReport: "
+        f"{args.out}"
     )
     return 0
 

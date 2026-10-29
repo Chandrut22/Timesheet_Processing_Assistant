@@ -52,8 +52,8 @@ async def record_failure(
     token = uuid.uuid4() if plan.retry else None
     if plan.retry and plan.retry_at is not None:
         reason = (
-            f"{failure.message} Trying again automatically at "
-            f"{plan.retry_at:%H:%M} UTC (run {attempt + 1} of {most})."
+            f"{failure.message} Trying again automatically at {plan.retry_at:%H:%M} "
+            f"UTC (run {attempt + 1} of {most})."
         )
     else:
         runs = f" after {attempt} runs" if 1 < attempt <= most else ""
@@ -88,7 +88,9 @@ async def record_failure(
     if reprocess_run_id is not None and not plan.retry:  # a retry keeps the run open
         await finish_run(session, reprocess_run_id, error=reason)
     await session.commit()
-    submissions_failed.add(1, {"reason": "temporary" if token is not None else "permanent"})
+    submissions_failed.add(
+        1, {"reason": "temporary" if token is not None else "permanent"}
+    )
 
     if token is not None:
         logger.warning(
@@ -100,5 +102,7 @@ async def record_failure(
             technical_details(exc, limit=300),
         )
         return RetryLater(token, plan.delay_seconds)
-    logger.exception("Submission %s failed (run %d of %d)", submission_id, attempt, most)
+    logger.exception(
+        "Submission %s failed (run %d of %d)", submission_id, attempt, most
+    )
     return None

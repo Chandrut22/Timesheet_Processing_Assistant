@@ -24,7 +24,9 @@ def process_submission(
         run_async(
             process_submission_by_id(
                 uuid.UUID(submission_id),
-                reprocess_run_id=uuid.UUID(reprocess_run_id) if reprocess_run_id else None,
+                reprocess_run_id=uuid.UUID(reprocess_run_id)
+                if reprocess_run_id
+                else None,
                 retry_token=uuid.UUID(retry_token) if retry_token else None,
             )
         )

@@ -1,4 +1,5 @@
-"""Turn one ExtractedTimesheet into a Timesheet + entries, adding flags for anything odd.
+"""Turn one ExtractedTimesheet into a Timesheet + entries, adding flags for anything
+odd.
 
 Pure function: no database, no LLM. The pay rules (regular / overtime / double time /
 holiday) run afterwards in pay_rules.recalculate(); here every hour starts as 'regular'.
@@ -38,7 +39,9 @@ class BuildContext:
     company_id: uuid.UUID | None
     received_on: date
     week_start_day: int = 0  # from the company; 0 = Monday
-    is_email_body: bool = False  # the "document" is the email text itself (no attachment)
+    is_email_body: bool = (
+        False  # the "document" is the email text itself (no attachment)
+    )
     # Photos / scans read by the vision model (documents.writing_class etc.); None and
     # False / 0 for typed documents.
     writing_class: str | None = None
@@ -57,7 +60,8 @@ def _hours(value: float) -> Decimal:
 def conflicting_hours_flag(
     email_total: Decimal | None, attachment_total: Decimal
 ) -> dict[str, Any] | None:
-    """Pure: the email says one total, the attachment another -> flag with BOTH values."""
+    """Pure: the email says one total, the attachment another -> flag with BOTH
+    values."""
     if email_total is None or email_total == attachment_total:
         return None
     return {
@@ -69,8 +73,11 @@ def conflicting_hours_flag(
     }
 
 
-def _base_week(extracted: ExtractedTimesheet, ctx: BuildContext) -> tuple[date | None, bool]:
-    """Which week do weekday-only days ('Mon 8') belong to? Returns (first day, assumed?)."""
+def _base_week(
+    extracted: ExtractedTimesheet, ctx: BuildContext
+) -> tuple[date | None, bool]:
+    """Which week do weekday-only days ('Mon 8') belong to? Returns (first day,
+    assumed?)."""
     if extracted.week_start is not None:
         return extracted.week_start, False
     weekdays = [weekday_index(d.weekday) for d in extracted.days if d.work_date is None]
@@ -117,17 +124,21 @@ def _is_illegible(day: ExtractedDay, dates: set[str], weekdays: set[int]) -> boo
     return index is not None and index in weekdays
 
 
-def illegible_flag(extracted: ExtractedTimesheet, skipped: int) -> dict[str, Any] | None:
+def illegible_flag(
+    extracted: ExtractedTimesheet, skipped: int
+) -> dict[str, Any] | None:
     """unreadable_values: how many day values could not be read, and which days."""
     listed = [d.strip() for d in extracted.unreadable_days if d.strip()]
     count = max(len(listed), skipped)
     if not count:
         return None
-    days = f" ({', '.join(listed[:7])}{'…' if len(listed) > 7 else ''})" if listed else ""
+    days = (
+        f" ({', '.join(listed[:7])}{'…' if len(listed) > 7 else ''})" if listed else ""
+    )
     return {
         "code": "unreadable_values",
-        "message": f"{count} value(s) could not be read{days}. They were left out (not set "
-        "to 0): check the original and enter them.",
+        "message": f"{count} value(s) could not be read{days}. They were left out (not "
+        "set to 0): check the original and enter them.",
         "count": count,
         "days": listed,
     }
@@ -141,13 +152,14 @@ def writing_flag(ctx: BuildContext) -> dict[str, Any] | None:
     if ctx.writing_class in (WritingClass.UNCERTAIN, WritingClass.NO_TEXT):
         return _flag(
             "writing_unclear",
-            "The photo / scan was hard to read (blurry, cut off, or the AI was not sure). "
-            "Check every value against the original.",
+            "The photo / scan was hard to read (blurry, cut off, or the AI was not "
+            "sure). Check every value against the original.",
         )
     if ctx.has_handwritten_hours or ctx.writing_class == WritingClass.HANDWRITTEN_ONLY:
         return _flag(
             "handwritten_hours",
-            "Hours were written by hand and read by an AI model. Check them against the original.",
+            "Hours were written by hand and read by an AI model. Check them against "
+            "the original.",
         )
     if ctx.writing_class == WritingClass.MIXED:
         return _flag(
@@ -167,7 +179,9 @@ def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timeshe
 
     for day in extracted.days:
         if _is_illegible(day, illegible_dates, illegible_weekdays):
-            skipped_illegible += 1  # never a guessed (or zero) value for an unreadable day
+            skipped_illegible += (
+                1  # never a guessed (or zero) value for an unreadable day
+            )
             continue
         work_date = day.work_date
         if work_date is None:
@@ -181,10 +195,14 @@ def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timeshe
         if work_date in entries:  # the same day listed twice: add up, but say so
             existing = entries[work_date]
             existing.hours += hours
-            existing.sheet_holiday = bool(existing.sheet_holiday) or day.is_public_holiday
+            existing.sheet_holiday = (
+                bool(existing.sheet_holiday) or day.is_public_holiday
+            )
             existing.is_holiday = existing.sheet_holiday
             flags.append(
-                _flag("duplicate_day", f"{work_date} appears more than once; hours added.")
+                _flag(
+                    "duplicate_day", f"{work_date} appears more than once; hours added."
+                )
             )
         else:
             entries[work_date] = TimesheetEntry(
@@ -198,22 +216,36 @@ def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timeshe
 
     for entry in entries.values():
         if entry.hours > MAX_DAY:
-            flags.append(_flag("day_over_24", f"{entry.work_date}: {entry.hours} h, capped at 24."))
+            flags.append(
+                _flag(
+                    "day_over_24", f"{entry.work_date}: {entry.hours} h, capped at 24."
+                )
+            )
             entry.hours = MAX_DAY
         elif entry.hours > LONG_DAY:
             flags.append(
-                _flag("long_day", f"{entry.work_date}: {entry.hours} h in one day. Please confirm.")
+                _flag(
+                    "long_day",
+                    f"{entry.work_date}: {entry.hours} h in one day. Please confirm.",
+                )
             )
 
     if assumed and entries:
-        flags.append(_flag("dates_assumed", f"No dates on the sheet; used the week of {base}."))
+        flags.append(
+            _flag("dates_assumed", f"No dates on the sheet; used the week of {base}.")
+        )
     if undated:
         flags.append(
-            _flag("undated_days", f"{undated} day(s) had no readable date and were skipped.")
+            _flag(
+                "undated_days",
+                f"{undated} day(s) had no readable date and were skipped.",
+            )
         )
     ordered = sorted(entries.values(), key=lambda e: e.work_date)
     total = sum((e.hours for e in ordered), Decimal("0"))
-    stated = _hours(extracted.stated_total) if extracted.stated_total is not None else None
+    stated = (
+        _hours(extracted.stated_total) if extracted.stated_total is not None else None
+    )
     # Only a weekly total, no days ("Chandru 40 h"): the total is the hours.
     # Not when days were there but unreadable: then the days are missing, not absent.
     weekly_only = (
@@ -230,24 +262,29 @@ def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timeshe
         flags.append(
             _flag(
                 WEEKLY_TOTAL_FLAG,
-                f"The sheet gives only a weekly total ({stated} h), no daily hours. Overtime "
-                "comes from the weekly limit only; daily overtime, double time and holidays "
-                "could not be applied. Add the days if you know them.",
+                f"The sheet gives only a weekly total ({stated} h), no daily hours. "
+                "Overtime comes from the weekly limit only; daily overtime, double "
+                "time and holidays could not be applied. Add the days if you know "
+                "them.",
             )
         )
         if week_assumed:
             flags.append(
                 _flag(
                     WEEK_ASSUMED_FLAG,
-                    f"No dates on the sheet or in the email: used the last full week before "
-                    f"it arrived (starting {total_week}). Change the week if it is wrong.",
+                    "No dates on the sheet or in the email: used the last full week "
+                    f"before it arrived (starting {total_week}). Change the week if it "
+                    "is wrong.",
                 )
             )
     elif not ordered:
         flags.append(_flag("no_entries", "No hours could be read from this timesheet."))
     if stated is not None and ordered and stated != total:
         flags.append(
-            _flag("total_mismatch", f"Sheet says {stated} h; the days add up to {total} h.")
+            _flag(
+                "total_mismatch",
+                f"Sheet says {stated} h; the days add up to {total} h.",
+            )
         )
 
     email_total = (
@@ -256,7 +293,9 @@ def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timeshe
         else None
     )
     if ordered or weekly_only:
-        conflict = conflicting_hours_flag(email_total, stated if stated is not None else total)
+        conflict = conflicting_hours_flag(
+            email_total, stated if stated is not None else total
+        )
         if conflict:
             flags.append(conflict)
 
@@ -273,8 +312,8 @@ def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timeshe
         # day: say so anyway, so nobody approves without looking.
         illegible = {
             "code": "unreadable_values",
-            "message": f"{ctx.unclear_marks} value(s) in this document could not be read "
-            "(marked [UNCLEAR]). Check the original.",
+            "message": f"{ctx.unclear_marks} value(s) in this document could not be "
+            "read (marked [UNCLEAR]). Check the original.",
             "count": ctx.unclear_marks,
             "days": [],
         }
@@ -288,9 +327,12 @@ def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timeshe
         submission_id=ctx.submission_id,
         document_id=ctx.document_id,
         company_id=ctx.company_id,
-        extracted_name=(extracted.employee_name or None) and extracted.employee_name[:200],
-        extracted_code=(extracted.employee_code or None) and extracted.employee_code[:50],
-        extracted_company_name=(extracted.company_name or None) and extracted.company_name[:200],
+        extracted_name=(extracted.employee_name or None)
+        and extracted.employee_name[:200],
+        extracted_code=(extracted.employee_code or None)
+        and extracted.employee_code[:50],
+        extracted_company_name=(extracted.company_name or None)
+        and extracted.company_name[:200],
         email_stated_total=email_total,
         week_start=week_start,
         status=TimesheetStatus.NEEDS_REVIEW,  # the auto-approve decision comes later
@@ -300,7 +342,8 @@ def build_timesheet(extracted: ExtractedTimesheet, ctx: BuildContext) -> Timeshe
         holiday_hours=Decimal("0"),
         stated_total=stated,
         read_confidence=read_confidence,
-        confidence=read_confidence,  # lowered by the match (employee_matcher.apply_match)
+        # lowered by the match (employee_matcher.apply_match)
+        confidence=read_confidence,
         flags=flags,
         entries=ordered,
     )
@@ -316,7 +359,9 @@ def split_by_week(timesheet: Timesheet, week_start_day: int = 0) -> list[Timeshe
     entries = list(timesheet.entries)
     weeks: dict[date, list[TimesheetEntry]] = {}
     for entry in entries:
-        weeks.setdefault(start_of_week(entry.work_date, week_start_day), []).append(entry)
+        weeks.setdefault(start_of_week(entry.work_date, week_start_day), []).append(
+            entry
+        )
     if len(weeks) <= 1:
         return [timesheet]
 
@@ -328,8 +373,8 @@ def split_by_week(timesheet: Timesheet, week_start_day: int = 0) -> list[Timeshe
         days = sorted(weeks[week], key=lambda e: e.work_date)
         flag = _flag(
             "multi_week_sheet",
-            f"The sheet covers {len(starts)} weeks (starting {listed}); it was split into "
-            f"one timesheet per week. This is week {number} of {len(starts)}"
+            f"The sheet covers {len(starts)} weeks (starting {listed}); it was split "
+            f"into one timesheet per week. This is week {number} of {len(starts)}"
             + (
                 f" (the sheet's total of {timesheet.stated_total} h is for all weeks)."
                 if timesheet.stated_total is not None
@@ -361,20 +406,24 @@ def split_by_week(timesheet: Timesheet, week_start_day: int = 0) -> list[Timeshe
     return parts
 
 
-def build_timesheets(extracted: ExtractedTimesheet, ctx: BuildContext) -> list[Timesheet]:
+def build_timesheets(
+    extracted: ExtractedTimesheet, ctx: BuildContext
+) -> list[Timesheet]:
     """build_timesheet, then one timesheet per week."""
     return split_by_week(build_timesheet(extracted, ctx), ctx.week_start_day)
 
 
 def truncation_flag(text: str) -> dict[str, Any] | None:
-    """The AI only sees the first llm_max_input_chars characters: say so when it was cut."""
+    """The AI only sees the first llm_max_input_chars characters: say so when it was
+    cut."""
     limit = settings.llm_max_input_chars
     if len(text) <= limit:
         return None
     return {
         "code": "document_truncated",
-        "message": f"The document is too long ({len(text):,} characters); only the first "
-        f"{limit:,} were read. Later pages or employees may be missing. Check the original.",
+        "message": f"The document is too long ({len(text):,} characters); only the "
+        f"first {limit:,} were read. Later pages or employees may be missing. Check "
+        "the original.",
         "characters": len(text),
         "read_characters": limit,
     }

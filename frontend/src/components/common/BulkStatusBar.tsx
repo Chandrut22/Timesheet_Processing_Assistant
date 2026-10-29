@@ -3,7 +3,7 @@
 // ticked and their reasons are listed; the rest still go through.
 import { type QueryKey, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CircleX, Power, PowerOff, Trash2 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useState, type JSX } from "react";
 import { toast } from "sonner";
 import type { BulkDeleteResult, BulkStatusResult } from "@/types/api";
 import { Banner } from "@/components/common/States";
@@ -44,7 +44,7 @@ const LABELS: Record<BulkAction, string> = {
 };
 
 /** The box in the table header: ticks every selectable row on this page. */
-export function SelectAllCheckbox({ selection }: { selection: RowSelection }) {
+export function SelectAllCheckbox({ selection }: { selection: RowSelection }): JSX.Element {
   return (
     <Checkbox
       aria-label="Select all on this page"
@@ -59,7 +59,13 @@ export function SelectAllCheckbox({ selection }: { selection: RowSelection }) {
 }
 
 /** The box at the start of a row. Shift-click ticks every row since the last click. */
-export function RowCheckbox({ row, selection }: { row: BulkRow; selection: RowSelection }) {
+export function RowCheckbox({
+  row,
+  selection,
+}: {
+  row: BulkRow;
+  selection: RowSelection;
+}): JSX.Element {
   return (
     <Checkbox
       aria-label={`Select ${row.label}`}
@@ -102,7 +108,7 @@ export function BulkStatusBar({
   invalidate: QueryKey[];
   /** What the confirm dialog warns about, per action. */
   warnings?: Partial<Record<BulkAction, ReactNode>>;
-}) {
+}): JSX.Element | null {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState<BulkAction | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
@@ -150,7 +156,7 @@ export function BulkStatusBar({
       ? rows
       : rows.filter((r) => r.isActive !== (confirming === "activate"))
     : [];
-  const count = (n: number) => `${n} ${n === 1 ? noun.one : noun.many}`;
+  const count = (n: number): string => `${n} ${n === 1 ? noun.one : noun.many}`;
 
   return (
     <>

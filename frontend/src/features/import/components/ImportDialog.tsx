@@ -3,7 +3,7 @@
 // shows each row's fate) -> "Import" (the same file and options, for real).
 import { useMutation } from "@tanstack/react-query";
 import { Download, FileUp } from "lucide-react";
-import { useId, useState } from "react";
+import { useId, useState, type JSX } from "react";
 import { toast } from "sonner";
 import { errorMessage } from "@/services/apiErrors";
 import { importService } from "../services/importService";
@@ -45,7 +45,7 @@ export function ImportButton({
 }: {
   resource: ImportResource;
   onImported: (report: ImportReport) => void;
-}) {
+}): JSX.Element {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -74,7 +74,7 @@ export function ImportDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onImported: (report: ImportReport) => void;
-}) {
+}): JSX.Element {
   const ids = useId();
   const label = RESOURCE_LABEL[resource];
   const [file, setFile] = useState<File | null>(null);
@@ -83,7 +83,7 @@ export function ImportDialog({
   const [report, setReport] = useState<ImportReport | null>(null);
 
   // Any change to the file or the options makes the last check stale.
-  const reset = () => setReport(null);
+  const reset = (): void => setReport(null);
 
   const run = useMutation({
     mutationFn: (dryRun: boolean) =>
@@ -211,7 +211,13 @@ export function ImportDialog({
   );
 }
 
-function ReportView({ report, resource }: { report: ImportReport; resource: ImportResource }) {
+function ReportView({
+  report,
+  resource,
+}: {
+  report: ImportReport;
+  resource: ImportResource;
+}): JSX.Element {
   const tone = report.committed
     ? "success"
     : report.failed

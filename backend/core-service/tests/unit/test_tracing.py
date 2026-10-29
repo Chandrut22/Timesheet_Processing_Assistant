@@ -8,7 +8,10 @@ from collections.abc import Iterator
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from opentelemetry.sdk._logs.export import InMemoryLogRecordExporter, SimpleLogRecordProcessor
+from opentelemetry.sdk._logs.export import (
+    InMemoryLogRecordExporter,
+    SimpleLogRecordProcessor,
+)
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
@@ -64,12 +67,16 @@ def test_tracing_is_off_by_default() -> None:
 @pytest.fixture(scope="module")
 def traced() -> Iterator[InMemorySpanExporter]:
     """Tracing on for the rest of this module, exporting to memory."""
-    assert tracing.setup_tracing("core-test", app=APP, processor=SimpleSpanProcessor(EXPORTER))
+    assert tracing.setup_tracing(
+        "core-test", app=APP, processor=SimpleSpanProcessor(EXPORTER)
+    )
     tracing.setup_tracing("core-test", app=APP)  # a second call changes nothing
     yield EXPORTER
 
 
-def test_spans_nest_and_the_trace_id_reaches_the_step_log(traced: InMemorySpanExporter) -> None:
+def test_spans_nest_and_the_trace_id_reaches_the_step_log(
+    traced: InMemorySpanExporter,
+) -> None:
     traced.clear()
     session = FakeSession()
     submission_id = uuid.uuid4()
@@ -106,7 +113,9 @@ def test_an_error_is_recorded_on_the_span(traced: InMemorySpanExporter) -> None:
     assert span.events[0].name == "exception"
 
 
-def test_request_spans_drop_the_query_and_skip_health(traced: InMemorySpanExporter) -> None:
+def test_request_spans_drop_the_query_and_skip_health(
+    traced: InMemorySpanExporter,
+) -> None:
     traced.clear()
     client = TestClient(APP)
     client.get("/timesheets?q=Grace%20Okoye&sender=grace@example.com")
@@ -114,8 +123,12 @@ def test_request_spans_drop_the_query_and_skip_health(traced: InMemorySpanExport
     spans = traced.get_finished_spans()
     text = repr([dict(s.attributes or {}) for s in spans])
     assert "Grace" not in text and "grace@example.com" not in text
-    assert any("/timesheets" in str((s.attributes or {}).get("http.target")) for s in spans)
-    assert not any("/health" in str((s.attributes or {}).get("http.target")) for s in spans)
+    assert any(
+        "/timesheets" in str((s.attributes or {}).get("http.target")) for s in spans
+    )
+    assert not any(
+        "/health" in str((s.attributes or {}).get("http.target")) for s in spans
+    )
 
 
 def test_log_records_carry_the_trace_id(traced: InMemorySpanExporter) -> None:
@@ -148,7 +161,9 @@ def test_log_records_carry_the_trace_id(traced: InMemorySpanExporter) -> None:
 def test_no_endpoint_means_no_span_exporter(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "otel_exporter_otlp_endpoint", None)
     assert tracing._exporter_processor() is None  # trace ids only, nothing sent
-    monkeypatch.setattr(settings, "otel_exporter_otlp_endpoint", "http://collector:4318")
+    monkeypatch.setattr(
+        settings, "otel_exporter_otlp_endpoint", "http://collector:4318"
+    )
     assert tracing._exporter_processor() is not None
 
 
@@ -157,6 +172,8 @@ def test_sample_ratio_is_validated() -> None:
         Settings(_env_file=None, otel_sample_ratio=1.5)
     assert Settings(_env_file=None).otel_exporter_otlp_endpoint is None  # nothing sent
     assert (
-        Settings(_env_file=None, otel_exporter_otlp_endpoint=" ").otel_exporter_otlp_endpoint
+        Settings(
+            _env_file=None, otel_exporter_otlp_endpoint=" "
+        ).otel_exporter_otlp_endpoint
         is None
     )

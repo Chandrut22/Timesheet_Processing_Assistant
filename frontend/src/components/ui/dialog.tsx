@@ -2,6 +2,7 @@ import type * as React from "react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { JSX } from "react";
 
 export const Dialog = DialogPrimitive.Root;
 export const DialogTrigger = DialogPrimitive.Trigger;
@@ -12,7 +13,7 @@ export function DialogContent({
   children,
   wide = false,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content> & { wide?: boolean }) {
+}: React.ComponentProps<typeof DialogPrimitive.Content> & { wide?: boolean }): JSX.Element {
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay className="animate-overlay-in fixed inset-0 z-50 bg-black/40" />
@@ -34,11 +35,11 @@ export function DialogContent({
   );
 }
 
-export function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
+export function DialogHeader({ className, ...props }: React.ComponentProps<"div">): JSX.Element {
   return <div className={cn("flex flex-col gap-1.5 pr-6", className)} {...props} />;
 }
 
-export function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
+export function DialogFooter({ className, ...props }: React.ComponentProps<"div">): JSX.Element {
   return (
     <div
       className={cn("flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", className)}
@@ -50,14 +51,14 @@ export function DialogFooter({ className, ...props }: React.ComponentProps<"div"
 export function DialogTitle({
   className,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Title>) {
+}: React.ComponentProps<typeof DialogPrimitive.Title>): JSX.Element {
   return <DialogPrimitive.Title className={cn("text-lg font-semibold", className)} {...props} />;
 }
 
 export function DialogDescription({
   className,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Description>) {
+}: React.ComponentProps<typeof DialogPrimitive.Description>): JSX.Element {
   return (
     <DialogPrimitive.Description
       className={cn("text-sm text-muted-foreground", className)}

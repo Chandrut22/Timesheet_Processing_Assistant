@@ -21,7 +21,9 @@ def picture(width: int, height: int, fmt: str = "JPEG") -> bytes:
     return out.getvalue()
 
 
-def inline(data: bytes, filename: str = "1000248415.jpg", mime: str = "image/jpeg") -> Attachment:
+def inline(
+    data: bytes, filename: str = "1000248415.jpg", mime: str = "image/jpeg"
+) -> Attachment:
     return Attachment(filename=filename, content_type=mime, data=data, is_inline=True)
 
 
@@ -54,7 +56,9 @@ def test_logos_and_signature_banners_are_still_skipped() -> None:
             inline(picture(width, height, "PNG"), "logo.png", "image/png")
         )
         assert not read and document.status == DocumentStatus.UNSUPPORTED
-        assert document.error is not None and "logo or email signature" in document.error
+        assert (
+            document.error is not None and "logo or email signature" in document.error
+        )
 
 
 def test_an_unnamed_inline_photo_gets_its_type_from_the_mime_type() -> None:

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { flagLabel } from "../utils/flags";
 import { groupFlags, otherTimesheetId } from "../utils/severity";
 import { cn } from "@/lib/utils";
+import type { JSX } from "react";
 
 const ROW_TONE = {
   high: "border-l-red-500 bg-red-50/60",
@@ -13,7 +14,7 @@ const ROW_TONE = {
   low: "border-l-sky-500 bg-sky-50/60",
 } as const;
 
-export function FlagsPanel({ flags }: { flags: FlagRead[] }) {
+export function FlagsPanel({ flags }: { flags: FlagRead[] }): JSX.Element {
   const groups = groupFlags(flags);
   return (
     <Card>

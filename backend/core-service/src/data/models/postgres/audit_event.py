@@ -18,9 +18,13 @@ class AuditEvent(UUIDPrimaryKeyMixin, Base):
         CheckConstraint("length(btrim(action)) > 0", name="action_not_blank"),
     )
 
-    entity_type: Mapped[str] = mapped_column(String(30))  # "timesheet", "submission", ...
+    entity_type: Mapped[str] = mapped_column(
+        String(30)
+    )  # "timesheet", "submission", ...
     entity_id: Mapped[uuid.UUID] = mapped_column(Uuid)
-    action: Mapped[str] = mapped_column(String(40))  # "auto_approved", "approved", "edited" ...
+    action: Mapped[str] = mapped_column(
+        String(40)
+    )  # "auto_approved", "approved", "edited" ...
     # auth-service user: UUID + name snapshot, no foreign key. Both None = the system.
     actor_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     actor_name: Mapped[str | None] = mapped_column(String(150))

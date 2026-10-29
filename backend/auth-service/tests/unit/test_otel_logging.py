@@ -1,5 +1,6 @@
 """auth-service logs go through OpenTelemetry only: one handler on the root logger,
-text (or JSON) lines on stdout, uvicorn included, and nothing sent without an endpoint."""
+text (or JSON) lines on stdout, uvicorn included, and nothing sent without an
+endpoint."""
 
 import json
 import logging

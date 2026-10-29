@@ -31,7 +31,7 @@ let refreshPromise: Promise<string | null> | null = null;
 let bootPromise: Promise<SessionState> | null = null;
 const listeners = new Set<() => void>();
 
-function setState(next: SessionState) {
+function setState(next: SessionState): void {
   state = next;
   listeners.forEach((l) => l());
 }
@@ -49,9 +49,9 @@ export function isRefusal(err: unknown): boolean {
   return err.response.status >= 400 && err.response.status < 500;
 }
 
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const wait = (ms: number): Promise<unknown> => new Promise((r) => setTimeout(r, ms));
 
-function schedule(ms: number) {
+function schedule(ms: number): void {
   if (refreshTimer) clearTimeout(refreshTimer);
   refreshTimer = setTimeout(() => {
     // Errors are handled inside (sign-out or another retry); nothing to surface here.
@@ -59,7 +59,7 @@ function schedule(ms: number) {
   }, ms);
 }
 
-function applyToken(token: TokenResponse) {
+function applyToken(token: TokenResponse): void {
   accessToken = token.access_token;
   retryAttempt = 0;
   // Refresh about 60 s before the token expires (never sooner than 10 s from now).
@@ -67,7 +67,7 @@ function applyToken(token: TokenResponse) {
 }
 
 /** After a network error / 5xx: try again soon, backing off up to a minute. */
-function scheduleRetry() {
+function scheduleRetry(): void {
   if (state.status !== "authenticated") return;
   schedule(RETRY_DELAYS_MS[Math.min(retryAttempt, RETRY_DELAYS_MS.length - 1)]);
   retryAttempt += 1;
@@ -81,7 +81,7 @@ async function fetchMe(): Promise<SessionUser> {
   return res.data;
 }
 
-export function clearSession() {
+export function clearSession(): void {
   accessToken = null;
   retryAttempt = 0;
   if (refreshTimer) clearTimeout(refreshTimer);

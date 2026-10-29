@@ -33,7 +33,9 @@ from src.schemas.extraction import ExtractedDay, ExtractedTimesheet, ExtractionR
 
 MON = date(2026, 10, 12)
 RECEIVED = datetime(2026, 10, 19, 9, tzinfo=UTC)
-RITA = Principal(id=uuid.uuid4(), role=RoleName.REVIEWER, name="Rita", email="rita@example.com")
+RITA = Principal(
+    id=uuid.uuid4(), role=RoleName.REVIEWER, name="Rita", email="rita@example.com"
+)
 
 
 def person(name: str, code: str, hours: float) -> ExtractedTimesheet:
@@ -41,7 +43,10 @@ def person(name: str, code: str, hours: float) -> ExtractedTimesheet:
         employee_name=name,
         employee_code=code,
         week_start=MON,
-        days=[ExtractedDay(work_date=MON + timedelta(days=i), hours=hours) for i in range(5)],
+        days=[
+            ExtractedDay(work_date=MON + timedelta(days=i), hours=hours)
+            for i in range(5)
+        ],
         confidence=0.95,
     )
 
@@ -78,10 +83,16 @@ async def seed() -> uuid.UUID:
         s.add_all(
             [
                 Employee(company_id=company.id, employee_code=code, full_name=name)
-                for code, name in (("E1", "Grace Hopper"), ("E2", "Hari Prasad"), ("E3", "Priya N"))
+                for code, name in (
+                    ("E1", "Grace Hopper"),
+                    ("E2", "Hari Prasad"),
+                    ("E3", "Priya N"),
+                )
             ]
         )
-        submission = Submission(source="upload", received_at=RECEIVED, company_id=company.id)
+        submission = Submission(
+            source="upload", received_at=RECEIVED, company_id=company.id
+        )
         s.add(submission)
         await s.flush()
         s.add(
@@ -107,7 +118,9 @@ async def run(submission_id: uuid.UUID, run_id: uuid.UUID | None = None) -> None
 async def timesheets(submission_id: uuid.UUID) -> dict[str, Timesheet]:
     async with SessionLocal() as s:
         rows = (
-            await s.scalars(select(Timesheet).where(Timesheet.submission_id == submission_id))
+            await s.scalars(
+                select(Timesheet).where(Timesheet.submission_id == submission_id)
+            )
         ).all()
         return {t.extracted_name or "": t for t in rows}
 
@@ -131,7 +144,9 @@ async def test_a_reprocess_updates_the_same_timesheets(world: dict[str, Any]) ->
 
     # The sheet is read again: Grace now 9 h a day, Hari gone, Priya new.
     answers.append(
-        ExtractionResult(timesheets=[person("Grace Hopper", "E1", 9), person("Priya N", "E3", 7)])
+        ExtractionResult(
+            timesheets=[person("Grace Hopper", "E1", 9), person("Priya N", "E3", 7)]
+        )
     )
     async with SessionLocal() as s:
         reprocess = await SubmissionService(s).reprocess(
@@ -160,7 +175,9 @@ async def test_a_reprocess_updates_the_same_timesheets(world: dict[str, Any]) ->
     async with SessionLocal() as s:
         [saved] = (
             await s.scalars(
-                select(TimesheetVersion).where(TimesheetVersion.timesheet_id == grace.id)
+                select(TimesheetVersion).where(
+                    TimesheetVersion.timesheet_id == grace.id
+                )
             )
         ).all()
         assert (saved.version, saved.change, saved.changed_by_name, saved.reason) == (
@@ -171,7 +188,9 @@ async def test_a_reprocess_updates_the_same_timesheets(world: dict[str, Any]) ->
         )
         assert saved.reprocess_run_id == run_id
         assert [e["hours"] for e in saved.snapshot["entries"]] == [8.0] * 5
-        assert saved.snapshot["status"] == "needs_review"  # approval cleared at the start
+        assert (
+            saved.snapshot["status"] == "needs_review"
+        )  # approval cleared at the start
 
         finished = await s.get(ReprocessRun, run_id)
         assert finished is not None and finished.status == "completed"
@@ -187,7 +206,9 @@ async def test_a_reprocess_updates_the_same_timesheets(world: dict[str, Any]) ->
         }
 
         # ... and the reviewer can roll Grace back to what was first extracted.
-        restored = await ReviewService(s).restore_version(grace.id, 1, "reprocess was wrong", RITA)
+        restored = await ReviewService(s).restore_version(
+            grace.id, 1, "reprocess was wrong", RITA
+        )
         assert restored.version == 1  # back on version 1; version 2 is kept
         assert [e.hours for e in restored.entries] == [Decimal("8.00")] * 5
 

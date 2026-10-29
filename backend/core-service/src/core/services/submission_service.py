@@ -35,7 +35,7 @@ from src.core.exceptions import (
 from src.core.rbac.principal import Principal
 from src.core.services.activity_log import set_state
 from src.core.services.audit import record_event
-from src.core.services.pipeline.fetching import blocker, needs_refetch
+from src.core.services.pipeline.fetching import blocker, missing_file, needs_refetch
 from src.core.services.reprocess import finish_run, snapshot
 from src.core.services.sweeper import is_stuck
 from src.data.models import Document, ReprocessRun, Submission, Timesheet
@@ -54,11 +54,21 @@ class SubmissionService:
             raise NotFoundError("Submission not found.")
         return submission
 
+    @staticmethod
+    async def _can_read_again(document: Document) -> bool:
+        """Its text is saved, or it is still waiting with its file stored (e.g. one the
+        classifier left unread)."""
+        if document.status == DocumentStatus.PARSED:
+            return True
+        return document.status == DocumentStatus.PENDING and not await missing_file(
+            document
+        )
+
     async def _refetch_mode(
         self, submission: Submission, documents: Sequence[Document], asked: bool | None
     ) -> RefetchMode | None:
-        """Fetch the email again from the mailbox? asked=None: only when the saved text is
-        not enough and the mailbox can be used; True: always (409 when it can't)."""
+        """Fetch the email again from the mailbox? asked=None: only when the saved text
+        is not enough and the mailbox can be used; True: always (409 when it can't)."""
         if asked is False:
             return None
         cannot = blocker(submission)
@@ -92,7 +102,9 @@ class SubmissionService:
     ) -> ReprocessRun:
         reason = reason.strip()
         if len(reason) < 3:
-            raise ValidationFailedError("Enter a reason for reprocessing (at least 3 characters).")
+            raise ValidationFailedError(
+                "Enter a reason for reprocessing (at least 3 characters)."
+            )
 
         submission = await self._locked(submission_id)  # one request at a time
 
@@ -101,7 +113,9 @@ class SubmissionService:
             SubmissionStatus.RECEIVED,
             SubmissionStatus.PROCESSING,
         ) and not is_stuck(submission, datetime.now(UTC)):
-            raise ConflictError("This email is already queued or being processed. Try again later.")
+            raise ConflictError(
+                "This email is already queued or being processed. Try again later."
+            )
         running = await self.session.scalar(
             select(ReprocessRun.id).where(
                 ReprocessRun.submission_id == submission_id,
@@ -133,49 +147,60 @@ class SubmissionService:
                 is None
             ):
                 raise ConflictError(
-                    f"The sender ({submission.sender_email or 'unknown'}) is still not on any "
-                    "company's whitelist. Add them first, then reprocess."
+                    f"The sender ({submission.sender_email or 'unknown'}) is still not "
+                    "on any company's whitelist. Add them first, then reprocess."
                 )
-        if document_id is not None and documents[0].status != DocumentStatus.PARSED and not mode:
+        if (
+            document_id is not None
+            and not mode
+            and not await self._can_read_again(documents[0])
+        ):
             raise ConflictError(
                 f"'{documents[0].filename}' was never read successfully "
-                f"({documents[0].error or documents[0].status}), and the file is no longer "
-                f"stored. {cannot or 'Upload it again.'}"
+                f"({documents[0].error or documents[0].status}), and the file is no "
+                f"longer stored. {cannot or 'Upload it again.'}"
             )
         readable = [
-            d for d in documents if d.status in (DocumentStatus.PARSED, DocumentStatus.PENDING)
+            d
+            for d in documents
+            if d.status in (DocumentStatus.PARSED, DocumentStatus.PENDING)
         ]
         if not readable and not mode:
             raise ConflictError(
-                "Nothing to reprocess: no attachment of this email could be read, and the files "
-                f"are no longer stored. {cannot or 'Upload them again.'}"
+                "Nothing to reprocess: no attachment of this email could be read, and "
+                f"the files are no longer stored. {cannot or 'Upload them again.'}"
             )
 
         # --- the timesheets being redone ----------------------------------------------
         query = select(Timesheet).where(Timesheet.submission_id == submission_id)
         if document_id is not None:
             query = query.where(Timesheet.document_id == document_id)
-        current = (await self.session.scalars(query.order_by(Timesheet.created_at))).all()
+        current = (
+            await self.session.scalars(query.order_by(Timesheet.created_at))
+        ).all()
         exported = [t for t in current if t.status == TimesheetStatus.EXPORTED]
         if exported:
             raise ConflictError(
-                f"{len(exported)} timesheet(s) were already exported to payroll, so they cannot "
-                "be replaced. Reprocessing is not possible."
+                f"{len(exported)} timesheet(s) were already exported to payroll, so "
+                "they cannot be replaced. Reprocessing is not possible."
                 if document_id is None
-                else "A timesheet from this attachment was already exported to payroll, so it "
-                "cannot be replaced."
+                else "A timesheet from this attachment was already exported to "
+                "payroll, so it cannot be replaced."
             )
 
         approved = [t for t in current if t.status == TimesheetStatus.APPROVED]
         if approved and not confirm_approved:
-            who = ", ".join(sorted({t.extracted_name or "unknown" for t in approved})[:5])
+            who = ", ".join(
+                sorted({t.extracted_name or "unknown" for t in approved})[:5]
+            )
             raise ConfirmationRequiredError(
-                f"{len(approved)} approved timesheet(s) would be replaced and go back to "
-                f"review ({who}); their approvals are cleared. Reprocess again with "
+                f"{len(approved)} approved timesheet(s) would be replaced and go back "
+                f"to review ({who}); their approvals are cleared. Reprocess again with "
                 "confirm_approved=true to continue."
             )
 
-        # --- start the run --------------------------------------------------------------
+        # --- start the run
+        # --------------------------------------------------------------
         run = ReprocessRun(
             id=uuid.uuid4(),
             submission_id=submission.id,
@@ -235,7 +260,8 @@ class SubmissionService:
         try:
             await enqueue_submission(submission.id, reprocess_run_id=run.id)
         except Exception:
-            # Queue (Redis) down: close the run and say so, instead of leaving it "running".
+            # Queue (Redis) down: close the run and say so, instead of leaving it
+            # "running".
             await self._queue_failed(submission.id, run.id)
             raise
         await self.session.refresh(run)
@@ -243,7 +269,9 @@ class SubmissionService:
 
     async def _queue_failed(self, submission_id: uuid.UUID, run_id: uuid.UUID) -> None:
         message = "The job queue is not available. Try the reprocess again in a minute."
-        submission = await self.session.get(Submission, submission_id, populate_existing=True)
+        submission = await self.session.get(
+            Submission, submission_id, populate_existing=True
+        )
         run = await self.session.get(ReprocessRun, run_id, populate_existing=True)
         if run is not None:
             # Nothing ran: give the cleared approvals back.
@@ -254,7 +282,9 @@ class SubmissionService:
                 if old is not None and old.status == TimesheetStatus.NEEDS_REVIEW:
                     old.status = TimesheetStatus.APPROVED
                     old.reviewed_by_id = (
-                        uuid.UUID(item["reviewed_by_id"]) if item.get("reviewed_by_id") else None
+                        uuid.UUID(item["reviewed_by_id"])
+                        if item.get("reviewed_by_id")
+                        else None
                     )
                     old.reviewed_by_name = item.get("reviewed_by_name")
                     old.reviewed_at = (

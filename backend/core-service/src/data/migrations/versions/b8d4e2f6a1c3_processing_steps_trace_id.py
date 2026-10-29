@@ -24,7 +24,9 @@ SCHEMA = "core"
 
 
 def upgrade() -> None:
-    op.add_column("processing_steps", sa.Column("trace_id", sa.String(length=32)), schema=SCHEMA)
+    op.add_column(
+        "processing_steps", sa.Column("trace_id", sa.String(length=32)), schema=SCHEMA
+    )
 
 
 def downgrade() -> None:

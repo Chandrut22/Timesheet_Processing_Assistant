@@ -1,6 +1,7 @@
 import type * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
+import type { JSX } from "react";
 
 export const badgeVariants = cva(
   "inline-flex w-fit shrink-0 items-center gap-1 whitespace-nowrap rounded-md border px-2 py-0.5 text-xs font-medium [&>svg]:size-3",
@@ -30,7 +31,7 @@ export function Badge({
   className,
   variant,
   ...props
-}: React.ComponentProps<"span"> & VariantProps<typeof badgeVariants>) {
+}: React.ComponentProps<"span"> & VariantProps<typeof badgeVariants>): JSX.Element {
   return (
     <span data-slot="badge" className={cn(badgeVariants({ variant }), className)} {...props} />
   );

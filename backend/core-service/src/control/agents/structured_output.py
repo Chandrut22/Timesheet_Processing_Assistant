@@ -1,8 +1,9 @@
-"""Ask a chat model for JSON matching a Pydantic schema, validate it, retry with feedback.
+"""Ask a chat model for JSON matching a Pydantic schema, validate it, retry with
+feedback.
 
-Works with any provider: no tool calling or native JSON mode needed. The schema goes into
-the prompt, the reply is parsed and validated, and an invalid reply is sent back together
-with the validation error so the model can correct it."""
+Works with any provider: no tool calling or native JSON mode needed. The schema goes
+into the prompt, the reply is parsed and validated, and an invalid reply is sent back
+together with the validation error so the model can correct it."""
 
 import json
 import logging
@@ -40,7 +41,8 @@ class AnswerCutOffError(StructuredOutputError):
 
 
 def _extract_json(text: str) -> str:
-    """Pull the JSON object out of a reply that may have fences or extra words around it."""
+    """Pull the JSON object out of a reply that may have fences or extra words around
+    it."""
     text = text.strip()
     fenced = _FENCE_RE.search(text)
     if fenced:
@@ -64,10 +66,9 @@ def _content_text(content: str | list[str | dict[str, Any]]) -> str:
 
 def _retry_instruction(error: str) -> str:
     return (
-        "Your previous response could not be parsed or validated.\n"
-        f"Error:\n{error}\n\n"
-        "Return the complete corrected JSON object only. "
-        "Follow the schema and do not omit required fields."
+        "Your previous response could not be parsed or "
+        f"validated.\nError:\n{error}\n\nReturn the complete corrected JSON object "
+        "only. Follow the schema and do not omit required fields."
     )
 
 
@@ -83,7 +84,9 @@ async def invoke_structured[SchemaT: BaseModel](
 
     API errors (bad key, unknown model, provider down) are raised immediately: retrying
     won't fix them, and the client already retries short network failures itself."""
-    contract = JSON_REPLY_CONTRACT.format(schema=json.dumps(schema.model_json_schema(), indent=2))
+    contract = JSON_REPLY_CONTRACT.format(
+        schema=json.dumps(schema.model_json_schema(), indent=2)
+    )
     base: list[BaseMessage] = [
         SystemMessage(f"{system}\n\n{contract}"),
         HumanMessage(user),
@@ -107,9 +110,13 @@ async def invoke_structured[SchemaT: BaseModel](
             cut_off += 1
             if cut_off >= 2:  # asked for a shorter answer once already: it will not fit
                 raise AnswerCutOffError(
-                    f"The answer was cut off at the output limit {cut_off} times in a row."
+                    f"The answer was cut off at the output limit {cut_off} times in a "
+                    "row."
                 )
-            last_error = "The response was cut off (too long). Return a shorter, complete object."
+            last_error = (
+                "The response was cut off (too long). Return a shorter, complete "
+                "object."
+            )
         else:
             try:
                 return schema.model_validate_json(_extract_json(raw))
@@ -117,9 +124,13 @@ async def invoke_structured[SchemaT: BaseModel](
                 last_error = str(exc)[:800]
 
         logger.warning(
-            "Structured output attempt %d/%d failed: %s", attempt, retries + 1, last_error[:200]
+            "Structured output attempt %d/%d failed: %s",
+            attempt,
+            retries + 1,
+            last_error[:200],
         )
-        # Retry from the original request, showing the model its own answer and what was wrong.
+        # Retry from the original request, showing the model its own answer and what was
+        # wrong.
         messages = list(base)
         if raw.strip() and not truncated:
             messages.append(AIMessage(raw[:4000]))

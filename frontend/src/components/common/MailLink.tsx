@@ -2,7 +2,7 @@
 // email in the mailbox the system reads, in a new tab. The API builds the link
 // (mail_url); without one (uploads, links turned off) the text is shown as it is.
 import { ExternalLink } from "lucide-react";
-import type { MouseEvent, ReactNode } from "react";
+import type { MouseEvent, ReactNode, JSX } from "react";
 import { cn } from "@/lib/utils";
 
 export function MailLink({
@@ -14,7 +14,7 @@ export function MailLink({
   url: string | null | undefined;
   children: ReactNode;
   className?: string;
-}) {
+}): JSX.Element {
   if (!url) return <span className={className}>{children}</span>;
   return (
     <a

@@ -1,6 +1,16 @@
 from decimal import Decimal
 
-from sqlalchemy import CHAR, CheckConstraint, Index, Numeric, SmallInteger, String, func, text, true
+from sqlalchemy import (
+    CHAR,
+    CheckConstraint,
+    Index,
+    Numeric,
+    SmallInteger,
+    String,
+    func,
+    text,
+    true,
+)
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -17,8 +27,8 @@ class Company(UUIDPrimaryKeyMixin, AuditMixin, Base):
         Index("uq_companies_name_lower", func.lower(text("name")), unique=True),
         CheckConstraint("length(btrim(name)) > 0", name="name_not_blank"),
         CheckConstraint(
-            "hourly_rate > 0 AND overtime_rate > 0 AND holiday_rate > 0 "
-            "AND (double_time_rate IS NULL OR double_time_rate > 0)",
+            "hourly_rate > 0 AND overtime_rate > 0 AND holiday_rate > 0 AND "
+            "(double_time_rate IS NULL OR double_time_rate > 0)",
             name="rates_positive",
         ),
         CheckConstraint(
@@ -26,13 +36,16 @@ class Company(UUIDPrimaryKeyMixin, AuditMixin, Base):
             name="double_time_rate_required",
         ),
         CheckConstraint("currency ~ '^[A-Z]{3}$'", name="currency_format"),
-        CheckConstraint("daily_ot_after > 0 AND daily_ot_after <= 24", name="daily_ot_after_range"),
         CheckConstraint(
-            "weekly_ot_after > 0 AND weekly_ot_after <= 168", name="weekly_ot_after_range"
+            "daily_ot_after > 0 AND daily_ot_after <= 24", name="daily_ot_after_range"
         ),
         CheckConstraint(
-            "double_time_after IS NULL OR "
-            "(double_time_after > daily_ot_after AND double_time_after <= 24)",
+            "weekly_ot_after > 0 AND weekly_ot_after <= 168",
+            name="weekly_ot_after_range",
+        ),
+        CheckConstraint(
+            "double_time_after IS NULL OR (double_time_after > daily_ot_after AND "
+            "double_time_after <= 24)",
             name="double_time_after_range",
         ),
         CheckConstraint("week_start BETWEEN 0 AND 6", name="week_start_range"),
@@ -47,7 +60,9 @@ class Company(UUIDPrimaryKeyMixin, AuditMixin, Base):
     # Pay per hour for each pay code. Money is Numeric (exact), never float.
     hourly_rate: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     overtime_rate: Mapped[Decimal] = mapped_column(Numeric(10, 2))
-    double_time_rate: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))  # needed with DT rule
+    double_time_rate: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 2)
+    )  # needed with DT rule
     holiday_rate: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     currency: Mapped[str] = mapped_column(CHAR(3), default="INR", server_default="INR")
 
@@ -58,7 +73,9 @@ class Company(UUIDPrimaryKeyMixin, AuditMixin, Base):
     weekly_ot_after: Mapped[Decimal] = mapped_column(
         Numeric(5, 2), default=Decimal("40"), server_default=text("40")
     )
-    double_time_after: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))  # None = no rule
+    double_time_after: Mapped[Decimal | None] = mapped_column(
+        Numeric(4, 2)
+    )  # None = no rule
     week_start: Mapped[int] = mapped_column(
         SmallInteger, default=0, server_default=text("0")
     )  # 0 = Monday ... 6 = Sunday

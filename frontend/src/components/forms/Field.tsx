@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, JSX } from "react";
 import { Label } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -17,7 +17,7 @@ export function Field({
   hint?: ReactNode;
   children: ReactNode;
   className?: string;
-}) {
+}): JSX.Element {
   return (
     <div className={cn("grid gap-1.5", className)}>
       <Label htmlFor={htmlFor}>{label}</Label>
@@ -33,7 +33,7 @@ export function Field({
   );
 }
 
-export function FormError({ message }: { message?: string | null }) {
+export function FormError({ message }: { message?: string | null }): JSX.Element | null {
   if (!message) return null;
   return (
     <p

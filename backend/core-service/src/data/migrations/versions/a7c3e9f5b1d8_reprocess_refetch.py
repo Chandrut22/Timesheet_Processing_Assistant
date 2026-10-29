@@ -22,21 +22,28 @@ depends_on: str | Sequence[str] | None = None
 
 SCHEMA = "core"
 STEP_CHECK = "ck_processing_steps_step_valid"
-STEPS_OLD = "'collect', 'read', 'classify', 'extract', 'match', 'rules', 'decide', 'pipeline'"
-STEPS_NEW = (
-    "'collect', 'fetch', 'read', 'classify', 'extract', 'match', 'rules', 'decide', 'pipeline'"
+STEPS_OLD = (
+    "'collect', 'read', 'classify', 'extract', 'match', 'rules', 'decide', 'pipeline'"
 )
+STEPS_NEW = "'collect', 'fetch', 'read', 'classify', 'extract', 'match', 'rules', 'decide', 'pipeline'"
 REFETCH_CHECK = "ck_reprocess_runs_refetch_valid"
 
 
 def upgrade() -> None:
     op.add_column(
-        "reprocess_runs", sa.Column("refetch", sa.String(length=10), nullable=True), schema=SCHEMA
+        "reprocess_runs",
+        sa.Column("refetch", sa.String(length=10), nullable=True),
+        schema=SCHEMA,
     )
     op.create_check_constraint(
-        op.f(REFETCH_CHECK), "reprocess_runs", "refetch IN ('missing', 'all')", schema=SCHEMA
+        op.f(REFETCH_CHECK),
+        "reprocess_runs",
+        "refetch IN ('missing', 'all')",
+        schema=SCHEMA,
     )
-    op.drop_constraint(op.f(STEP_CHECK), "processing_steps", type_="check", schema=SCHEMA)
+    op.drop_constraint(
+        op.f(STEP_CHECK), "processing_steps", type_="check", schema=SCHEMA
+    )
     op.create_check_constraint(
         op.f(STEP_CHECK), "processing_steps", f"step IN ({STEPS_NEW})", schema=SCHEMA
     )
@@ -44,9 +51,13 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.execute(f"DELETE FROM {SCHEMA}.processing_steps WHERE step = 'fetch'")
-    op.drop_constraint(op.f(STEP_CHECK), "processing_steps", type_="check", schema=SCHEMA)
+    op.drop_constraint(
+        op.f(STEP_CHECK), "processing_steps", type_="check", schema=SCHEMA
+    )
     op.create_check_constraint(
         op.f(STEP_CHECK), "processing_steps", f"step IN ({STEPS_OLD})", schema=SCHEMA
     )
-    op.drop_constraint(op.f(REFETCH_CHECK), "reprocess_runs", type_="check", schema=SCHEMA)
+    op.drop_constraint(
+        op.f(REFETCH_CHECK), "reprocess_runs", type_="check", schema=SCHEMA
+    )
     op.drop_column("reprocess_runs", "refetch", schema=SCHEMA)

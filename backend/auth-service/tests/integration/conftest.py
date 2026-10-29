@@ -1,6 +1,7 @@
 """Integration tests need a real, THROW-AWAY PostgreSQL database (they empty tables).
 
-    TEST_DATABASE_URL=postgresql+asyncpg://postgres:PASSWORD@127.0.0.1:5433/timesheet_test \
+    TEST_DATABASE_URL=\
+    postgresql+asyncpg://postgres:PASSWORD@127.0.0.1:5433/timesheet_test \
         uv run pytest tests/integration
 
 The database name must contain "test", and its migrations must have run
@@ -25,7 +26,8 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     reason = (
         "set TEST_DATABASE_URL to a throw-away database whose name contains 'test'"
         if not URL
-        else "TEST_DATABASE_URL's database name must contain 'test' (these tests empty tables)"
+        else "TEST_DATABASE_URL's database name must contain 'test' (these tests empty "
+        "tables)"
     )
     for item in items:
         if "integration" in str(item.fspath):

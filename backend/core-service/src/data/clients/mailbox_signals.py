@@ -1,15 +1,15 @@
 """Redis signals between core-service (the dashboard's "Check mail now") and core-email.
 
-The two never call each other: core-service PUBLISHes a check request on CHECK_CHANNEL and
-writes the request under result_key(id); the listener updates that key as it works
+The two never call each other: core-service PUBLISHes a check request on CHECK_CHANNEL
+and writes the request under result_key(id); the listener updates that key as it works
 (queued -> running -> done / failed). The listener also keeps a heartbeat (STATUS_KEY)
 so the API can tell whether it is running, and CatchUpLock lets only one catch-up (the
 IDLE loop's or a manual one) read the mailbox at a time, so the cursor never races.
 
   core:imap:check_now          channel   {"request_id": "..."}
   core:imap:check:<id>         string    JSON, kept RESULT_TTL_S
-  core:imap:status             hash      alive_at, enabled, connected, last_check_at, ...
-  core:imap:catchup_lock       string    holder token, expires after LOCK_TTL_S
+  core:imap:status             hash      alive_at, enabled, connected, last_check_at,
+  ... core:imap:catchup_lock       string    holder token, expires after LOCK_TTL_S
   core:imap:manual_cooldown    string    set NX with the cooldown as its expiry
 """
 
@@ -28,7 +28,9 @@ STATUS_KEY = redis_key("imap", "status")
 LOCK_KEY = redis_key("imap", "catchup_lock")
 COOLDOWN_KEY = redis_key("imap", "manual_cooldown")
 RESULT_TTL_S = 600
-LOCK_TTL_S = 600  # a catch-up of one batch never takes this long; frees a dead holder's lock
+LOCK_TTL_S = (
+    600  # a catch-up of one batch never takes this long; frees a dead holder's lock
+)
 
 _RELEASE = (
     "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) "
@@ -78,7 +80,9 @@ class CatchUpLock:
     """Only one catch-up reads the mailbox at a time. Waits for the current holder; the
     expiry frees the lock if its holder died. Release only deletes our own token."""
 
-    def __init__(self, redis: Any, *, wait_s: float = LOCK_TTL_S, poll_s: float = 0.25) -> None:
+    def __init__(
+        self, redis: Any, *, wait_s: float = LOCK_TTL_S, poll_s: float = 0.25
+    ) -> None:
         self.redis = redis
         self.wait_s = wait_s
         self.poll_s = poll_s

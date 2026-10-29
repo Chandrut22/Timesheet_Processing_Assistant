@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, type JSX } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -44,7 +44,7 @@ export function ReprocessDialog({
   submission: SubmissionRead;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}) {
+}): JSX.Element {
   const queryClient = useQueryClient();
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -91,7 +91,7 @@ export function ReprocessDialog({
       ? errorMessage(m.error)
       : null;
 
-  const close = (o: boolean) => {
+  const close = (o: boolean): void => {
     if (!o) {
       m.reset();
       setConfirm(null);
@@ -220,7 +220,7 @@ export function ReprocessRuns({
 }: {
   runs: ReprocessRunRead[];
   documentName: (id: string | null) => string | null;
-}) {
+}): JSX.Element {
   if (runs.length === 0)
     return <p className="text-sm text-muted-foreground">This hasn't been reprocessed.</p>;
   return (

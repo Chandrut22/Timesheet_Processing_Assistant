@@ -35,7 +35,9 @@ def app_with(middleware: Any, **kwargs: Any) -> FastAPI:
     return app
 
 
-def test_one_line_per_request_without_the_query(caplog: pytest.LogCaptureFixture) -> None:
+def test_one_line_per_request_without_the_query(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     client = TestClient(app_with(RequestLoggingMiddleware))
     with caplog.at_level(logging.INFO, logger="http"):
         client.get("/items/42?email=grace@example.com")
@@ -51,7 +53,9 @@ def test_one_line_per_request_without_the_query(caplog: pytest.LogCaptureFixture
 
 
 def test_a_server_error_is_a_warning(caplog: pytest.LogCaptureFixture) -> None:
-    client = TestClient(app_with(RequestLoggingMiddleware), raise_server_exceptions=False)
+    client = TestClient(
+        app_with(RequestLoggingMiddleware), raise_server_exceptions=False
+    )
     with caplog.at_level(logging.INFO, logger="http"):
         client.get("/boom")
     (line,) = [r for r in caplog.records if r.name == "http"]
@@ -97,7 +101,10 @@ def test_metrics_count_time_and_label_by_route() -> None:
 @pytest.mark.parametrize(
     ("path", "route"),
     [
-        ("/api/timesheets/3f2a1c9e-1d4b-4a5e-9f60-1b2c3d4e5f60", "/api/timesheets/{id}"),
+        (
+            "/api/timesheets/3f2a1c9e-1d4b-4a5e-9f60-1b2c3d4e5f60",
+            "/api/timesheets/{id}",
+        ),
         (
             "/api/timesheets/3f2a1c9e-1d4b-4a5e-9f60-1b2c3d4e5f60/versions/2",
             "/api/timesheets/{id}/versions/{n}",

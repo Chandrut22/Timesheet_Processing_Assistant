@@ -22,10 +22,10 @@ in the log, at most once a minute); false answers 503.
 Client IP: the X-Real-IP header, which nginx sets on every request it passes on
 ($remote_addr, overwriting anything a browser sent). Only nginx publishes a port in
 docker compose, so a request reaching a service has always come through nginx. Without
-the header (a service run on its own, a test) the socket address is used. X-Forwarded-For
-is never read. Should a load balancer ever sit in front of nginx, set nginx's real-IP
-module (set_real_ip_from / real_ip_header) so $remote_addr is the browser again; nothing
-changes here. Pure ASGI, like the auth middleware."""
+the header (a service run on its own, a test) the socket address is used.
+X-Forwarded-For is never read. Should a load balancer ever sit in front of nginx, set
+nginx's real-IP module (set_real_ip_from / real_ip_header) so $remote_addr is the
+browser again; nothing changes here. Pure ASGI, like the auth middleware."""
 
 import ipaddress
 import logging
@@ -63,7 +63,8 @@ class Limit:
 
 
 def client_ip(scope: Scope) -> str:
-    """X-Real-IP (set by nginx) when it holds a valid address, else the socket address."""
+    """X-Real-IP (set by nginx) when it holds a valid address, else the socket
+    address."""
     real = Headers(scope=scope).get("x-real-ip", "").strip()
     if real:
         try:
@@ -156,7 +157,8 @@ class RateLimitMiddleware:
             response = JSONResponse(
                 status_code=503,
                 content={
-                    "detail": "Service temporarily unavailable. Please try again shortly.",
+                    "detail": "Service temporarily unavailable. Please try again "
+                    "shortly.",
                     "code": "rate_limit_unavailable",
                 },
                 headers={"Retry-After": "5"},
@@ -174,7 +176,8 @@ class RateLimitMiddleware:
             response = JSONResponse(
                 status_code=429,
                 content={
-                    "detail": f"Too many requests. Try again in {usage.retry_in} seconds.",
+                    "detail": f"Too many requests. Try again in {usage.retry_in} "
+                    "seconds.",
                     "code": "rate_limited",
                 },
                 headers={**headers, "Retry-After": str(usage.retry_in)},

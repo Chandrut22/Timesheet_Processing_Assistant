@@ -26,7 +26,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions import AppError, ValidationFailedError
 from src.core.services.importing.table_file import Table
-from src.schemas.importing import CellError, ImportReport, OnDuplicate, OnError, RowResult
+from src.schemas.importing import (
+    CellError,
+    ImportReport,
+    OnDuplicate,
+    OnError,
+    RowResult,
+)
 
 
 class RowError(Exception):
@@ -82,12 +88,14 @@ def match_headers(table: Table, resource: Resource) -> tuple[dict[str, int], lis
         if key in wanted and key not in index:
             index[key] = i
         elif header.strip():
-            warnings.append(f"Column '{header}' is not used by the {resource.name} import.")
+            warnings.append(
+                f"Column '{header}' is not used by the {resource.name} import."
+            )
     missing = [c.name for c in resource.columns if c.required and c.name not in index]
     if missing:
         raise ValidationFailedError(
-            f"Missing required column(s): {', '.join(missing)}. "
-            "Download the template for the exact headers."
+            f"Missing required column(s): {', '.join(missing)}. Download the template "
+            "for the exact headers."
         )
     return index, warnings
 
@@ -106,7 +114,8 @@ async def run_import(
 ) -> ImportReport:
     if on_duplicate == "update" and resource.update is None:
         raise ValidationFailedError(
-            f"on_duplicate=update is not allowed for {resource.name}: use error or skip."
+            f"on_duplicate=update is not allowed for {resource.name}: use error or "
+            "skip."
         )
     index, warnings = match_headers(table, resource)
     report = ImportReport(
@@ -138,7 +147,9 @@ async def run_import(
                     result.status = "created"
                 elif on_duplicate == "skip":
                     result.status = "skipped"
-                    result.warnings.append(f"Already exists ({resource.natural_key}); skipped.")
+                    result.warnings.append(
+                        f"Already exists ({resource.natural_key}); skipped."
+                    )
                 elif on_duplicate == "update" and resource.update is not None:
                     await resource.update(existing, data, row)
                     result.status = "updated"
@@ -150,15 +161,21 @@ async def run_import(
             result.errors = exc.errors
         except ValidationError as exc:
             result.errors = validation_errors(exc, resource)
-        except AppError as exc:  # a service rule said no (conflict, inactive company, ...)
+        except (
+            AppError
+        ) as exc:  # a service rule said no (conflict, inactive company, ...)
             result.errors = [CellError(column=None, message=exc.message)]
         except IntegrityError:
-            result.errors = [CellError(column=None, message="The database refused this row.")]
+            result.errors = [
+                CellError(column=None, message="The database refused this row.")
+            ]
         results.append(result)
 
     for result in results:
         setattr(report, result.status, getattr(report, result.status) + 1)
-    ordered: Sequence[RowResult] = sorted(results, key=lambda r: (r.status != "failed", r.row))
+    ordered: Sequence[RowResult] = sorted(
+        results, key=lambda r: (r.status != "failed", r.row)
+    )
     report.rows = list(ordered[:report_rows])
     report.rows_omitted = max(0, len(ordered) - report_rows)
 

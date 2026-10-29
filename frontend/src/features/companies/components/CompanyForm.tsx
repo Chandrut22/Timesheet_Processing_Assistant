@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox, Input, NativeSelect } from "@/components/ui/input";
 import { applyFieldErrors } from "@/lib/forms";
 import { splitList, WEEKDAYS } from "@/utils/format";
+import type { JSX } from "react";
 
 const AMOUNT = /^\d+(\.\d{1,2})?$/;
 const NUMBER = /^\d+(\.\d+)?$/;
@@ -22,7 +23,7 @@ const optionalMoney = z
     (v) => v === "" || (AMOUNT.test(v) && Number(v) > 0),
     "Enter an amount above 0, or leave it empty",
   );
-const hours = (max: number) =>
+const hours = (max: number): z.ZodString =>
   z
     .string()
     .trim()
@@ -30,7 +31,7 @@ const hours = (max: number) =>
       (v) => NUMBER.test(v) && Number(v) > 0 && Number(v) <= max,
       `More than 0 and at most ${max}`,
     );
-const optionalHours = (max: number) =>
+const optionalHours = (max: number): z.ZodString =>
   z
     .string()
     .trim()
@@ -88,7 +89,8 @@ const FIELDS = [
 ] as const;
 
 function toValues(c?: CompanyRead): CompanyFormValues {
-  const s = (n: number | null | undefined) => (n === null || n === undefined ? "" : String(n));
+  const s = (n: number | null | undefined): string =>
+    n === null || n === undefined ? "" : String(n);
   return {
     name: c?.name ?? "",
     aliases: c?.aliases.join(", ") ?? "",
@@ -119,7 +121,7 @@ export function CompanyForm({
   onSubmit: (values: CompanyFormValues) => Promise<unknown>;
   onCancel?: () => void;
   serverError?: string | null;
-}) {
+}): JSX.Element {
   const form = useForm<CompanyFormValues>({
     resolver: zodResolver(schema),
     defaultValues: toValues(company),

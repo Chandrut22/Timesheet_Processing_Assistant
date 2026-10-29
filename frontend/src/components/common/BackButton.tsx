@@ -4,7 +4,7 @@
 // was opened from a link, a bookmark or a new tab.
 import { Link, useCanGoBack, useRouter } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import type { MouseEvent } from "react";
+import type { MouseEvent, JSX } from "react";
 
 /** Pages a Back link may fall back to (typed, so a renamed route fails the build). */
 export type BackFallback = "/" | "/submissions" | "/review" | "/companies";
@@ -22,7 +22,7 @@ export function BackButton({
   fallback: BackFallback;
   /** Shown instead of "Back" in that case, e.g. "Submissions". */
   fallbackLabel: string;
-}) {
+}): JSX.Element {
   const router = useRouter();
   const canGoBack = useCanGoBack();
 

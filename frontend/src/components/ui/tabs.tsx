@@ -1,10 +1,14 @@
 import type * as React from "react";
 import { Tabs as TabsPrimitive } from "radix-ui";
 import { cn } from "@/lib/utils";
+import type { JSX } from "react";
 
 export const Tabs = TabsPrimitive.Root;
 
-export function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.List>) {
+export function TabsList({
+  className,
+  ...props
+}: React.ComponentProps<typeof TabsPrimitive.List>): JSX.Element {
   return (
     <TabsPrimitive.List
       className={cn(
@@ -19,7 +23,7 @@ export function TabsList({ className, ...props }: React.ComponentProps<typeof Ta
 export function TabsTrigger({
   className,
   ...props
-}: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
+}: React.ComponentProps<typeof TabsPrimitive.Trigger>): JSX.Element {
   return (
     <TabsPrimitive.Trigger
       className={cn(
@@ -34,6 +38,6 @@ export function TabsTrigger({
 export function TabsContent({
   className,
   ...props
-}: React.ComponentProps<typeof TabsPrimitive.Content>) {
+}: React.ComponentProps<typeof TabsPrimitive.Content>): JSX.Element {
   return <TabsPrimitive.Content className={cn("mt-4 outline-none", className)} {...props} />;
 }

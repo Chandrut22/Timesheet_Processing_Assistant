@@ -4,7 +4,7 @@
 // import { UploadGuide } from "./UploadGuide";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, type JSX } from "react";
 import { toast } from "sonner";
 import { errorMessage } from "@/services/apiErrors";
 import { DropOverlay } from "./DropOverlay";
@@ -17,7 +17,7 @@ import { useWindowFileDrop } from "../hooks/useWindowFileDrop";
 import { uploadService } from "../services/uploadService";
 import { submissionKeys } from "@/features/submissions";
 
-export function UploadPage() {
+export function UploadPage(): JSX.Element {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [files, setFiles] = useState<File[]>([]);
@@ -37,7 +37,7 @@ export function UploadPage() {
   });
   const pending = upload.isPending;
 
-  const addFiles = (incoming: File[]) => {
+  const addFiles = (incoming: File[]): void => {
     const result = validateFiles(files, incoming);
     setFiles(result.files);
     setProblems(result.problems);

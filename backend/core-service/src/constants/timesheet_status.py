@@ -34,6 +34,12 @@ class DocumentStatus(StrEnum):
     FAILED = "failed"  # could not be read (locked, corrupt, expired from the buffer)
 
 
+# Start of document.error for an attachment the classifier judged "not a timesheet"
+# from its name and the email. It stays 'pending' (bytes kept) and is not read; a
+# reprocess reads it anyway. finishing.py and the API look for this text.
+SKIPPED_BY_CLASSIFIER = "Not a timesheet (classifier:"
+
+
 class SubmissionState(StrEnum):
     """Where an email or upload is, as the people using the app see it.
     Every change is stored in submission_state_changes with its time."""
@@ -57,7 +63,9 @@ class StepName(StrEnum):
     COLLECT = "collect"
     FETCH = "fetch"  # a reprocess fetched the email again from the mailbox
     READ = "read"
-    CLASSIFY = "classify"  # optional: is the document a timesheet? (attachment classifier)
+    CLASSIFY = (
+        "classify"  # optional: is the document a timesheet? (attachment classifier)
+    )
     EXTRACT = "extract"
     MATCH = "match"
     RULES = "rules"
@@ -78,8 +86,12 @@ class TimesheetChange(StrEnum):
     approve / reject are in the audit log."""
 
     ENTRIES_EDITED = "entries_edited"  # days changed, saved as a new version
-    EMPLOYEE_MATCHED = "employee_matched"  # only in versions made before saving in place
-    WEEK_CHANGED = "week_changed"  # a weekly-total timesheet moved, saved as a new version
+    EMPLOYEE_MATCHED = (
+        "employee_matched"  # only in versions made before saving in place
+    )
+    WEEK_CHANGED = (
+        "week_changed"  # a weekly-total timesheet moved, saved as a new version
+    )
     RECALCULATED = "recalculated"  # only in versions made before saving in place
     REPROCESSED = "reprocessed"  # the document was extracted again
     ROLLED_BACK = "rolled_back"  # left when another version was restored
@@ -97,5 +109,7 @@ class RefetchMode(StrEnum):
     """What a reprocess fetches again from the mailbox (reprocess_runs.refetch; NULL =
     nothing: the saved text is used)."""
 
-    MISSING = "missing"  # only the files no longer stored (failed, expired, ignored email)
+    MISSING = (
+        "missing"  # only the files no longer stored (failed, expired, ignored email)
+    )
     ALL = "all"  # every attachment in scope is read again from the original email

@@ -44,7 +44,9 @@ def parse(text: str) -> list[dict[str, str]]:
 
 
 def test_header_and_one_line_per_timesheet() -> None:
-    text = build_csv("ABC Staffing", WEEK, [row("E2", "Priya Nair"), row("E1", "Rahul Kumar")])
+    text = build_csv(
+        "ABC Staffing", WEEK, [row("E2", "Priya Nair"), row("E1", "Rahul Kumar")]
+    )
     assert text.splitlines()[0].split(",") == CSV_COLUMNS
     lines = parse(text)
     assert [r["employee_code"] for r in lines] == ["E1", "E2"]  # sorted by code

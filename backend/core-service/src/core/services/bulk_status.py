@@ -77,7 +77,8 @@ class BulkStatusService:
             details={"bulk": True, **details},
         )
 
-    # --- employees ---------------------------------------------------------------------
+    # --- employees
+    # ---------------------------------------------------------------------
 
     async def employees(
         self, ids: list[uuid.UUID], is_active: bool, actor: Principal
@@ -92,16 +93,19 @@ class BulkStatusService:
                 company = await self.session.get(Company, employee.company_id)
                 if company is not None and not company.is_active:
                     raise ValidationFailedError(
-                        f"{employee.full_name}: the company {company.name} is inactive. "
-                        "Activate the company first."
+                        f"{employee.full_name}: the company {company.name} is "
+                        "inactive. Activate the company first."
                     )
             employee.is_active = is_active
             self._audit("employee", employee.id, _action(is_active), actor)
-            return BulkStatusItem(id=employee_id, ok=True, changed=True, is_active=is_active)
+            return BulkStatusItem(
+                id=employee_id, ok=True, changed=True, is_active=is_active
+            )
 
         return self._summary(await self._each(ids, change))
 
-    # --- companies ---------------------------------------------------------------------
+    # --- companies
+    # ---------------------------------------------------------------------
 
     async def companies(
         self, ids: list[uuid.UUID], is_active: bool, actor: Principal
@@ -117,7 +121,9 @@ class BulkStatusService:
                 return BulkStatusItem(id=company_id, ok=True, is_active=is_active)
             employees: Sequence[uuid.UUID] = []
             if not is_active:
-                employees = await CompanyService(self.session).deactivate_employees(company.id)
+                employees = await CompanyService(self.session).deactivate_employees(
+                    company.id
+                )
                 for employee_id in employees:
                     self._audit(
                         "employee",
@@ -136,12 +142,15 @@ class BulkStatusService:
                 employees_deactivated=len(employees),
             )
             cascaded += len(employees)
-            return BulkStatusItem(id=company_id, ok=True, changed=True, is_active=is_active)
+            return BulkStatusItem(
+                id=company_id, ok=True, changed=True, is_active=is_active
+            )
 
         results = await self._each(ids, change)
         return self._summary(results, employees_deactivated=cascaded)
 
-    # --- holidays ----------------------------------------------------------------------
+    # --- holidays
+    # ----------------------------------------------------------------------
 
     async def holidays(
         self, ids: list[uuid.UUID], is_active: bool, actor: Principal
@@ -161,11 +170,15 @@ class BulkStatusService:
                 date=holiday.holiday_date.isoformat(),
                 name=holiday.name,
             )
-            return BulkStatusItem(id=holiday_id, ok=True, changed=True, is_active=is_active)
+            return BulkStatusItem(
+                id=holiday_id, ok=True, changed=True, is_active=is_active
+            )
 
         return self._summary(await self._each(ids, change))
 
-    async def delete_holidays(self, ids: list[uuid.UUID], actor: Principal) -> BulkDeleteResult:
+    async def delete_holidays(
+        self, ids: list[uuid.UUID], actor: Principal
+    ) -> BulkDeleteResult:
         repository = HolidayRepository(self.session)
 
         async def remove(holiday_id: uuid.UUID) -> BulkStatusItem:
@@ -187,5 +200,8 @@ class BulkStatusService:
         results = await self._each(ids, remove)
         deleted = sum(1 for r in results if r.ok)
         return BulkDeleteResult(
-            requested=len(results), deleted=deleted, failed=len(results) - deleted, results=results
+            requested=len(results),
+            deleted=deleted,
+            failed=len(results) - deleted,
+            results=results,
         )

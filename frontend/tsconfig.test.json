@@ -1,0 +1,30 @@
+{
+  // The tests (src/**/*.test.ts[x] and the helpers in src/test): checked by `tsc -b` like
+  // the app, and part of a project so type-aware ESLint (projectService) can read them.
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo",
+    "target": "es2023",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "esnext",
+    "types": ["vite/client", "node"],
+    "skipLibCheck": true,
+
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+
+    "paths": { "@/*": ["./src/*"] }
+  },
+  "include": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test", "src/app/router-types.d.ts"]
+}

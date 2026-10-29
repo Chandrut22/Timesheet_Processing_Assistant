@@ -26,9 +26,11 @@ FLAG_SEVERITY: dict[str, Severity] = {
     "conflicting_hours": Severity.HIGH,
     "no_entries": Severity.HIGH,
     "duplicate_day": Severity.HIGH,
-    "document_truncated": Severity.HIGH,  # the document was too long: pages may be missing
+    # the document was too long: pages may be missing
+    "document_truncated": Severity.HIGH,
     "document_too_large": Severity.HIGH,  # pages / sheets over the limit were not read
-    "possible_missing_rows": Severity.HIGH,  # the sheet lists more people than were extracted
+    # the sheet lists more people than were extracted
+    "possible_missing_rows": Severity.HIGH,
     "overlap_disagreement": Severity.HIGH,  # two overlapping parts read different hours
     # paid twice / to the wrong person
     "duplicate_week": Severity.HIGH,
@@ -43,9 +45,11 @@ FLAG_SEVERITY: dict[str, Severity] = {
     # pay codes and master data
     "holiday_worked": Severity.MEDIUM,
     "holiday_not_in_calendar": Severity.MEDIUM,
+    "holiday_in_week": Severity.MEDIUM,  # weekly total only, and the week has a holiday
     "outside_assignment": Severity.MEDIUM,
     "company_mismatch": Severity.MEDIUM,  # the sheet names another / unknown company
-    "company_guessed": Severity.MEDIUM,  # no company on the upload; partial name / close spelling
+    # no company on the upload; partial name / close spelling
+    "company_guessed": Severity.MEDIUM,
     "name_mismatch": Severity.MEDIUM,
     "fuzzy_match": Severity.MEDIUM,  # matched by a close spelling: a reviewer confirms
     "unknown_code": Severity.MEDIUM,
@@ -53,7 +57,8 @@ FLAG_SEVERITY: dict[str, Severity] = {
     "model_issue": Severity.MEDIUM,
     "default_rules": Severity.MEDIUM,
     "multi_week_sheet": Severity.MEDIUM,  # split into one timesheet per week
-    "weekly_total_only": Severity.MEDIUM,  # only a weekly total: weekly OT only, no days
+    # only a weekly total: weekly OT only, no days
+    "weekly_total_only": Severity.MEDIUM,
     "week_assumed": Severity.MEDIUM,  # no dates at all: the week is our guess
     # assumptions
     "dates_assumed": Severity.LOW,
@@ -74,7 +79,8 @@ def severity_of(code: str | None) -> Severity:
 
 
 def with_severity(flags: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    """Copy of the flags with "severity" filled in from the code (an explicit one is kept)."""
+    """Copy of the flags with "severity" filled in from the code (an explicit one is
+    kept)."""
     result: list[dict[str, Any]] = []
     for flag in flags:
         item = dict(flag)

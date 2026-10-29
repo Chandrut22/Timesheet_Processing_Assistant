@@ -13,13 +13,14 @@ BOX = "timesheets@genworx.example"
 def test_gmail_link_for_an_email() -> None:
     url = mail_url("email", "<CAB+x/y=z@mail.gmail.com>", BOX, GMAIL)
     assert url == (
-        "https://mail.google.com/mail/?authuser=timesheets@genworx.example"
-        "#search/rfc822msgid%3ACAB%2Bx%2Fy%3Dz%40mail.gmail.com"
+        "https://mail.google.com/mail/?authuser=timesheets@genworx.example#search/rfc822msgid%3ACAB%2Bx%2Fy%3Dz%40mail.gmail.com"
     )
 
 
 def test_brackets_and_spaces_are_removed() -> None:
-    assert mail_url("email", "  <a@b.c>  ", BOX, GMAIL) == mail_url("email", "a@b.c", BOX, GMAIL)
+    assert mail_url("email", "  <a@b.c>  ", BOX, GMAIL) == mail_url(
+        "email", "a@b.c", BOX, GMAIL
+    )
 
 
 @pytest.mark.parametrize(
@@ -29,7 +30,11 @@ def test_brackets_and_spaces_are_removed() -> None:
         ("email", None, BOX),
         ("email", "", BOX),
         ("email", "<>", BOX),
-        ("email", "<uid-7-42@imap.local>", BOX),  # made up by the listener: not in Gmail
+        (
+            "email",
+            "<uid-7-42@imap.local>",
+            BOX,
+        ),  # made up by the listener: not in Gmail
         ("email", "<a@b.c>", None),  # MAILBOX_ACCOUNT not set: the feature is off
         ("email", "<a@b.c>", ""),
     ],
@@ -45,7 +50,9 @@ def test_other_providers_only_need_a_template() -> None:
     )
 
 
-def test_the_api_sends_the_link_but_not_the_message_id(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_the_api_sends_the_link_but_not_the_message_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(settings, "mailbox_account", BOX)
     data: dict[str, object] = {
         "id": "00000000-0000-0000-0000-000000000001",

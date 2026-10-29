@@ -24,7 +24,11 @@ async def list_employees(
     is_active: bool | None = None,
 ) -> Page[EmployeeRead]:
     items, total = await EmployeeService(session).list(
-        company_id=company_id, q=q, is_active=is_active, page=paging.page, size=paging.size
+        company_id=company_id,
+        q=q,
+        is_active=is_active,
+        page=paging.page,
+        size=paging.size,
     )
     return Page[EmployeeRead](
         items=[EmployeeRead.model_validate(e) for e in items],
@@ -35,7 +39,9 @@ async def list_employees(
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-async def create_employee(body: EmployeeCreate, session: SessionDep, _: Admin) -> EmployeeRead:
+async def create_employee(
+    body: EmployeeCreate, session: SessionDep, _: Admin
+) -> EmployeeRead:
     return EmployeeRead.model_validate(await EmployeeService(session).create(body))
 
 
@@ -61,7 +67,11 @@ async def get_employee(
 async def update_employee(
     employee_id: uuid.UUID, body: EmployeeUpdate, session: SessionDep, _: Admin
 ) -> EmployeeRead:
-    return EmployeeRead.model_validate(await EmployeeService(session).update(employee_id, body))
+    return EmployeeRead.model_validate(
+        await EmployeeService(session).update(employee_id, body)
+    )
 
 
-add_import_routes(router, "employees")  # GET /employees/import/template, POST /employees/import
+add_import_routes(
+    router, "employees"
+)  # GET /employees/import/template, POST /employees/import

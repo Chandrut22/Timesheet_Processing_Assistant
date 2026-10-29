@@ -2,7 +2,7 @@
 // "Check mail now": hidden when email is off, disabled while the listener is down or in
 // the cooldown, and the result message counts what the check found.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, type RenderResult } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MailboxStatus } from "../types/mailbox";
 import { describeCheck } from "../utils/describeCheck";
@@ -26,7 +26,7 @@ const base: MailboxStatus = {
   cooldown_seconds: 0,
 };
 
-function show(status: MailboxStatus) {
+function show(status: MailboxStatus): RenderResult {
   getStatus.mockResolvedValue(status);
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(

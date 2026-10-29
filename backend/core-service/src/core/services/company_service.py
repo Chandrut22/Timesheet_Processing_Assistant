@@ -8,18 +8,27 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.exceptions import ConflictError, NotFoundError, ValidationFailedError
 from src.core.services.transactions import commit_or_conflict
 from src.data.models import Company, Employee, WhitelistSender
-from src.data.repositories.company_repository import CompanyRepository, WhitelistRepository
+from src.data.repositories.company_repository import (
+    CompanyRepository,
+    WhitelistRepository,
+)
 from src.schemas.company import CompanyCreate, CompanyUpdate
 from src.utils.senders import normalize_sender
 
 DUPLICATE_NAME = "A company with this name already exists."
 
 
-def _check_double_time(daily: Decimal, double: Decimal | None, rate: Decimal | None) -> None:
+def _check_double_time(
+    daily: Decimal, double: Decimal | None, rate: Decimal | None
+) -> None:
     if double is not None and double <= daily:
-        raise ValidationFailedError("double_time_after must be greater than daily_ot_after.")
+        raise ValidationFailedError(
+            "double_time_after must be greater than daily_ot_after."
+        )
     if double is not None and rate is None:
-        raise ValidationFailedError("double_time_rate is required when double_time_after is set.")
+        raise ValidationFailedError(
+            "double_time_rate is required when double_time_after is set."
+        )
 
 
 class CompanyService:
@@ -39,7 +48,9 @@ class CompanyService:
     async def list(
         self, *, q: str | None, is_active: bool | None, page: int, size: int
     ) -> tuple[Sequence[Company], int]:
-        return await self.companies.search(q=q, is_active=is_active, page=page, size=size)
+        return await self.companies.search(
+            q=q, is_active=is_active, page=page, size=size
+        )
 
     async def create(self, data: CompanyCreate) -> Company:
         company = await self.add_new(data)
@@ -74,8 +85,8 @@ class CompanyService:
                 raise ConflictError(DUPLICATE_NAME)
             company.name = new_name
 
-        # Required fields: null is ignored. New rates apply to timesheets calculated from
-        # now on; every timesheet keeps the rates it was calculated with.
+        # Required fields: null is ignored. New rates apply to timesheets calculated
+        # from now on; every timesheet keeps the rates it was calculated with.
         for field in (
             "aliases",
             "hourly_rate",
@@ -118,7 +129,9 @@ class CompanyService:
         await self.get(company_id)
         return await self.whitelist.list_for_company(company_id)
 
-    async def add_whitelist(self, company_id: uuid.UUID, raw_value: str) -> WhitelistSender:
+    async def add_whitelist(
+        self, company_id: uuid.UUID, raw_value: str
+    ) -> WhitelistSender:
         await self.get(company_id)
         try:
             kind, value = normalize_sender(raw_value)
@@ -127,7 +140,11 @@ class CompanyService:
 
         existing = await self.whitelist.get_by_value(value)
         if existing is not None:
-            where = "this company" if existing.company_id == company_id else "another company"
+            where = (
+                "this company"
+                if existing.company_id == company_id
+                else "another company"
+            )
             raise ConflictError(f"'{value}' is already whitelisted for {where}.")
 
         entry = await self.whitelist.add(
@@ -137,7 +154,9 @@ class CompanyService:
         await self.session.refresh(entry)
         return entry
 
-    async def remove_whitelist(self, company_id: uuid.UUID, entry_id: uuid.UUID) -> None:
+    async def remove_whitelist(
+        self, company_id: uuid.UUID, entry_id: uuid.UUID
+    ) -> None:
         entry = await self.whitelist.get(entry_id)
         if entry is None or entry.company_id != company_id:
             raise NotFoundError("Whitelist entry not found.")

@@ -31,11 +31,25 @@ def test_low_confidence_needs_review() -> None:
 
 
 def test_blocking_flag_needs_review() -> None:
-    assert not can_auto_approve(sheet(flags=[{"code": "total_mismatch", "message": "x"}]))
+    assert not can_auto_approve(
+        sheet(flags=[{"code": "total_mismatch", "message": "x"}])
+    )
 
 
-def test_holiday_flag_does_not_block() -> None:
-    assert can_auto_approve(sheet(flags=[{"code": "holiday_worked", "message": "x"}]))
+def test_a_worked_holiday_goes_to_review() -> None:
+    # Hours paid at the holiday rate are always checked by a person.
+    assert not can_auto_approve(
+        sheet(flags=[{"code": "holiday_worked", "message": "x"}])
+    )
+    assert not can_auto_approve(
+        sheet(flags=[{"code": "holiday_in_week", "message": "x"}])
+    )
+
+
+def test_note_flags_do_not_block() -> None:
+    assert can_auto_approve(
+        sheet(flags=[{"code": "company_from_sheet", "message": "x"}])
+    )
 
 
 def test_no_entries_needs_review() -> None:

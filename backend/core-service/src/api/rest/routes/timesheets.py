@@ -52,14 +52,16 @@ async def list_timesheets(
     )
 
 
-# Bulk routes are declared before "/{timesheet_id}/..." so "bulk" is never read as an id.
+# Bulk routes are declared before "/{timesheet_id}/..." so "bulk" is never read as an
+# id.
 @router.post("/bulk/approve")
 async def bulk_approve(
     body: BulkApproveRequest, session: SessionDep, actor: Reviewer
 ) -> BulkResult:
     """Approve up to 100 timesheets. Each one gets the same checks as a single approve;
     the ones that fail are listed with the reason and the rest still go through.
-    Timesheets with high-severity flags are skipped unless include_high_severity=true."""
+    Timesheets with high-severity flags are skipped unless
+    include_high_severity=true."""
     return await ReviewService(session).bulk_approve(
         body.timesheet_ids,
         body.notes,
@@ -69,9 +71,13 @@ async def bulk_approve(
 
 
 @router.post("/bulk/reject")
-async def bulk_reject(body: BulkRejectRequest, session: SessionDep, actor: Reviewer) -> BulkResult:
+async def bulk_reject(
+    body: BulkRejectRequest, session: SessionDep, actor: Reviewer
+) -> BulkResult:
     """Reject up to 100 timesheets with one reason."""
-    return await ReviewService(session).bulk_reject(body.timesheet_ids, body.reason, actor)
+    return await ReviewService(session).bulk_reject(
+        body.timesheet_ids, body.reason, actor
+    )
 
 
 @router.get("/{timesheet_id}")
@@ -108,7 +114,9 @@ async def set_week(
 async def match_employee(
     timesheet_id: uuid.UUID, body: MatchRequest, session: SessionDep, actor: Reviewer
 ) -> TimesheetRead:
-    timesheet = await ReviewService(session).match_employee(timesheet_id, body.employee_id, actor)
+    timesheet = await ReviewService(session).match_employee(
+        timesheet_id, body.employee_id, actor
+    )
     return TimesheetRead.model_validate(timesheet)
 
 
@@ -141,7 +149,10 @@ async def reject(
 
 
 def _version_fields(
-    number: int, snap: dict[str, Any], saved: TimesheetVersion | None, current: bool = False
+    number: int,
+    snap: dict[str, Any],
+    saved: TimesheetVersion | None,
+    current: bool = False,
 ) -> dict[str, Any]:
     return {
         **summary(snap),
@@ -156,7 +167,10 @@ def _version_fields(
 
 
 def _full(
-    number: int, snap: dict[str, Any], saved: TimesheetVersion | None, current: bool = False
+    number: int,
+    snap: dict[str, Any],
+    saved: TimesheetVersion | None,
+    current: bool = False,
 ) -> TimesheetVersionRead:
     return TimesheetVersionRead.model_validate(
         {

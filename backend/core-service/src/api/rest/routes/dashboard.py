@@ -11,5 +11,6 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 @router.get("")
 async def get_dashboard(session: SessionDep, _: Reviewer) -> DashboardSnapshot:
-    """The same snapshot the stream pushes. Used on first load and while the stream is down."""
+    """The same snapshot the stream pushes. Used on first load and while the stream is
+    down."""
     return await build_snapshot(session)

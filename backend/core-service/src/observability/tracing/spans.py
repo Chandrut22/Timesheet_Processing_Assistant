@@ -24,7 +24,9 @@ def _clean(attributes: dict[str, Any]) -> dict[str, AttributeValue]:
     for key, value in attributes.items():
         if value is None:
             continue
-        clean[key] = value if isinstance(value, str | bool | int | float) else str(value)
+        clean[key] = (
+            value if isinstance(value, str | bool | int | float) else str(value)
+        )
     return clean
 
 
@@ -53,8 +55,8 @@ def set_attributes(**attributes: Any) -> None:
 
 
 def current_trace_id() -> str | None:
-    """The current trace id as 32 hex characters (as the log records show it), or None when
-    tracing is off or nothing is being traced."""
+    """The current trace id as 32 hex characters (as the log records show it), or None
+    when tracing is off or nothing is being traced."""
     context = trace.get_current_span().get_span_context()
     if not context.is_valid:
         return None

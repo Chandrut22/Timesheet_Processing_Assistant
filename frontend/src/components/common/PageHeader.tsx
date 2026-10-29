@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, JSX } from "react";
 
 export function PageHeader({
   title,
@@ -10,7 +10,7 @@ export function PageHeader({
   description?: ReactNode;
   actions?: ReactNode;
   back?: ReactNode;
-}) {
+}): JSX.Element {
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div className="min-w-0">

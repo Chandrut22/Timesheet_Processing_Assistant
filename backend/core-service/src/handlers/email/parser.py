@@ -106,7 +106,8 @@ _COMMENT = re.compile(r"\([^()]*\)")
 
 
 def _domain(value: str | None) -> str:
-    """'Ann <ann@Mail.Example.com>' / '@example.com' / 'example.com' -> 'mail.example.com'."""
+    """'Ann <ann@Mail.Example.com>' / '@example.com' / 'example.com' ->
+    'mail.example.com'."""
     text = (value or "").strip().strip("<>").lower()
     if "<" in text or " " in text:
         text = parseaddr(text)[1]
@@ -115,7 +116,8 @@ def _domain(value: str | None) -> str:
 
 def _aligned(signed: str, from_domain: str) -> bool:
     """Relaxed alignment (as DMARC uses): the same domain, or one is a subdomain of the
-    other. Both must be real domains (have a dot), so 'com' never aligns with anything."""
+    other. Both must be real domains (have a dot), so 'com' never aligns with
+    anything."""
     if not signed or not from_domain or "." not in signed or "." not in from_domain:
         return False
     return (
@@ -127,11 +129,12 @@ def _aligned(signed: str, from_domain: str) -> bool:
 
 def parse_auth_results(header: str) -> list[tuple[str, str, dict[str, str]]]:
     """'mx.google.com; dkim=pass header.d=a.com; dmarc=pass header.from=a.com'
-    -> [("dkim", "pass", {"header.d": "a.com"}), ("dmarc", "pass", {"header.from": "a.com"})]
+    -> [("dkim", "pass", {"header.d": "a.com"}), ("dmarc", "pass", {"header.from":
+    "a.com"})]
 
     Comments in brackets are dropped first, so text such as
-    '(domain of dmarc=pass@evil.example ...)' can never count as a result. The first part
-    (the server name) is skipped."""
+    '(domain of dmarc=pass@evil.example ...)' can never count as a result. The first
+    part (the server name) is skipped."""
     text = header.lower()
     while _COMMENT.search(text):
         text = _COMMENT.sub(" ", text)
@@ -178,7 +181,9 @@ def sender_auth_passed(msg: Message) -> bool:
             or _aligned(_domain(props.get("header.i")), from_domain)
         ):
             return True
-        if method == "spf" and _aligned(_domain(props.get("smtp.mailfrom")), from_domain):
+        if method == "spf" and _aligned(
+            _domain(props.get("smtp.mailfrom")), from_domain
+        ):
             return True
     return False
 
@@ -221,7 +226,8 @@ def parse_message(msg: Message, *, fallback_id: str) -> ParsedEmail:
     from_name, from_email = parseaddr(decode_mime_header(msg.get("From")))
 
     return ParsedEmail(
-        message_id=db_safe(str(msg.get("Message-ID") or "")).strip()[:998] or fallback_id,
+        message_id=db_safe(str(msg.get("Message-ID") or "")).strip()[:998]
+        or fallback_id,
         from_name=from_name,
         from_email=from_email.strip().lower(),
         subject=decode_mime_header(msg.get("Subject"))[:998],

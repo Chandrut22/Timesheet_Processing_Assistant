@@ -56,7 +56,9 @@ async def get_principal(
 CurrentPrincipal = Annotated[Principal, Depends(get_principal)]
 
 
-def require_roles(allowed: Iterable[RoleName]) -> Callable[[Principal], Awaitable[Principal]]:
+def require_roles(
+    allowed: Iterable[RoleName],
+) -> Callable[[Principal], Awaitable[Principal]]:
     allowed_roles = frozenset(allowed)
 
     async def checker(principal: CurrentPrincipal) -> Principal:

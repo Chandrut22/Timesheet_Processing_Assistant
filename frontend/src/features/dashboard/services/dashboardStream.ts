@@ -9,7 +9,7 @@ export async function streamDashboard(
   onMessage: (m: SseMessage) => void,
   signal: AbortSignal,
 ): Promise<void> {
-  const open = (token: string) =>
+  const open = (token: string): Promise<Response> =>
     // The one deliberate fetch() in the app: EventSource cannot send an Authorization
     // header and axios cannot stream in a browser. Keep this file the only exception.
     // eslint-disable-next-line no-restricted-globals

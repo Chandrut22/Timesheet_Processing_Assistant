@@ -126,7 +126,8 @@ async def forgot_password(
     if code is not None:
         background.add_task(send_code_email, body.email.strip().lower(), code)
     return MessageResponse(
-        message="If an account exists for this email, a 6-digit code has been sent to it."
+        message="If an account exists for this email, a 6-digit code has been sent to "
+        "it."
     )
 
 

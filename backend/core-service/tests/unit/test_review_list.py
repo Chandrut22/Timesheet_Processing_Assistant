@@ -26,7 +26,9 @@ PG = create_async_engine("postgresql+asyncpg://test@localhost/test").dialect
 
 
 def sql(filters: TimesheetFilters) -> str:
-    query = select(Timesheet.id).where(*_conditions(filters)).order_by(*_order_by(filters))
+    query = (
+        select(Timesheet.id).where(*_conditions(filters)).order_by(*_order_by(filters))
+    )
     return str(query.compile(dialect=PG))
 
 
@@ -59,7 +61,9 @@ def test_text_filters_take_percent_and_underscore_literally() -> None:
 def test_a_week_overlapping_the_date_range_is_included() -> None:
     filters = TimesheetFilters(date_from=date(2026, 10, 7), date_to=date(2026, 10, 7))
     values = params(filters)
-    assert date(2026, 10, 1) in values  # a week starting up to 6 days earlier still overlaps
+    assert (
+        date(2026, 10, 1) in values
+    )  # a week starting up to 6 days earlier still overlaps
     assert date(2026, 10, 7) in values
 
 
@@ -111,7 +115,9 @@ def test_bulk_needs_1_to_100_ids_and_a_reason_to_reject() -> None:
 def test_bulk_summary_counts_successes_and_failures() -> None:
     results = [
         BulkItemResult(timesheet_id=uuid.uuid4(), ok=True, status="approved"),
-        BulkItemResult(timesheet_id=uuid.uuid4(), ok=False, status=None, error="not found"),
+        BulkItemResult(
+            timesheet_id=uuid.uuid4(), ok=False, status=None, error="not found"
+        ),
     ]
     summary = _summary(results)
     assert (summary.requested, summary.succeeded, summary.failed) == (2, 1, 1)

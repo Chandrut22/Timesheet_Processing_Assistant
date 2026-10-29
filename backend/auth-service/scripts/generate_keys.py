@@ -21,7 +21,8 @@ def main() -> int:
     public_path = KEYS_DIR / "jwt_public.pem"
     if private_path.exists():
         print(
-            f"{private_path} already exists; delete it first if you really want new keys."
+            f"{private_path} already exists; delete it first if you really want new "
+            "keys."
         )
         return 1
 

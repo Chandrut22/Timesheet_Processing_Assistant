@@ -3,7 +3,7 @@
 // Keyboard: it is a button (Enter or Space opens the picker). Dropping works anywhere on
 // the page (useWindowFileDrop); this area only explains it and opens the picker.
 import { CloudUpload, Plus } from "lucide-react";
-import { useId, useRef } from "react";
+import { useId, useRef, type JSX } from "react";
 import { formatBytes } from "@/utils/format";
 import { cn } from "@/lib/utils";
 import { ACCEPT, MAX_FILES } from "../utils/uploadLimits";
@@ -24,10 +24,10 @@ export function UploadDropzone({
   disabled?: boolean;
   problems: string[];
   onFiles: (files: File[]) => void;
-}) {
+}): JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null);
   const limitsId = useId();
-  const open = () => {
+  const open = (): void => {
     if (!disabled) inputRef.current?.click();
   };
   const counter = (

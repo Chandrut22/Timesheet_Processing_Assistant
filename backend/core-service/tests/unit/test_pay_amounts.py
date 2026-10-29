@@ -44,7 +44,9 @@ def test_amounts_round_half_up_to_two_decimals() -> None:
     # 7.25 x 333.33 = 2416.6425 -> 2416.64 ; 0.5 x 0.01 style halves round up
     assert price(D("7.25"), D(0), D(0), D(0), rules).regular == D("2416.64")
     rules = PayRules(hourly_rate=D("0.25"), overtime_rate=D("1"), holiday_rate=D("1"))
-    assert price(D("0.10"), D(0), D(0), D(0), rules).regular == D("0.03")  # 0.025 -> 0.03
+    assert price(D("0.10"), D(0), D(0), D(0), rules).regular == D(
+        "0.03"
+    )  # 0.025 -> 0.03
 
 
 def test_no_company_means_no_amounts() -> None:
@@ -66,9 +68,13 @@ def test_zero_hours_need_no_rate() -> None:
 
 
 def test_pay_rules_then_price_a_long_week() -> None:
-    days = [DayInput(MON + timedelta(days=i), D(h)) for i, h in enumerate([10, 8, 8, 8, 8])]
+    days = [
+        DayInput(MON + timedelta(days=i), D(h)) for i, h in enumerate([10, 8, 8, 8, 8])
+    ]
     result = apply_pay_rules(days, ABC)  # 10 h Monday -> 2 h overtime
-    amounts = price(result.regular, result.overtime, result.double_time, result.holiday, ABC)
+    amounts = price(
+        result.regular, result.overtime, result.double_time, result.holiday, ABC
+    )
     assert (result.regular, result.overtime) == (D(40), D(2))
     assert amounts.gross == D("19350.00")
 
@@ -93,7 +99,9 @@ def _timesheet(*hours: str, double_time_marked: bool = False) -> Timesheet:
     timesheet = Timesheet(flags=[])
     timesheet.entries = [
         TimesheetEntry(
-            work_date=MON + timedelta(days=i), hours=D(h), double_time_marked=double_time_marked
+            work_date=MON + timedelta(days=i),
+            hours=D(h),
+            double_time_marked=double_time_marked,
         )
         for i, h in enumerate(hours)
     ]
@@ -175,6 +183,12 @@ def test_csv_has_rates_amounts_and_gross() -> None:
 
 
 def test_totals_add_up_the_money_and_count_unpriced_rows() -> None:
-    t = totals([_row("E1", "40", "2"), _row("E2", "40", "0"), _row("E3", "8", "0", priced=False)])
+    t = totals(
+        [
+            _row("E1", "40", "2"),
+            _row("E2", "40", "0"),
+            _row("E3", "8", "0", priced=False),
+        ]
+    )
     assert t.gross == D("37350.00")  # 19,350 + 18,000; E3 not counted
     assert t.unpriced == 1

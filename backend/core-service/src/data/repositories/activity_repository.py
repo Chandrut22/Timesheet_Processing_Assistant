@@ -36,7 +36,9 @@ class ActivityRepository:
         return rows.all()
 
     async def audit(self, submission_id: uuid.UUID) -> Sequence[AuditEvent]:
-        timesheet_ids = select(Timesheet.id).where(Timesheet.submission_id == submission_id)
+        timesheet_ids = select(Timesheet.id).where(
+            Timesheet.submission_id == submission_id
+        )
         rows = await self.session.scalars(
             select(AuditEvent)
             .where(

@@ -1,7 +1,7 @@
 import { Link, useMatches } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { CircleUser, LogOut } from "lucide-react";
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode, type JSX } from "react";
 import { logout } from "@/services/session";
 import { useUser } from "@/features/auth";
 import { navFor } from "@/layouts/nav";
@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 const SIDEBAR_ITEM =
   "text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-white focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:outline-none";
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children }: { children: ReactNode }): JSX.Element {
   const user = useUser();
   const queryClient = useQueryClient();
   // Routes with `staticData: { fullWidth: true }` (the Upload page) own the whole
@@ -25,7 +25,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   // double click from starting a second logout before React re-renders the button.
   const [signingOut, setSigningOut] = useState(false);
   const signingOutRef = useRef(false);
-  const onLogout = async () => {
+  const onLogout = async (): Promise<void> => {
     if (signingOutRef.current) return;
     signingOutRef.current = true;
     setSigningOut(true);

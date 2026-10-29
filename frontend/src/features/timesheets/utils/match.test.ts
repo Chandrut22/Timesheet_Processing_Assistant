@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { canMatch, isUnmatched, nextUnmatched } from "./match";
 
-const row = (id: string, employee_id: string | null, status = "needs_review") => ({
+const row = (
+  id: string,
+  employee_id: string | null,
+  status = "needs_review",
+): { id: string; employee_id: string | null; status: string } => ({
   id,
   employee_id,
   status,

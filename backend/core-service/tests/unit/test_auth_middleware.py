@@ -80,18 +80,26 @@ def assert_401(response: Any) -> None:
     assert response.headers["www-authenticate"] == "Bearer"
 
 
-def test_a_brand_new_unprotected_route_is_rejected_by_default(client: TestClient) -> None:
+def test_a_brand_new_unprotected_route_is_rejected_by_default(
+    client: TestClient,
+) -> None:
     assert_401(client.get("/brand-new-route"))
 
 
-def test_a_valid_token_reaches_the_route_with_the_principal_set(client: TestClient) -> None:
-    response = client.get("/brand-new-route", headers={"Authorization": f"Bearer {token()}"})
+def test_a_valid_token_reaches_the_route_with_the_principal_set(
+    client: TestClient,
+) -> None:
+    response = client.get(
+        "/brand-new-route", headers={"Authorization": f"Bearer {token()}"}
+    )
     assert response.status_code == 200 and response.json() == {"who": "Rita Reviewer"}
 
 
 def test_health_is_public(client: TestClient) -> None:
     assert client.get("/health").status_code == 200
-    assert client.get("/health/db").status_code != 401  # may fail without a database, but not 401
+    assert (
+        client.get("/health/db").status_code != 401
+    )  # may fail without a database, but not 401
 
 
 @pytest.mark.parametrize(
@@ -103,7 +111,9 @@ def test_health_is_public(client: TestClient) -> None:
         ({"Authorization": "Bearer not.a.jwt"}, "garbage"),
     ],
 )
-def test_missing_or_malformed_tokens(client: TestClient, headers: dict[str, str], why: str) -> None:
+def test_missing_or_malformed_tokens(
+    client: TestClient, headers: dict[str, str], why: str
+) -> None:
     assert_401(client.get("/brand-new-route", headers=headers))
 
 
@@ -119,7 +129,9 @@ def test_missing_or_malformed_tokens(client: TestClient, headers: dict[str, str]
     ],
 )
 def test_bad_tokens(client: TestClient, bad: Any, why: str) -> None:
-    assert_401(client.get("/brand-new-route", headers={"Authorization": f"Bearer {bad()}"}))
+    assert_401(
+        client.get("/brand-new-route", headers={"Authorization": f"Bearer {bad()}"})
+    )
 
 
 def test_cors_preflight_passes_without_a_token(client: TestClient) -> None:
@@ -134,7 +146,9 @@ def test_cors_preflight_passes_without_a_token(client: TestClient) -> None:
 def test_a_401_still_carries_cors_headers(client: TestClient) -> None:
     response = client.get("/timesheets", headers={"Origin": ORIGIN})
     assert response.status_code == 401
-    assert response.headers["access-control-allow-origin"] == ORIGIN  # the browser can read it
+    assert (
+        response.headers["access-control-allow-origin"] == ORIGIN
+    )  # the browser can read it
 
 
 def test_existing_routes_are_protected(client: TestClient) -> None:

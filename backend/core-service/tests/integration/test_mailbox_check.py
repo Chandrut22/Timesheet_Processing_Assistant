@@ -1,6 +1,6 @@
-""" "Check mail now": the API (status, request, cooldown, result, audit) and the listener's
-side (manual check on a second connection, requests while reconnecting, the lock).
-Real PostgreSQL and Redis (see conftest.py); the mailbox is a fake."""
+""" "Check mail now": the API (status, request, cooldown, result, audit) and the
+listener's side (manual check on a second connection, requests while reconnecting, the
+lock). Real PostgreSQL and Redis (see conftest.py); the mailbox is a fake."""
 
 import asyncio
 import json
@@ -42,7 +42,9 @@ pytestmark = pytest.mark.redis
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 PUBLIC = (
     KEY.public_key()
-    .public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
+    .public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
+    )
     .decode()
 )
 
@@ -76,7 +78,9 @@ async def client(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[httpx.AsyncCl
     monkeypatch.setattr(tokens, "public_key", lambda: PUBLIC)
     from src.main import app
 
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://t"
+    ) as c:
         yield c
     await engine.dispose()
 
@@ -99,13 +103,19 @@ async def test_not_running_turned_off_and_status(client: httpx.AsyncClient) -> N
     down = await client.post("/email/check-now", headers=bearer())
     assert down.status_code == 503 and down.json()["code"] == "email_listener_down"
 
-    await redis_client.hset(STATUS_KEY, mapping={"enabled": "0", "alive_at": str(time.time())})
+    await redis_client.hset(
+        STATUS_KEY, mapping={"enabled": "0", "alive_at": str(time.time())}
+    )
     off = await client.post("/email/check-now", headers=bearer())
     assert off.status_code == 409
 
     await heartbeat(mailbox="inbox@x.example", last_found="2")
     status = (await client.get("/email/status", headers=bearer())).json()
-    assert status["running"] and status["connected"] and status["mailbox"] == "inbox@x.example"
+    assert (
+        status["running"]
+        and status["connected"]
+        and status["mailbox"] == "inbox@x.example"
+    )
     assert status["last_found"] == 2 and status["cooldown_seconds"] == 0
 
 
@@ -122,7 +132,9 @@ async def test_request_cooldown_result_and_audit(client: httpx.AsyncClient) -> N
 
         message = None
         for _ in range(20):
-            message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=0.2)
+            message = await pubsub.get_message(
+                ignore_subscribe_messages=True, timeout=0.2
+            )
             if message:
                 break
         assert message and json.loads(message["data"]) == {"request_id": request_id}
@@ -130,13 +142,21 @@ async def test_request_cooldown_result_and_audit(client: httpx.AsyncClient) -> N
         again = await client.post("/email/check-now", headers=bearer())
         assert again.status_code == 429 and again.json()["code"] == "check_cooldown"
         assert (
-            1 <= int(again.headers["Retry-After"]) <= settings.email_manual_check_cooldown_seconds
+            1
+            <= int(again.headers["Retry-After"])
+            <= settings.email_manual_check_cooldown_seconds
         )
 
-        await update_result(redis_client, request_id, state="done", found=3, queued=2, ignored=1)
-        done = (await client.get(f"/email/check-now/{request_id}", headers=bearer())).json()
+        await update_result(
+            redis_client, request_id, state="done", found=3, queued=2, ignored=1
+        )
+        done = (
+            await client.get(f"/email/check-now/{request_id}", headers=bearer())
+        ).json()
         assert done["state"] == "done" and (done["found"], done["queued"]) == (3, 2)
-        assert (await client.get("/email/check-now/nope", headers=bearer())).status_code == 404
+        assert (
+            await client.get("/email/check-now/nope", headers=bearer())
+        ).status_code == 404
 
         async with SessionLocal() as s:
             event = await s.scalar(
@@ -148,7 +168,9 @@ async def test_request_cooldown_result_and_audit(client: httpx.AsyncClient) -> N
         await cast(Any, pubsub).aclose()  # untyped in some redis versions
 
 
-async def test_no_subscriber_means_down_and_frees_the_cooldown(client: httpx.AsyncClient) -> None:
+async def test_no_subscriber_means_down_and_frees_the_cooldown(
+    client: httpx.AsyncClient,
+) -> None:
     await heartbeat()  # a heartbeat, but nobody listening on the channel
     r = await client.post("/email/check-now", headers=bearer())
     assert r.status_code == 503
@@ -193,8 +215,13 @@ class FakeSource:
         pass
 
 
-async def test_manual_check_reads_new_mail_and_answers(monkeypatch: pytest.MonkeyPatch) -> None:
-    outcomes = {"<m2@abc.com>": "queued", "<m3@abc.com>": "ignored: sender not on any whitelist"}
+async def test_manual_check_reads_new_mail_and_answers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    outcomes = {
+        "<m2@abc.com>": "queued",
+        "<m3@abc.com>": "ignored: sender not on any whitelist",
+    }
 
     async def accept(email: Any) -> str:
         return outcomes[email.message_id]
@@ -216,7 +243,9 @@ async def test_manual_check_reads_new_mail_and_answers(monkeypatch: pytest.Monke
     assert status["last_found"] == "2" and status["connected"] == "1"
 
 
-async def test_manual_check_failure_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_manual_check_failure_is_reported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     class Refused:
         def __enter__(self) -> "Refused":
             raise ConnectionRefusedError(111, "Connection refused")
@@ -235,7 +264,9 @@ async def test_a_request_while_reconnecting_ends_the_wait() -> None:
     started = time.monotonic()
     waiting = asyncio.create_task(el._sleep_or_wake(checks, 30))
     await asyncio.sleep(0.05)
-    await el.handle_request(json.dumps({"request_id": request_id}), checks, Cursor(redis_client))
+    await el.handle_request(
+        json.dumps({"request_id": request_id}), checks, Cursor(redis_client)
+    )
     await asyncio.wait_for(waiting, timeout=2)
     assert time.monotonic() - started < 2  # not the full 30 s
     assert checks.pending == [request_id]

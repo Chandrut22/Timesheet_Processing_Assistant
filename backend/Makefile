@@ -1,5 +1,5 @@
 # Backend commands for both services (needs make: Git Bash, WSL, or `choco install make`).
-.PHONY: up down logs build check check-core check-auth migrate
+.PHONY: up down logs build check check-core check-auth validate audit migrate
 
 up:
 	docker compose up -d
@@ -15,20 +15,30 @@ logs:  # make logs s=core-worker
 
 check: check-auth check-core
 
+validate: validate-auth validate-core
+
+audit: audit-auth audit-core
+
 check-auth:
 	$(MAKE) -C auth-service check
 
 check-core:
 	$(MAKE) -C core-service check
 
+validate-auth:
+	$(MAKE) -C auth-service validate
+
+validate-core:
+	$(MAKE) -C core-service validate
+
+audit-auth:
+	$(MAKE) -C auth-service audit
+
+audit-core:
+	$(MAKE) -C core-service audit
+
 migrate:
 	$(MAKE) -C auth-service migrate
 	$(MAKE) -C core-service migrate
 
 
-validate: lint typecheck test
-
-audit:
-	uv run ruff check .
-	uv run ruff format --check .
-	uv run mypy src

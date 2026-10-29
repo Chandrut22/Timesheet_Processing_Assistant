@@ -106,10 +106,14 @@ class MailboxService:
             requested_at=now_iso(),
             requested_by=actor.name,
         )
-        listeners = await self.redis.publish(CHECK_CHANNEL, json.dumps({"request_id": request_id}))
+        listeners = await self.redis.publish(
+            CHECK_CHANNEL, json.dumps({"request_id": request_id})
+        )
         if not listeners:  # nobody subscribed: the listener is gone after all
             await self.redis.delete(COOLDOWN_KEY)
-            await update_result(self.redis, request_id, state="failed", error="No listener")
+            await update_result(
+                self.redis, request_id, state="failed", error="No listener"
+            )
             raise EmailListenerDownError(
                 "The email listener is not running, so it cannot check the mailbox now."
             )

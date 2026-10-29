@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CircleCheck, CircleX } from "lucide-react";
-import { useState } from "react";
+import { useState, type JSX } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { type BulkResult, timesheetService, timesheetKeys } from "@/features/timesheets";
@@ -43,12 +43,12 @@ export function BulkBar({
   selected: string[];
   labelFor: (id: string) => string;
   onDone: () => void;
-}) {
+}): JSX.Element | null {
   const [open, setOpen] = useState<Kind | null>(null);
   const [result, setResult] = useState<{ kind: Kind; data: BulkResult } | null>(null);
   const queryClient = useQueryClient();
 
-  const finish = (kind: Kind, data: BulkResult) => {
+  const finish = (kind: Kind, data: BulkResult): void => {
     setOpen(null);
     setResult({ kind, data });
     void queryClient.invalidateQueries({ queryKey: timesheetKeys.all });
@@ -101,7 +101,7 @@ function BulkApproveDialog({
   ids: string[];
   onOpenChange: (open: boolean) => void;
   onDone: (r: BulkResult) => void;
-}) {
+}): JSX.Element {
   const form = useForm<z.infer<typeof approveSchema>>({
     resolver: zodResolver(approveSchema),
     defaultValues: { notes: "" },
@@ -158,7 +158,7 @@ function BulkRejectDialog({
   ids: string[];
   onOpenChange: (open: boolean) => void;
   onDone: (r: BulkResult) => void;
-}) {
+}): JSX.Element {
   const form = useForm<z.infer<typeof rejectSchema>>({
     resolver: zodResolver(rejectSchema),
     defaultValues: { reason: "" },
@@ -203,7 +203,7 @@ function BulkResultDialog({
   result: { kind: Kind; data: BulkResult } | null;
   labelFor: (id: string) => string;
   onClose: () => void;
-}) {
+}): JSX.Element {
   const data = result?.data;
   return (
     <Dialog open={!!result} onOpenChange={(o) => !o && onClose()}>

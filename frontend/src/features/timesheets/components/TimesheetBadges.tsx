@@ -4,6 +4,7 @@ import { flagLabel } from "../utils/flags";
 import { humanize } from "@/utils/format";
 import { sortFlags } from "../utils/severity";
 import { cn } from "@/lib/utils";
+import type { JSX } from "react";
 
 const TIMESHEET_TONE: Record<string, BadgeVariant> = {
   needs_review: "warning",
@@ -12,7 +13,7 @@ const TIMESHEET_TONE: Record<string, BadgeVariant> = {
   exported: "info",
 };
 
-export function TimesheetStatusBadge({ status }: { status: string }) {
+export function TimesheetStatusBadge({ status }: { status: string }): JSX.Element {
   return <Badge variant={TIMESHEET_TONE[status] ?? "secondary"}>{humanize(status)}</Badge>;
 }
 
@@ -22,7 +23,7 @@ const DOT: Record<string, string> = {
   low: "bg-sky-500",
 };
 
-export function SeverityDot({ severity }: { severity: string | null }) {
+export function SeverityDot({ severity }: { severity: string | null }): JSX.Element {
   const label = severity ? `${humanize(severity)} severity` : "No flags";
   return (
     <span
@@ -41,7 +42,7 @@ function severityVariant(s: string): BadgeVariant {
   return s === "high" || s === "medium" || s === "low" ? s : "secondary";
 }
 
-export function FlagBadges({ flags, max = 3 }: { flags: FlagRead[]; max?: number }) {
+export function FlagBadges({ flags, max = 3 }: { flags: FlagRead[]; max?: number }): JSX.Element {
   if (flags.length === 0) return <span className="text-muted-foreground">—</span>;
   const sorted = sortFlags(flags);
   const shown = sorted.slice(0, max);
@@ -57,6 +58,6 @@ export function FlagBadges({ flags, max = 3 }: { flags: FlagRead[]; max?: number
   );
 }
 
-export function SeverityBadge({ severity }: { severity: string }) {
+export function SeverityBadge({ severity }: { severity: string }): JSX.Element {
   return <Badge variant={severityVariant(severity)}>{humanize(severity)}</Badge>;
 }

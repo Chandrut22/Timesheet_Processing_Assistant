@@ -17,7 +17,7 @@ const rows: BulkRow[] = [
   { id: "b", label: "B", isActive: false },
   { id: "c", label: "C", isActive: true, disabled: true },
 ];
-const id = (n: number) => `00000000-0000-4000-8000-00000000000${n}`;
+const id = (n: number): string => `00000000-0000-4000-8000-00000000000${n}`;
 const noun = { one: "employee", many: "employees" };
 
 describe("toggleRow", () => {

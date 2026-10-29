@@ -41,4 +41,4 @@ validate: lint typecheck test
 audit:
 	uv run ruff check .
 	uv run ruff format --check .
-	uv run mypy src
+	uv run mypy

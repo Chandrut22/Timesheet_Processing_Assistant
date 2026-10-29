@@ -18,7 +18,8 @@ SessionLocal = async_sessionmaker(engine, expire_on_commit=False, autoflush=Fals
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
-    """FastAPI dependency: one session per request, rolled back on error, always closed."""
+    """FastAPI dependency: one session per request, rolled back on error, always
+    closed."""
     async with SessionLocal() as session:
         try:
             yield session

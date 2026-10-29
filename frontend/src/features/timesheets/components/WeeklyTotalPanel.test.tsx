@@ -6,6 +6,7 @@ import { renderWithClient } from "@/test/render";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TimesheetRead } from "../types/timesheet";
+import type { UserEvent } from "@testing-library/user-event";
 
 const setWeek = vi.hoisted(() => vi.fn());
 vi.mock("../services/timesheetService", () => ({ timesheetService: { setWeek } }));
@@ -14,7 +15,11 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 const { WeeklyTotalPanel } = await import("./WeeklyTotalPanel");
 const { isWeeklyTotal } = await import("../utils/severity");
 
-const flag = (code: string) => ({ code, message: code, severity: "medium" });
+const flag = (code: string): { code: string; message: string; severity: string } => ({
+  code,
+  message: code,
+  severity: "medium",
+});
 const weeklyTotal = (over: Partial<TimesheetRead> = {}): TimesheetRead => ({
   ...(fixtures.core.timesheet as TimesheetRead),
   entries: [],
@@ -26,7 +31,7 @@ const weeklyTotal = (over: Partial<TimesheetRead> = {}): TimesheetRead => ({
   ...over,
 });
 
-function renderPanel(t: TimesheetRead, readOnly = false) {
+function renderPanel(t: TimesheetRead, readOnly = false): UserEvent {
   renderWithClient(<WeeklyTotalPanel t={t} weekStartDay={0} readOnly={readOnly} />);
   return userEvent.setup();
 }

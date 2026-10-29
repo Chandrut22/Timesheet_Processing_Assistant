@@ -28,11 +28,14 @@ def setup_metrics(service_name: str | None = None) -> MeterProvider | None:
         return _provider
     if not (settings.otel_enabled and settings.otel_exporter_otlp_endpoint):
         return None
-    from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+    from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
+        OTLPMetricExporter,
+    )
 
     endpoint = settings.otel_exporter_otlp_endpoint.rstrip("/") + "/v1/metrics"
     reader = PeriodicExportingMetricReader(
-        OTLPMetricExporter(endpoint=endpoint, timeout=5), export_interval_millis=EXPORT_EVERY_MS
+        OTLPMetricExporter(endpoint=endpoint, timeout=5),
+        export_interval_millis=EXPORT_EVERY_MS,
     )
     _provider = MeterProvider(
         resource=Resource.create(

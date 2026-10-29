@@ -6,6 +6,7 @@ import { SubmissionStateBadge } from "./SubmissionBadges";
 import { formatDateTime, formatDuration, humanize } from "@/utils/format";
 import { cn } from "@/lib/utils";
 import { stepLabel } from "../utils/refetch";
+import type { JSX } from "react";
 
 type Item =
   | { kind: "state"; at: string; v: StateChangeRead }
@@ -19,7 +20,7 @@ export function Timeline({
 }: {
   data: SubmissionTimeline;
   documentName: (id: string | null) => string | null;
-}) {
+}): JSX.Element {
   const items: Item[] = [
     ...data.states.map((v) => ({ kind: "state" as const, at: v.created_at, v })),
     ...data.steps.map((v) => ({ kind: "step" as const, at: v.created_at, v })),
@@ -47,7 +48,7 @@ export function Timeline({
   );
 }
 
-function Marker({ item }: { item: Item }) {
+function Marker({ item }: { item: Item }): JSX.Element {
   const base =
     "absolute -left-[29px] top-0.5 grid size-4 place-items-center rounded-full bg-card [&_svg]:size-4";
   if (item.kind === "state")
@@ -82,7 +83,7 @@ function Marker({ item }: { item: Item }) {
   );
 }
 
-function When({ at, extra }: { at: string; extra?: string | null }) {
+function When({ at, extra }: { at: string; extra?: string | null }): JSX.Element {
   return (
     <p className="text-xs text-muted-foreground">
       {formatDateTime(at)}
@@ -91,7 +92,7 @@ function When({ at, extra }: { at: string; extra?: string | null }) {
   );
 }
 
-function StateRow({ v }: { v: StateChangeRead }) {
+function StateRow({ v }: { v: StateChangeRead }): JSX.Element {
   return (
     <div>
       <div className="flex flex-wrap items-center gap-1.5 text-sm">
@@ -109,7 +110,13 @@ function StateRow({ v }: { v: StateChangeRead }) {
   );
 }
 
-function StepRow({ v, documentName }: { v: ProcessingStepRead; documentName: string | null }) {
+function StepRow({
+  v,
+  documentName,
+}: {
+  v: ProcessingStepRead;
+  documentName: string | null;
+}): JSX.Element {
   // const hasInput = Object.keys(v.input ?? {}).length > 0;
   // const hasOutput = Object.keys(v.output ?? {}).length > 0;
   return (
@@ -155,7 +162,7 @@ function StepRow({ v, documentName }: { v: ProcessingStepRead; documentName: str
   );
 }
 
-function AuditRow({ v }: { v: AuditEventRead }) {
+function AuditRow({ v }: { v: AuditEventRead }): JSX.Element {
   return (
     <div>
       <p className="text-sm">

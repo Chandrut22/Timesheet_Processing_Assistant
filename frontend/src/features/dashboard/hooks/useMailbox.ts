@@ -1,16 +1,23 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseQueryResult,
+  type DefaultError,
+} from "@tanstack/react-query";
 import { mailboxKeys } from "../queries/dashboardQueries";
 import { mailboxService } from "../services/mailboxService";
-import type { MailboxCheck } from "../types/mailbox";
+import type { MailboxCheck, MailboxStatus } from "../types/mailbox";
 
 const POLL_MS = 2_000;
 const GIVE_UP_MS = 60_000;
 const FINAL = new Set<MailboxCheck["state"]>(["done", "failed"]);
 
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number): Promise<void> =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** The email listener's status: running? when did it last check? Refreshed every 30 s. */
-export function useMailboxStatus() {
+export function useMailboxStatus(): UseQueryResult<MailboxStatus, DefaultError> {
   return useQuery({
     queryKey: mailboxKeys.status(),
     queryFn: mailboxService.getStatus,
@@ -49,7 +56,7 @@ export function useCheckMailNow({
 }: {
   onFinished: (check: MailboxCheck | null) => void;
   onError: (error: Error) => void;
-}) {
+}): { checkNow: () => void; busy: boolean } {
   const qc = useQueryClient();
   const m = useMutation({
     mutationFn: async () => {

@@ -28,7 +28,9 @@ def _text(value: object) -> str:
     if value is None:
         return ""
     if isinstance(value, datetime):
-        return value.date().isoformat() if value.time() == time(0) else value.isoformat()
+        return (
+            value.date().isoformat() if value.time() == time(0) else value.isoformat()
+        )
     if isinstance(value, date):
         return value.isoformat()
     if isinstance(value, float) and value.is_integer():
@@ -53,7 +55,9 @@ def _read_csv(data: bytes) -> list[list[str]]:
         )
     except csv.Error:
         dialect = csv.excel
-    return [[_text(cell) for cell in row] for row in csv.reader(io.StringIO(text), dialect)]
+    return [
+        [_text(cell) for cell in row] for row in csv.reader(io.StringIO(text), dialect)
+    ]
 
 
 def _read_xlsx(data: bytes) -> list[list[str]]:
@@ -62,7 +66,9 @@ def _read_xlsx(data: bytes) -> list[list[str]]:
     book = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=False)
     try:
         sheet = book.worksheets[0]
-        return [[_text(cell) for cell in row] for row in sheet.iter_rows(values_only=True)]
+        return [
+            [_text(cell) for cell in row] for row in sheet.iter_rows(values_only=True)
+        ]
     finally:
         book.close()
 
@@ -83,7 +89,11 @@ def read_table(
     if extension == ".csv" and not is_text(data):
         raise ValidationFailedError(f"'{filename}' is not a text CSV file.")
     reason = check_file(
-        filename, extension, data, max_uncompressed_mb=max_uncompressed_mb, max_ratio=max_ratio
+        filename,
+        extension,
+        data,
+        max_uncompressed_mb=max_uncompressed_mb,
+        max_ratio=max_ratio,
     )
     if reason:
         raise ValidationFailedError(reason)

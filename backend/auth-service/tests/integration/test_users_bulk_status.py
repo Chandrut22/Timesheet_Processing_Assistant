@@ -31,7 +31,8 @@ async def add_user(email: str, role: str, *, active: bool = True) -> User:
 
 def bearer(user: User, role: str) -> dict[str, str]:
     return {
-        "Authorization": f"Bearer {create_access_token(user.id, role, user.name, user.email)}"
+        "Authorization": "Bearer "
+        f"{create_access_token(user.id, role, user.name, user.email)}"
     }
 
 

@@ -18,7 +18,9 @@ export const jsonObject = z.record(z.string(), z.unknown());
 
 export const RoleNameSchema = z.enum(["admin", "reviewer"]);
 
-export const pageOf = <T extends z.ZodType>(item: T) =>
+export const pageOf = <T extends z.ZodType>(
+  item: T,
+): z.ZodObject<{ items: z.ZodArray<T>; total: typeof int; page: typeof int; size: typeof int }> =>
   z.object({ items: z.array(item), total: int, page: int, size: int });
 
 export const BulkStatusItemSchema = z.object({

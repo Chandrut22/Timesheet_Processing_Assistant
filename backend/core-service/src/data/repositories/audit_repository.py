@@ -15,7 +15,9 @@ class AuditRepository(BaseRepository[AuditEvent]):
     ) -> Sequence[AuditEvent]:
         rows = await self.session.scalars(
             select(AuditEvent)
-            .where(AuditEvent.entity_type == entity_type, AuditEvent.entity_id == entity_id)
+            .where(
+                AuditEvent.entity_type == entity_type, AuditEvent.entity_id == entity_id
+            )
             .order_by(AuditEvent.created_at.desc())
             .limit(limit)
         )

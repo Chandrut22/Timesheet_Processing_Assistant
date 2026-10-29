@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CopyPlus, Plus, Save, Trash2, Undo2 } from "lucide-react";
-import { useState } from "react";
+import { useState, type JSX } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { errorMessage } from "@/services/apiErrors";
@@ -38,42 +38,44 @@ const rowSchema = z.object({
   note: z.string().max(255, "At most 255 characters"),
 });
 
-function makeSchema(weekStart: string | null) {
-  return z
-    .object({ entries: z.array(rowSchema).max(31, "At most 31 days") })
-    .superRefine(({ entries }, ctx) => {
-      const seen = new Map<string, number>();
-      entries.forEach((e, i) => {
-        if (!ISO.test(e.work_date)) return;
-        if (seen.has(e.work_date)) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["entries", i, "work_date"],
-            message: "This day is already listed",
-          });
-        }
-        seen.set(e.work_date, i);
-      });
-      const dates = entries
-        .map((e) => e.work_date)
-        .filter((d) => ISO.test(d))
-        .sort();
-      if (dates.length === 0) return;
-      const anchor = weekStart ?? dates[0];
-      entries.forEach((e, i) => {
-        if (!ISO.test(e.work_date)) return;
-        const diff = daysBetween(anchor, e.work_date);
-        if (diff === null || diff < 0 || diff > 6) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["entries", i, "work_date"],
-            message: weekStart
-              ? `Must be in the week of ${formatWeek(weekStart)}`
-              : "All days must be in one week",
-          });
-        }
-      });
+// The form's shape; makeSchema adds the checks that need the week (zod 4 refinements
+// keep the schema's type).
+const entriesBase = z.object({ entries: z.array(rowSchema).max(31, "At most 31 days") });
+
+function makeSchema(weekStart: string | null): typeof entriesBase {
+  return entriesBase.superRefine(({ entries }, ctx) => {
+    const seen = new Map<string, number>();
+    entries.forEach((e, i) => {
+      if (!ISO.test(e.work_date)) return;
+      if (seen.has(e.work_date)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["entries", i, "work_date"],
+          message: "This day is already listed",
+        });
+      }
+      seen.set(e.work_date, i);
     });
+    const dates = entries
+      .map((e) => e.work_date)
+      .filter((d) => ISO.test(d))
+      .sort();
+    if (dates.length === 0) return;
+    const anchor = weekStart ?? dates[0];
+    entries.forEach((e, i) => {
+      if (!ISO.test(e.work_date)) return;
+      const diff = daysBetween(anchor, e.work_date);
+      if (diff === null || diff < 0 || diff > 6) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["entries", i, "work_date"],
+          message: weekStart
+            ? `Must be in the week of ${formatWeek(weekStart)}`
+            : "All days must be in one week",
+        });
+      }
+    });
+  });
 }
 
 type Values = { entries: z.infer<typeof rowSchema>[] };
@@ -102,7 +104,7 @@ export function EntriesEditor({
 }: {
   timesheet: TimesheetRead;
   readOnly: boolean;
-}) {
+}): JSX.Element {
   const [formError, setFormError] = useState<string | null>(null);
   const form = useForm<Values>({
     resolver: zodResolver(makeSchema(timesheet.week_start)),
@@ -138,7 +140,7 @@ export function EntriesEditor({
   );
 
   /** Save: the change goes into the current version. As new version: the old data is kept. */
-  const submit = (newVersion: boolean) =>
+  const submit = (newVersion: boolean): ReturnType<typeof form.handleSubmit> =>
     form.handleSubmit((values) => {
       setFormError(null);
       save.mutate(
@@ -161,7 +163,7 @@ export function EntriesEditor({
   );
   const dirty = form.formState.isDirty;
 
-  const addDay = () => {
+  const addDay = (): void => {
     const dates = (watched ?? [])
       .map((e) => e.work_date)
       .filter((d) => ISO.test(d))

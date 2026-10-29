@@ -1,5 +1,5 @@
 import { TriangleAlert, Inbox, RotateCw } from "lucide-react";
-import type { ReactNode } from "react";
+import type { ReactNode, JSX } from "react";
 import { errorMessage } from "@/services/apiErrors";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,7 +13,7 @@ export function ErrorState({
   error: unknown;
   onRetry?: () => void;
   className?: string;
-}) {
+}): JSX.Element {
   return (
     <div
       role="alert"
@@ -43,7 +43,7 @@ export function EmptyState({
   hint?: ReactNode;
   action?: ReactNode;
   className?: string;
-}) {
+}): JSX.Element {
   return (
     <div
       className={cn(
@@ -59,7 +59,13 @@ export function EmptyState({
   );
 }
 
-export function TableSkeleton({ rows = 6, cols = 6 }: { rows?: number; cols?: number }) {
+export function TableSkeleton({
+  rows = 6,
+  cols = 6,
+}: {
+  rows?: number;
+  cols?: number;
+}): JSX.Element {
   return (
     <div className="space-y-2 p-3" aria-busy="true" aria-label="Loading">
       {Array.from({ length: rows }).map((_, r) => (
@@ -73,7 +79,7 @@ export function TableSkeleton({ rows = 6, cols = 6 }: { rows?: number; cols?: nu
   );
 }
 
-export function BlockSkeleton({ className }: { className?: string }) {
+export function BlockSkeleton({ className }: { className?: string }): JSX.Element {
   return (
     <Skeleton className={cn("h-32 w-full", className)} aria-busy="true" aria-label="Loading" />
   );
@@ -87,7 +93,7 @@ export function Banner({
   tone?: "info" | "warning" | "danger" | "success";
   children: ReactNode;
   className?: string;
-}) {
+}): JSX.Element {
   const tones = {
     info: "border-sky-200 bg-sky-50 text-sky-900",
     warning: "border-amber-200 bg-amber-50 text-amber-900",

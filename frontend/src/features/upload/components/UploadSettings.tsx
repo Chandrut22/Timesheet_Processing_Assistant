@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/input";
 import { formatBytes } from "@/utils/format";
 import { cn } from "@/lib/utils";
+import type { JSX } from "react";
 
 type UploadState = {
   fileCount: number;
@@ -17,12 +18,12 @@ type UploadState = {
   onUpload: () => void;
 };
 
-function uploadLabel({ fileCount, pending, progress }: UploadState) {
+function uploadLabel({ fileCount, pending, progress }: UploadState): string {
   if (pending) return `Uploading… ${progress ?? 0}%`;
   return `Upload ${fileCount || ""} file${fileCount === 1 ? "" : "s"}`.replace("  ", " ");
 }
 
-function UploadButton(props: UploadState & { className?: string }) {
+function UploadButton(props: UploadState & { className?: string }): JSX.Element {
   return (
     <Button
       className={props.className}
@@ -45,7 +46,7 @@ export function UploadSettings({
   onCompany: (id: string) => void;
   error: string | null;
   className?: string;
-}) {
+}): JSX.Element {
   return (
     <Card className={className}>
       <CardContent className="space-y-4 pt-5">
@@ -93,7 +94,10 @@ export function UploadSettings({
 }
 
 /** Small screens: the file count and the Upload button, always in reach. */
-export function MobileUploadBar({ className, ...state }: UploadState & { className?: string }) {
+export function MobileUploadBar({
+  className,
+  ...state
+}: UploadState & { className?: string }): JSX.Element {
   return (
     <div
       className={cn(

@@ -73,9 +73,13 @@ def test_100_page_pdf_reads_the_first_50_and_flags_it(limits: None) -> None:
     assert "only pages 1-50 of 100 were read" in flag["message"]
 
 
-def test_refuse_mode_says_split_the_file(limits: None, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_refuse_mode_says_split_the_file(
+    limits: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setattr(settings, "large_document_mode", "refuse")
-    with pytest.raises(DocumentTooLargeError, match="has 100 pages; the limit is 50. Split"):
+    with pytest.raises(
+        DocumentTooLargeError, match="has 100 pages; the limit is 50. Split"
+    ):
         prepare("big.pdf", pdf(100))
 
 
@@ -105,7 +109,10 @@ def test_too_many_sheets_keeps_the_first_n_and_flags_it(limits: None) -> None:
     prepared = prepare("hours.xlsx", data)
     assert sheet_titles(prepared.data) == ["Week 1", "Week 2", "Week 3"]
     flag = too_large_flag(prepared.limit.as_dict())
-    assert flag is not None and "2 sheet(s) were not read (Week 4, Week 5)" in flag["message"]
+    assert (
+        flag is not None
+        and "2 sheet(s) were not read (Week 4, Week 5)" in flag["message"]
+    )
 
 
 def test_a_normal_workbook_is_not_rewritten(limits: None) -> None:
@@ -129,7 +136,8 @@ def test_settings() -> None:
 
 
 class BadRequestError(Exception):
-    """Looks like the provider's error (module and class name are what explain() checks)."""
+    """Looks like the provider's error (module and class name are what explain()
+    checks)."""
 
 
 BadRequestError.__module__ = "openai"
@@ -164,7 +172,10 @@ def test_a_cut_off_answer_is_permanent_with_advice() -> None:
 
 def test_cut_off_twice_stops_after_one_retry() -> None:
     pytest.importorskip("langchain_core")
-    from src.control.agents.structured_output import AnswerCutOffError, invoke_structured
+    from src.control.agents.structured_output import (
+        AnswerCutOffError,
+        invoke_structured,
+    )
     from src.schemas.extraction import ExtractionResult
 
     calls = 0
@@ -174,7 +185,8 @@ def test_cut_off_twice_stops_after_one_retry() -> None:
             nonlocal calls
             calls += 1
             return SimpleNamespace(
-                content='{"timesheets": [', response_metadata={"finish_reason": "length"}
+                content='{"timesheets": [',
+                response_metadata={"finish_reason": "length"},
             )
 
     with pytest.raises(AnswerCutOffError):

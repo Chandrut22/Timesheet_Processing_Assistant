@@ -74,8 +74,11 @@ class ProcessingStep(UUIDPrimaryKeyMixin, Base):
     document_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey(f"{SCHEMA}.documents.id", ondelete="SET NULL")
     )
-    timesheet_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # plain: survives reprocessing
-    # Set on every step written during a reprocess, so the timeline can group them by run.
+    timesheet_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid
+    )  # plain: survives reprocessing
+    # Set on every step written during a reprocess, so the timeline can group them by
+    # run.
     reprocess_run_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey(f"{SCHEMA}.reprocess_runs.id", ondelete="SET NULL")
     )
@@ -88,8 +91,12 @@ class ProcessingStep(UUIDPrimaryKeyMixin, Base):
     output: Mapped[dict[str, Any]] = mapped_column(
         JSONB, default=dict, server_default=text("'{}'::jsonb")
     )
-    error_details: Mapped[str | None] = mapped_column(Text)  # technical, for the log only
-    duration_ms: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    error_details: Mapped[str | None] = mapped_column(
+        Text
+    )  # technical, for the log only
+    duration_ms: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0")
+    )
     # OpenTelemetry trace this step ran in (32 hex chars): the log records of that run
     # carry the same id.
     # NULL when tracing is off.

@@ -27,7 +27,8 @@ def public_key() -> str:
         return path.read_text()
     except FileNotFoundError:
         raise KeyNotFoundError(
-            f"JWT public key not found at {path}. Copy auth-service/keys/jwt_public.pem here."
+            f"JWT public key not found at {path}. Copy "
+            "auth-service/keys/jwt_public.pem here."
         ) from None
 
 

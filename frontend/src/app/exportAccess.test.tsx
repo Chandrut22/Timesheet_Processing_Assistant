@@ -25,7 +25,7 @@ const reviewer: SessionUser = {
 const admin: SessionUser = { ...reviewer, role: "admin", name: "Ada Admin" };
 
 type BeforeLoad = (ctx: unknown) => unknown;
-const beforeLoadOf = (route: { options: unknown }) =>
+const beforeLoadOf = (route: { options: unknown }): BeforeLoad | undefined =>
   (route.options as { beforeLoad?: BeforeLoad }).beforeLoad;
 
 async function thrown(fn: () => unknown): Promise<unknown> {
@@ -37,7 +37,7 @@ async function thrown(fn: () => unknown): Promise<unknown> {
   return undefined;
 }
 
-const paths = (role: string) => navFor(role).flatMap((s) => s.items.map((i) => i.to));
+const paths = (role: string): string[] => navFor(role).flatMap((s) => s.items.map((i) => i.to));
 
 beforeEach(() => {
   session.state = { status: "anonymous", user: null };

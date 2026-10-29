@@ -1,7 +1,7 @@
 import { getRouteApi } from "@tanstack/react-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type JSX } from "react";
 import { toast } from "sonner";
 import { errorMessage } from "@/services/apiErrors";
 import type { EmployeeRead } from "../types/employee";
@@ -42,7 +42,7 @@ type EmployeesSearch = {
   page?: number;
 };
 
-export function EmployeesPage() {
+export function EmployeesPage(): JSX.Element {
   const search = routeApi.useSearch();
   const navigate = routeApi.useNavigate();
   const isAdmin = useIsAdmin();
@@ -73,7 +73,7 @@ export function EmployeesPage() {
   );
   const selection = useRowSelection(bulkRows, JSON.stringify(params));
 
-  const update = (patch: Partial<EmployeesSearch>) =>
+  const update = (patch: Partial<EmployeesSearch>): void =>
     void navigate({
       search: (prev) => ({ ...prev, ...patch, page: "page" in patch ? patch.page : undefined }),
       replace: true,

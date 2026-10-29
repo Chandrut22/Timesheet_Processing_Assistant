@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { IGNORED_NOT_READ, canFetchFromMailbox, fetchesFromMailbox, stepLabel } from "./refetch";
 
-const doc = (id: string, status: string, error: string | null = null, filename = `${id}.csv`) =>
-  ({ id, status, error, filename }) as never;
+const doc = (
+  id: string,
+  status: string,
+  error: string | null = null,
+  filename = `${id}.csv`,
+): never => ({ id, status, error, filename }) as never;
 
-const email = (over: Record<string, unknown> = {}) =>
+const email = (over: Record<string, unknown> = {}): never =>
   ({
     source: "email",
     status: "processed",

@@ -27,7 +27,9 @@ _SEPARATOR = re.compile(r"^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?$")
 _CELL_SPLIT = re.compile(r"(?<!\\)\|")
 
 # Header words that name the person ...
-_NAME_HEADER = re.compile(r"\bname\b|^(employee|worker|staff|associate|resource|contractor)$")
+_NAME_HEADER = re.compile(
+    r"\bname\b|^(employee|worker|staff|associate|resource|contractor)$"
+)
 _CODE_HEADER = re.compile(
     r"^(emp(loyee)?|staff|worker|associate)?\s*(id|code|no|number|#)$"
     r"|^(emp(loyee)?|staff|worker)\s*(id|code|no|number|#)\b"
@@ -98,7 +100,9 @@ class PeopleCount:
     def total(self) -> int:
         return len(self.people)
 
-    def missing(self, extracted: Sequence[tuple[str | None, str | None]]) -> list[PersonRows]:
+    def missing(
+        self, extracted: Sequence[tuple[str | None, str | None]]
+    ) -> list[PersonRows]:
         """People in the tables that the AI did not return. `extracted` holds
         (employee_code, employee_name) for each extracted timesheet. A person counts as
         found when either their code or their name matches."""
@@ -156,7 +160,9 @@ def _person_columns(header: list[str]) -> tuple[int | None, int | None]:
             code_col = index
     person = {c for c in (name_col, code_col) if c is not None}
     if person and not any(
-        _TIME_HEADER.search(_header_key(raw)) for i, raw in enumerate(header) if i not in person
+        _TIME_HEADER.search(_header_key(raw))
+        for i, raw in enumerate(header)
+        if i not in person
     ):
         return None, None  # a "label | value" block, not a table of people
     return name_col, code_col
@@ -177,7 +183,9 @@ def parse_tables(markdown: str) -> list[Table]:
                 j += 1
             header = _split_cells(line)
             name_col, code_col = _person_columns(header)
-            tables.append(Table(i, j, lines[i], lines[i + 1], header, rows, name_col, code_col))
+            tables.append(
+                Table(i, j, lines[i], lines[i + 1], header, rows, name_col, code_col)
+            )
             i = j
         else:
             i += 1
@@ -243,7 +251,9 @@ def count_people(markdown: str) -> PeopleCount | None:
                 continue  # a listed name with no hours at all: nothing to extract
             code = norm_code(person.code) if person.code else ""
             name = norm_name(person.name) if person.name else ""
-            known = (by_code.get(code) if code else None) or (by_name.get(name) if name else None)
+            known = (by_code.get(code) if code else None) or (
+                by_name.get(name) if name else None
+            )
             if known is None:
                 known = person
                 people.append(person)
@@ -262,7 +272,9 @@ def label(person: PersonRows) -> str:
     return person.name or person.code or "?"
 
 
-def missing_rows_flag(count: PeopleCount, missing: list[PersonRows]) -> dict[str, object]:
+def missing_rows_flag(
+    count: PeopleCount, missing: list[PersonRows]
+) -> dict[str, object]:
     """The flag put on every timesheet of a document whose tables list people the AI
     did not return: none of them is approved automatically, and the reviewer knows who
     has no timesheet yet."""
@@ -271,8 +283,8 @@ def missing_rows_flag(count: PeopleCount, missing: list[PersonRows]) -> dict[str
     return {
         "code": "possible_missing_rows",
         "message": f"The sheet lists {count.total} people; "
-        f"{count.total - len(missing)} were extracted. Missing: {shown}{more}. "
-        "Check the original sheet: the missing people have no timesheet yet.",
+        f"{count.total - len(missing)} were extracted. Missing: {shown}{more}. Check "
+        "the original sheet: the missing people have no timesheet yet.",
         "people_in_tables": count.total,
         "missing": [label(p) for p in missing],
     }

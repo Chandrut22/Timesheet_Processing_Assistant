@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox, Input } from "@/components/ui/input";
 import { applyFieldErrors } from "@/lib/forms";
 import { splitList } from "@/utils/format";
+import type { JSX } from "react";
 
 const schema = z
   .object({
@@ -71,7 +72,7 @@ export function EmployeeForm({
   onSubmit: (v: EmployeeFormValues) => Promise<unknown>;
   onCancel: () => void;
   serverError?: string | null;
-}) {
+}): JSX.Element {
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(schema),
     defaultValues: toValues(employee, defaultCompanyId),

@@ -1,7 +1,7 @@
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useState, type JSX } from "react";
 import { toast } from "sonner";
 import { errorMessage, isApiError } from "@/services/apiErrors";
 import type { CompanyRead, WhitelistRead } from "../types/company";
@@ -34,7 +34,7 @@ const routeApi = getRouteApi("/_app/companies/$companyId");
 
 type CompanySearch = { tab?: "details" | "senders" };
 
-export function CompanyPage() {
+export function CompanyPage(): JSX.Element {
   const { companyId } = routeApi.useParams();
   const { tab } = routeApi.useSearch();
   const navigate = routeApi.useNavigate();
@@ -107,7 +107,7 @@ export function CompanyPage() {
   );
 }
 
-function DetailsTab({ company }: { company: CompanyRead }) {
+function DetailsTab({ company }: { company: CompanyRead }): JSX.Element {
   const isAdmin = useIsAdmin();
   const queryClient = useQueryClient();
   const update = useMutation({
@@ -139,7 +139,7 @@ function DetailsTab({ company }: { company: CompanyRead }) {
   );
 }
 
-function WhitelistTab({ company }: { company: CompanyRead }) {
+function WhitelistTab({ company }: { company: CompanyRead }): JSX.Element {
   const isAdmin = useIsAdmin();
   const queryClient = useQueryClient();
   const [value, setValue] = useState("");

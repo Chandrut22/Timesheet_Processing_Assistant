@@ -39,7 +39,7 @@ from src.core.services.email_intake_service import (
 from src.core.services.failures import MailboxRefusedError, MailboxUnavailableError
 from src.data.clients import upload_buffer
 from src.data.models import Document, Submission
-from src.handlers.email.imap_source import ImapSource, MailConnectionLost
+from src.handlers.email.imap_source import ImapSource, MailConnectionLostError
 from src.handlers.email.parser import parse_message
 from src.utils.refetch import refetch_blocker
 
@@ -62,7 +62,8 @@ def blocker(submission: Submission) -> str | None:
 
 async def missing_file(document: Document) -> bool:
     """An attachment whose text is not saved and whose file is gone: only the original
-    email can help. (A file skipped on purpose, e.g. a logo or a .zip, is not missing.)"""
+    email can help. (A file skipped on purpose, e.g. a logo or a .zip, is not
+    missing.)"""
     if document.filename == BODY_FILENAME:
         return False
     if document.status == DocumentStatus.FAILED or document.error == IGNORED_NOT_READ:
@@ -89,7 +90,7 @@ async def _fetch(message_id: str) -> Message | None:
         return await asyncio.to_thread(_find, message_id)
     except MailboxLoginError as exc:
         raise MailboxRefusedError("the login was refused") from exc
-    except MailConnectionLost as exc:
+    except MailConnectionLostError as exc:
         raise MailboxUnavailableError(str(exc)) from exc
 
 
@@ -102,7 +103,8 @@ def _same_file(candidates: list[Document], fresh: Document) -> Document | None:
 
 
 def _to_read_again(document: Document, fresh: Document) -> None:
-    """Back to 'pending' with the fetched file's facts; what the last read found is cleared."""
+    """Back to 'pending' with the fetched file's facts; what the last read found is
+    cleared."""
     document.filename = fresh.filename
     document.content_type = fresh.content_type
     document.size_bytes = fresh.size_bytes
@@ -140,16 +142,23 @@ async def refetch_from_mailbox(
     scope = [
         d
         for d in submission.documents
-        if d.filename != BODY_FILENAME and (only_document is None or d.id == only_document)
+        if d.filename != BODY_FILENAME
+        and (only_document is None or d.id == only_document)
     ]
-    wanted = scope if mode == RefetchMode.ALL else [d for d in scope if await missing_file(d)]
+    wanted = (
+        scope
+        if mode == RefetchMode.ALL
+        else [d for d in scope if await missing_file(d)]
+    )
     step_input = {
         "mode": mode.value,
         "message_id": submission.message_id,
         "attachments": [d.filename for d in wanted],
     }
 
-    def log(result: StepResult, message: str, output: dict[str, object] | None = None) -> None:
+    def log(
+        result: StepResult, message: str, output: dict[str, object] | None = None
+    ) -> None:
         record_step(
             session,
             submission_id=submission.id,
@@ -170,11 +179,13 @@ async def refetch_from_mailbox(
 
     message_id = submission.message_id or ""
     msg = await _fetch(message_id)
-    folders = ", ".join(dict.fromkeys([settings.imap_folder, *settings.imap_refetch_folders]))
+    folders = ", ".join(
+        dict.fromkeys([settings.imap_folder, *settings.imap_refetch_folders])
+    )
     if msg is None:
         reason = (
-            f"The original email is no longer in the mailbox (searched {folders}): it may "
-            "have been deleted or moved. Ask the sender to send it again."
+            f"The original email is no longer in the mailbox (searched {folders}): it "
+            "may have been deleted or moved. Ask the sender to send it again."
         )
         _give_up(wanted, reason)
         log(StepResult.ERROR, reason)
@@ -182,9 +193,11 @@ async def refetch_from_mailbox(
 
     email = parse_message(msg, fallback_id=message_id)
     if submission.sender_email and email.from_email != submission.sender_email:
+        found_from = email.from_email or "an unknown sender"
         reason = (
-            f"The email found in the mailbox is from {email.from_email or 'an unknown sender'}, "
-            f"not {submission.sender_email}: it was not used. Ask the sender to send it again."
+            f"The email found in the mailbox is from {found_from}, not "
+            f"{submission.sender_email}: it was not used. Ask the sender to send it "
+            "again."
         )
         _give_up(wanted, reason)
         log(StepResult.ERROR, reason)
@@ -235,7 +248,8 @@ async def refetch_from_mailbox(
         submission.body_text = email.body_text
     body = (email.body_text or "").strip()
     has_file = any(
-        d.status in (DocumentStatus.PENDING, DocumentStatus.PARSED) for d in submission.documents
+        d.status in (DocumentStatus.PENDING, DocumentStatus.PARSED)
+        for d in submission.documents
     )
     if only_document is None and not has_file and len(body) >= MIN_BODY_CHARS:
         submission.documents.append(body_document(body))
@@ -249,11 +263,17 @@ async def refetch_from_mailbox(
     }
     count = len(fetched) + (1 if BODY_FILENAME in added else 0)
     if count == 0:
-        log(StepResult.WARNING, "Fetched the email again, but nothing in it could be read.", output)
+        log(
+            StepResult.WARNING,
+            "Fetched the email again, but nothing in it could be read.",
+            output,
+        )
     else:
         log(
             StepResult.WARNING if gone or not_readable else StepResult.SUCCESS,
             f"Fetched again from the mailbox: {count} file(s) to read.",
             output,
         )
-    logger.info("Submission %s fetched again from the mailbox: %s", submission.id, output)
+    logger.info(
+        "Submission %s fetched again from the mailbox: %s", submission.id, output
+    )

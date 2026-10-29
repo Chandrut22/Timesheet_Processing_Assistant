@@ -4,8 +4,15 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DropOverlay } from "../components/DropOverlay";
 import { useWindowFileDrop } from "./useWindowFileDrop";
+import type { JSX } from "react";
 
-function Page({ onFiles, enabled = true }: { onFiles: (f: File[]) => void; enabled?: boolean }) {
+function Page({
+  onFiles,
+  enabled = true,
+}: {
+  onFiles: (f: File[]) => void;
+  enabled?: boolean;
+}): JSX.Element {
   const { dragging } = useWindowFileDrop(onFiles, { enabled });
   return <DropOverlay visible={dragging} />;
 }
@@ -20,7 +27,7 @@ function drag(type: string, types: string[], files: File[] = []): Event {
   return event;
 }
 
-const overlay = () => screen.queryByText("Drop files to add them");
+const overlay = (): HTMLElement | null => screen.queryByText("Drop files to add them");
 
 afterEach(() => {
   cleanup();

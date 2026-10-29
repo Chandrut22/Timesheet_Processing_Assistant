@@ -23,7 +23,8 @@ AI_MODULES = frozenset(
         "langchain_google_genai",
     }
 )
-# AI provider errors that trying again will not fix: wrong key, no access, unknown model.
+# AI provider errors that trying again will not fix: wrong key, no access, unknown
+# model.
 AI_SETUP_ERRORS = frozenset(
     {"AuthenticationError", "PermissionDeniedError", "NotFoundError", "BadRequestError"}
 )
@@ -51,8 +52,8 @@ class TooManyRunsError(Exception):
         self.runs = runs
 
 
-# How providers say "the request is longer than the model's context window". They send it
-# as a "bad request", which would otherwise read as "API key or model not accepted".
+# How providers say "the request is longer than the model's context window". They send
+# it as a "bad request", which would otherwise read as "API key or model not accepted".
 CONTEXT_LIMIT_MARKERS = (
     "context_length_exceeded",
     "context length",
@@ -145,15 +146,16 @@ def explain(exc: BaseException) -> Failure:
             "The AI's answer was too long and got cut off: the document holds too many "
             "people or days for one answer.",
             temporary=False,  # the same document would be cut off again
-            advice="Split the file (for example one sheet or a few people per file), or an "
-            "admin raises LLM_MAX_OUTPUT_TOKENS; then reprocess.",
+            advice="Split the file (for example one sheet or a few people per file), "
+            "or an admin raises LLM_MAX_OUTPUT_TOKENS; then reprocess.",
         )
     if any(isinstance(e, VisionUnavailableError) for e in chain):
         return Failure(
-            "The handwriting reader (vision model) could not be reached or did not answer in time.",
+            "The handwriting reader (vision model) could not be reached or did not "
+            "answer in time.",
             temporary=True,
-            advice="Check that the vision model server is running (VISION_BASE_URL), then "
-            "reprocess.",
+            advice="Check that the vision model server is running (VISION_BASE_URL), "
+            "then reprocess.",
         )
     if any(isinstance(e, MailboxUnavailableError) for e in chain):
         return Failure(
@@ -165,19 +167,20 @@ def explain(exc: BaseException) -> Failure:
         return Failure(
             f"The mailbox could not be opened to fetch the email again: {exc}",
             temporary=False,
-            advice="An admin must check IMAP_HOST / IMAP_USER / IMAP_PASSWORD (Gmail: an "
-            "App Password); then reprocess.",
+            advice="An admin must check IMAP_HOST / IMAP_USER / IMAP_PASSWORD (Gmail: "
+            "an App Password); then reprocess.",
         )
     if any(marker in str(e).lower() for e in chain for marker in CONTEXT_LIMIT_MARKERS):
         return Failure(
             "The document is too long for the AI model.",
             temporary=False,
-            advice="Split the file, or an admin lowers LLM_MAX_INPUT_CHARS (or picks a model "
-            "with a larger context window); then reprocess.",
+            advice="Split the file, or an admin lowers LLM_MAX_INPUT_CHARS (or picks a "
+            "model with a larger context window); then reprocess.",
         )
     if any(pkg in AI_MODULES and name in AI_SETUP_ERRORS for pkg, name in origins):
         return Failure(
-            "The AI model refused the request: the API key or model name is not accepted.",
+            "The AI model refused the request: the API key or model name is not "
+            "accepted.",
             temporary=False,
             advice="An admin must fix the AI settings; then reprocess this email.",
         )
@@ -185,9 +188,12 @@ def explain(exc: BaseException) -> Failure:
         return Failure(
             "The AI model did not answer, or its answer could not be used.",
             temporary=True,
-            advice="If it keeps failing, check the AI provider's status, then reprocess.",
+            advice="If it keeps failing, check the AI provider's status, then "
+            "reprocess.",
         )
-    if any(pkg in ("sqlalchemy", "asyncpg") and name in DB_ERRORS for pkg, name in origins):
+    if any(
+        pkg in ("sqlalchemy", "asyncpg") and name in DB_ERRORS for pkg, name in origins
+    ):
         return Failure(
             "The database could not be reached.",
             temporary=True,
@@ -203,7 +209,8 @@ def explain(exc: BaseException) -> Failure:
         return Failure(
             "A connected service did not answer in time.",
             temporary=True,
-            advice="If it keeps failing, check the services are running, then reprocess.",
+            advice="If it keeps failing, check the services are running, then "
+            "reprocess.",
         )
     return Failure(
         "An unexpected error stopped processing.",
@@ -248,4 +255,6 @@ def plan_retry(
         return RetryPlan(retry=False)
     delay = retry_delay_seconds(attempt, base_delay)
     start = now or datetime.now(UTC)
-    return RetryPlan(retry=True, delay_seconds=delay, retry_at=start + timedelta(seconds=delay))
+    return RetryPlan(
+        retry=True, delay_seconds=delay, retry_at=start + timedelta(seconds=delay)
+    )

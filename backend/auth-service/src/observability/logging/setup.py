@@ -4,8 +4,9 @@ The code keeps calling `logging.getLogger(__name__).info(...)`, the way OpenTele
 Python docs say to (its logs API is meant for bridges, not for application code). The
 root logger has ONE handler, OpenTelemetry's LoggingHandler, which turns every record
 (ours and the libraries': uvicorn, SQLAlchemy, Redis, ...) into an OpenTelemetry
-log record with the service name, the severity, the file and line, any exception with its
-stack trace, and the trace and span ids when it is written inside a request or a job.
+log record with the service name, the severity, the file and line, any exception with
+its stack trace, and the trace and span ids when it is written inside a request or a
+job.
 
 Where the records go:
   - stdout (OTEL_LOGS_CONSOLE, on by default), so `docker compose logs` shows
@@ -44,8 +45,9 @@ from opentelemetry.sdk.resources import Resource
 from src.config.settings import settings
 
 # opentelemetry-sdk 1.44 marks its LoggingHandler as moving to the
-# opentelemetry-instrumentation-logging package; it is the same handler and still part of
-# the SDK pinned here. Switch the import when that package is added to pyproject.toml.
+# opentelemetry-instrumentation-logging package; it is the same handler and still part
+# of the SDK pinned here. Switch the import when that package is added to
+# pyproject.toml.
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", DeprecationWarning)
     from opentelemetry.sdk._logs import LoggingHandler
@@ -220,8 +222,8 @@ def setup_logging(
     _provider, _handler, _pid = provider, handler, os.getpid()
     if not chosen:
         sys.stderr.write(
-            "Logging: OTEL_LOGS_CONSOLE is false and no OTLP endpoint is set, "
-            "so log records go nowhere.\n"
+            "Logging: OTEL_LOGS_CONSOLE is false and no OTLP endpoint is set, so log "
+            "records go nowhere.\n"
         )
     return provider
 

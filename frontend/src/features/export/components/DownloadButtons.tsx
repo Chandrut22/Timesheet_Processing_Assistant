@@ -3,7 +3,7 @@
 // shows its own busy state; a failure (expired session, rate limit, server error)
 // becomes a toast with the shared client's message.
 import { Download, FileSpreadsheet } from "lucide-react";
-import { useState } from "react";
+import { useState, type JSX } from "react";
 import { toast } from "sonner";
 import { errorMessage } from "@/services/apiErrors";
 import type { ExportBatchRead, ExportFormat } from "../types/export";
@@ -21,10 +21,10 @@ export function DownloadButtons({
 }: {
   batch: Pick<ExportBatchRead, "id" | "filename">;
   size?: "sm" | "default";
-}) {
+}): JSX.Element {
   const [busy, setBusy] = useState<Partial<Record<ExportFormat, boolean>>>({});
 
-  const download = async (format: ExportFormat) => {
+  const download = async (format: ExportFormat): Promise<void> => {
     setBusy((b) => ({ ...b, [format]: true }));
     try {
       await exportService.downloadExport(batch, format);

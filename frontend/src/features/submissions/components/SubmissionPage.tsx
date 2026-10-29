@@ -1,7 +1,7 @@
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type JSX } from "react";
 import { toast } from "sonner";
 import { isApiError } from "@/services/apiErrors";
 import type { SubmissionRead } from "../types/submission";
@@ -62,7 +62,7 @@ import { BackButton } from "@/components/common/BackButton";
 
 const routeApi = getRouteApi("/_app/submissions/$submissionId");
 
-function isBusy(s: SubmissionRead) {
+function isBusy(s: SubmissionRead): boolean {
   const IN_PROGRESS_STATES = new Set([
     "received",
     "reading",
@@ -73,7 +73,7 @@ function isBusy(s: SubmissionRead) {
   return s.status === "received" || s.status === "processing" || IN_PROGRESS_STATES.has(s.state);
 }
 
-export function SubmissionPage() {
+export function SubmissionPage(): JSX.Element {
   const { submissionId } = routeApi.useParams();
   const [reprocessOpen, setReprocessOpen] = useState(false);
   const timeline = useQuery({
@@ -139,7 +139,7 @@ export function SubmissionPage() {
   }
 
   const s = timeline.data.submission;
-  const docName = (id: string | null) =>
+  const docName = (id: string | null): string | null =>
     id ? (s.documents.find((d) => d.id === id)?.filename ?? null) : null;
   const company = s.company_id ? companies.get(s.company_id)?.name : null;
 
@@ -310,8 +310,12 @@ export function SubmissionPage() {
                     <li key={d.id} className="rounded-md border p-2.5 text-sm">
                       <div className="flex items-start justify-between gap-2">
                         <span className="min-w-0 font-medium break-words">{d.filename}</span>
-                        <Badge variant={d.error ? "danger" : "secondary"}>
-                          {humanize(d.status)}
+                        <Badge
+                          variant={
+                            d.skipped_by_classifier ? "warning" : d.error ? "danger" : "secondary"
+                          }
+                        >
+                          {d.skipped_by_classifier ? "Not read" : humanize(d.status)}
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">
@@ -323,7 +327,13 @@ export function SubmissionPage() {
                         </div>
                       ) : null}
                       <ReadLimitNote limit={d.read_limit} />
-                      {d.error ? <p className="mt-1 text-xs text-red-700">{d.error}</p> : null}
+                      {d.error ? (
+                        <p
+                          className={`mt-1 text-xs ${d.skipped_by_classifier ? "text-amber-800" : "text-red-700"}`}
+                        >
+                          {d.error}
+                        </p>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
@@ -384,7 +394,7 @@ export function SubmissionPage() {
 }
 
 /** "Large file: Read pages 1–50 of 100" when only part of a document was read. */
-function ReadLimitNote({ limit }: { limit: unknown }) {
+function ReadLimitNote({ limit }: { limit: unknown }): JSX.Element | null {
   const text = describeReadLimit(limit);
   if (!text) return null;
   return <p className="mt-1 text-xs font-medium text-amber-800">Large file: {text}</p>;

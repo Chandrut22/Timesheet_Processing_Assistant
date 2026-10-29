@@ -54,6 +54,8 @@ export const DocumentReadSchema = z.object({
   writing_confidence: z.number().min(0).max(1).nullish(),
   has_handwritten_hours: z.boolean().default(false),
   writing_reason: z.string().nullish(),
+  /** Left unread: the classifier judged it not a timesheet from its name and the email. */
+  skipped_by_classifier: z.boolean().default(false),
   created_at: isoDateTime,
 });
 

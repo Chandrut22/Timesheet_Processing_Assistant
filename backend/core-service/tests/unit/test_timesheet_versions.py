@@ -65,7 +65,8 @@ class FakeSession:
         return None
 
 
-# --- entries as JSONB --------------------------------------------------------------------
+# --- entries as JSONB
+# --------------------------------------------------------------------
 
 
 def test_days_are_sorted_and_checked_when_set() -> None:
@@ -79,7 +80,10 @@ def test_days_are_sorted_and_checked_when_set() -> None:
 
 def test_days_round_trip_through_json_without_losing_anything() -> None:
     column = EntryList()
-    entries = [day(MON, "7.25", is_holiday=True, sheet_holiday=True, note="Diwali"), day(TUE)]
+    entries = [
+        day(MON, "7.25", is_holiday=True, sheet_holiday=True, note="Diwali"),
+        day(TUE),
+    ]
     stored = column.process_bind_param(entries, None)  # type: ignore[arg-type]
     assert stored[0] == {
         "work_date": "2026-10-12",
@@ -103,7 +107,8 @@ def test_recalculate_replaces_the_days_so_the_change_is_saved() -> None:
     assert before[0].is_holiday is False
 
 
-# --- snapshots ----------------------------------------------------------------------------
+# --- snapshots
+# ----------------------------------------------------------------------------
 
 
 def test_a_snapshot_restores_exactly() -> None:
@@ -112,11 +117,15 @@ def test_a_snapshot_restores_exactly() -> None:
     assert snap["regular_hours"] == "15.50"  # decimals as text: nothing rounded
     assert snap["entries"][0]["work_date"] == "2026-10-12"
 
-    other = sheet(employee_id=None, extracted_name="X", entries=[], flags=[], week_start=None)
+    other = sheet(
+        employee_id=None, extracted_name="X", entries=[], flags=[], week_start=None
+    )
     restore_snapshot(other, snap)
     assert take_snapshot(other) == snap
     assert other.entries == original.entries
-    assert other.severity == original.severity is not None  # flags back, severity in step
+    assert (
+        other.severity == original.severity is not None
+    )  # flags back, severity in step
 
 
 def test_only_data_changes_count() -> None:
@@ -135,7 +144,12 @@ async def test_save_version_keeps_the_old_data_and_bumps_the_version() -> None:
     timesheet = sheet()
     before = take_snapshot(timesheet)
 
-    unchanged = await save_version(session, timesheet, before, TimesheetChange.RECALCULATED)  # type: ignore[arg-type]
+    unchanged = await save_version(
+        session,  # type: ignore[arg-type]
+        timesheet,
+        before,
+        TimesheetChange.RECALCULATED,
+    )
     assert unchanged is None
     assert timesheet.version == 1 and session.added == []
 
@@ -148,7 +162,11 @@ async def test_save_version_keeps_the_old_data_and_bumps_the_version() -> None:
         actor_name="Rita",
     )
     assert isinstance(saved, TimesheetVersion)
-    assert (saved.version, saved.change, saved.changed_by_name) == (1, "entries_edited", "Rita")
+    assert (saved.version, saved.change, saved.changed_by_name) == (
+        1,
+        "entries_edited",
+        "Rita",
+    )
     assert saved.snapshot == before
     assert timesheet.version == 2
 

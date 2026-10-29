@@ -13,7 +13,11 @@ from src.config.settings import settings
 from src.constants.timesheet_status import StepName, StepResult
 from src.core.services.activity_log import Stopwatch, current_reprocess_run, record_step
 from src.core.services.chunking import Combined, combine_by
-from src.core.services.company_matcher import CompanyDecision, CompanyRecord, decide_company
+from src.core.services.company_matcher import (
+    CompanyDecision,
+    CompanyRecord,
+    decide_company,
+)
 from src.core.services.documents.document_limits import too_large_flag
 from src.core.services.email_intake_service import BODY_FILENAME
 from src.core.services.employee_matcher import (
@@ -28,9 +32,21 @@ from src.core.services.employee_matcher import (
 )
 from src.core.services.pay_rules import PayRules, rules_from_company
 from src.core.services.pipeline.extracting import Extraction
-from src.core.services.reprocess import adopt, pick_predecessor, previous_timesheets, retire
+from src.core.services.reprocess import (
+    adopt,
+    pick_predecessor,
+    previous_timesheets,
+    retire,
+)
 from src.core.services.timesheet_builder import BuildContext, build_timesheets
-from src.data.models import Company, Document, Employee, ReprocessRun, Submission, Timesheet
+from src.data.models import (
+    Company,
+    Document,
+    Employee,
+    ReprocessRun,
+    Submission,
+    Timesheet,
+)
 from src.data.repositories.employee_repository import EmployeeRepository
 from src.data.repositories.holiday_repository import HolidayRepository
 from src.observability.tracing.spans import finished_span, now_ns
@@ -43,7 +59,7 @@ class CompanyContext:
 
     company: Company | None
     rules: PayRules
-    holidays: set[date]
+    holidays: dict[date, str]  # the company's active holidays: date -> name
     records: list[EmployeeRecord]  # for matching
     by_id: dict[uuid.UUID, EmployeeRecord]
     employees: dict[uuid.UUID, Employee]  # for assignment dates
@@ -57,20 +73,29 @@ class CompanyContexts:
         self._contexts: dict[uuid.UUID | None, CompanyContext] = {}
 
     async def company_records(self) -> dict[uuid.UUID, CompanyRecord]:
-        rows = await self.session.scalars(select(Company).where(Company.is_active.is_(True)))
-        return {c.id: CompanyRecord(c.id, c.name, tuple(c.aliases or ())) for c in rows.all()}
+        rows = await self.session.scalars(
+            select(Company).where(Company.is_active.is_(True))
+        )
+        return {
+            c.id: CompanyRecord(c.id, c.name, tuple(c.aliases or ()))
+            for c in rows.all()
+        }
 
     async def get(self, company_id: uuid.UUID | None) -> CompanyContext:
         if company_id not in self._contexts:
-            company = await self.session.get(Company, company_id) if company_id else None
+            company = (
+                await self.session.get(Company, company_id) if company_id else None
+            )
             active = (
-                await EmployeeRepository(self.session).list_active(company.id) if company else []
+                await EmployeeRepository(self.session).list_active(company.id)
+                if company
+                else []
             )
             records = [to_record(e) for e in active]
             self._contexts[company_id] = CompanyContext(
                 company=company,
                 rules=rules_from_company(company),
-                holidays=set(await HolidayRepository(self.session).dates_for(company_id)),
+                holidays=await HolidayRepository(self.session).dates_for(company_id),
                 records=records,
                 by_id={r.id: r for r in records},
                 employees={e.id: e for e in active},
@@ -83,7 +108,10 @@ FUZZY_MIN_CHARS = 3  # "Al" is too short to compare letter by letter
 
 
 def _fuzzy_wanted(name: str | None) -> bool:
-    return settings.match_fuzzy_enabled and len(normalize(name).replace(" ", "")) >= FUZZY_MIN_CHARS
+    return (
+        settings.match_fuzzy_enabled
+        and len(normalize(name).replace(" ", "")) >= FUZZY_MIN_CHARS
+    )
 
 
 async def find_employee(
@@ -93,9 +121,11 @@ async def find_employee(
     code: str | None,
     companies: dict[uuid.UUID, CompanyRecord],
 ) -> MatchResult:
-    """Who is this timesheet for? The exact rules first (no database). Only when they find
-    nobody: close spellings, shortlisted by pg_trgm and decided by difflib. With no company
-    known, close names from every company are listed (suggestions, never a match)."""
+    """Who is this timesheet for? The exact rules first (no database). Only when they
+    find
+    nobody: close spellings, shortlisted by pg_trgm and decided by difflib. With no
+    company known, close names from every company are listed (suggestions, never a
+    match)."""
     repo = EmployeeRepository(session)
     if cc.company is not None:
         exact = match_employee(name, code, cc.records)
@@ -107,7 +137,11 @@ async def find_employee(
             min_similarity=settings.match_trgm_min_similarity,
             limit=SHORTLIST_SIZE,
         )
-        shortlist = [Shortlisted(cc.by_id[eid], score) for eid, _, score in rows if eid in cc.by_id]
+        shortlist = [
+            Shortlisted(cc.by_id[eid], score)
+            for eid, _, score in rows
+            if eid in cc.by_id
+        ]
         fuzzy = rank_shortlist(
             name,
             shortlist,
@@ -115,7 +149,9 @@ async def find_employee(
             margin=settings.match_fuzzy_margin,
         )
         if fuzzy.employee_id is None and not fuzzy.candidates:
-            return exact  # pg_trgm found nobody: keep difflib's closest from the full list
+            return (
+                exact  # pg_trgm found nobody: keep difflib's closest from the full list
+            )
         return replace(fuzzy, code_not_found=exact.code_not_found)
 
     if not _fuzzy_wanted(name):
@@ -128,7 +164,9 @@ async def find_employee(
     )
     if not rows:
         return MatchResult(None, None)
-    found = await session.scalars(select(Employee).where(Employee.id.in_([r[0] for r in rows])))
+    found = await session.scalars(
+        select(Employee).where(Employee.id.in_([r[0] for r in rows]))
+    )
     by_id = {e.id: e for e in found.all()}
     shortlist = [
         Shortlisted(
@@ -169,17 +207,29 @@ async def match_timesheets(
 
     run_id = current_reprocess_run.get()
     run = await session.get(ReprocessRun, run_id) if run_id is not None else None
-    olds = await previous_timesheets(session, document.id, run.id) if run is not None else []
+    olds = (
+        await previous_timesheets(session, document.id, run.id)
+        if run is not None
+        else []
+    )
 
     combined = extraction.combined
-    if extraction.parts > 1:  # read in parts: join the same employee written differently
+    if (
+        extraction.parts > 1
+    ):  # read in parts: join the same employee written differently
         combined = await _combine_after_matching(
             session, contexts, submission, document, combined, sender, companies
         )
 
-    candidates: list[tuple[Timesheet, CompanyContext, CompanyDecision, list[dict[str, Any]]]] = []
-    for extracted, part_flags in zip(combined.result.timesheets, combined.flags, strict=True):
-        decision = decide_company(extracted.company_name, sender, list(companies.values()))
+    candidates: list[
+        tuple[Timesheet, CompanyContext, CompanyDecision, list[dict[str, Any]]]
+    ] = []
+    for extracted, part_flags in zip(
+        combined.result.timesheets, combined.flags, strict=True
+    ):
+        decision = decide_company(
+            extracted.company_name, sender, list(companies.values())
+        )
         cc = await contexts.get(decision.company_id)
         ctx = BuildContext(
             submission_id=submission.id,
@@ -188,7 +238,8 @@ async def match_timesheets(
             received_on=submission.received_at.date(),
             week_start_day=cc.company.week_start if cc.company else 0,
             is_email_body=is_email_body,
-            writing_class=document.writing_class,  # photos / scans read by the vision model
+            # photos / scans read by the vision model
+            writing_class=document.writing_class,
             has_handwritten_hours=document.has_handwritten_hours,
             unclear_marks=document.unclear_marks,
         )
@@ -199,7 +250,11 @@ async def match_timesheets(
     for candidate, cc, decision, part_flags in candidates:
         watch = Stopwatch()
         match_started = now_ns()
-        extra = [f for f in (decision.flag, size_flag, extraction.missing_flag) if f is not None]
+        extra = [
+            f
+            for f in (decision.flag, size_flag, extraction.missing_flag)
+            if f is not None
+        ]
         extra += extraction.size_flags  # long document: truncated / not read in full
         extra += part_flags  # read in parts: overlap disagreements
         if extra:
@@ -209,14 +264,18 @@ async def match_timesheets(
             old = pick_predecessor(candidate, olds, only_one_new=len(candidates) == 1)
             if old is not None:
                 olds.remove(old)
-                timesheet = await adopt(session, old, candidate, run)  # same row, new version
+                timesheet = await adopt(
+                    session, old, candidate, run
+                )  # same row, new version
             else:
                 timesheet.reprocess_run_id = run.id  # someone / a week new in this run
         match = await find_employee(
             session, cc, timesheet.extracted_name, timesheet.extracted_code, companies
         )
         employee = cc.by_id.get(match.employee_id) if match.employee_id else None
-        apply_match(timesheet, match, company_known=cc.company is not None, matched=employee)
+        apply_match(
+            timesheet, match, company_known=cc.company is not None, matched=employee
+        )
         session.add(timesheet)
         await session.flush()  # the timesheet id is known now
         finished_span(
@@ -272,7 +331,8 @@ async def match_timesheets(
 
 
 def _week_key(extracted: ExtractedTimesheet) -> str:
-    """The week a timesheet is for: its week start, else the Monday of its first date."""
+    """The week a timesheet is for: its week start, else the Monday of its first
+    date."""
     if extracted.week_start:
         return extracted.week_start.isoformat()
     dates = [d.work_date for d in extracted.days if d.work_date]
@@ -296,7 +356,9 @@ async def _combine_after_matching(
     Unmatched timesheets, and two from the same part, are never joined."""
     keys: list[Hashable | None] = []
     for extracted in combined.result.timesheets:
-        decision = decide_company(extracted.company_name, sender, list(companies.values()))
+        decision = decide_company(
+            extracted.company_name, sender, list(companies.values())
+        )
         cc = await contexts.get(decision.company_id)
         match = (
             match_employee(extracted.employee_name, extracted.employee_code, cc.records)
@@ -317,8 +379,9 @@ async def _combine_after_matching(
             document_id=document.id,
             step=StepName.MATCH,
             result=StepResult.SUCCESS,
-            message=f"{joined} timesheet(s) from different parts of {document.filename} "
-            "were combined: the same employee and week, written differently.",
+            message=f"{joined} timesheet(s) from different parts of "
+            f"{document.filename} were combined: the same employee and week, written "
+            "differently.",
             output={
                 "before": len(combined.result.timesheets),
                 "after": len(again.result.timesheets),
@@ -328,7 +391,9 @@ async def _combine_after_matching(
                         "employee_code": t.employee_code,
                         "parts": sorted(parts),
                     }
-                    for t, parts in zip(again.result.timesheets, again.parts, strict=True)
+                    for t, parts in zip(
+                        again.result.timesheets, again.parts, strict=True
+                    )
                     if len(parts) > 1
                 ],
             },

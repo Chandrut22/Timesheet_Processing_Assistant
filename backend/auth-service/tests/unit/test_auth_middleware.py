@@ -1,5 +1,5 @@
-"""Default-deny authentication in auth-service: only the sign-in endpoints and the health
-checks work without a valid access token."""
+"""Default-deny authentication in auth-service: only the sign-in endpoints and the
+health checks work without a valid access token."""
 
 import uuid
 from collections.abc import Iterator

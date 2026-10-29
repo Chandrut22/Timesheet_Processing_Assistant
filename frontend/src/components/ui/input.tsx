@@ -1,7 +1,8 @@
 import type * as React from "react";
 import { cn } from "@/lib/utils";
+import type { JSX } from "react";
 
-export function Input({ className, type, ...props }: React.ComponentProps<"input">) {
+export function Input({ className, type, ...props }: React.ComponentProps<"input">): JSX.Element {
   return (
     <input
       type={type}
@@ -15,7 +16,7 @@ export function Input({ className, type, ...props }: React.ComponentProps<"input
   );
 }
 
-export function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
+export function Textarea({ className, ...props }: React.ComponentProps<"textarea">): JSX.Element {
   return (
     <textarea
       data-slot="textarea"
@@ -29,7 +30,11 @@ export function Textarea({ className, ...props }: React.ComponentProps<"textarea
 }
 
 /** A styled native <select>: accessible and keyboard-friendly with no extra JS. */
-export function NativeSelect({ className, children, ...props }: React.ComponentProps<"select">) {
+export function NativeSelect({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<"select">): JSX.Element {
   return (
     <select
       data-slot="select"
@@ -44,7 +49,10 @@ export function NativeSelect({ className, children, ...props }: React.ComponentP
   );
 }
 
-export function Checkbox({ className, ...props }: Omit<React.ComponentProps<"input">, "type">) {
+export function Checkbox({
+  className,
+  ...props
+}: Omit<React.ComponentProps<"input">, "type">): JSX.Element {
   return (
     <input
       type="checkbox"
@@ -58,7 +66,7 @@ export function Checkbox({ className, ...props }: Omit<React.ComponentProps<"inp
   );
 }
 
-export function Label({ className, ...props }: React.ComponentProps<"label">) {
+export function Label({ className, ...props }: React.ComponentProps<"label">): JSX.Element {
   return (
     <label
       data-slot="label"

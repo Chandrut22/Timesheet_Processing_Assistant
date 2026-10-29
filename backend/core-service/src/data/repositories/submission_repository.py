@@ -30,5 +30,7 @@ class SubmissionRepository(BaseRepository[Submission]):
         if company_id is not None:
             query = query.where(Submission.company_id == company_id)
         return await self.paginate(
-            query.order_by(Submission.received_at.desc(), Submission.id), page=page, size=size
+            query.order_by(Submission.received_at.desc(), Submission.id),
+            page=page,
+            size=size,
         )

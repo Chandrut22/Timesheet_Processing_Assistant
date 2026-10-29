@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import type { JSX } from "react";
 
 export function Pagination({
   page,
@@ -11,7 +12,7 @@ export function Pagination({
   size: number;
   total: number;
   onPage: (page: number) => void;
-}) {
+}): JSX.Element {
   const pages = Math.max(1, Math.ceil(total / size));
   const from = total === 0 ? 0 : (page - 1) * size + 1;
   const to = Math.min(page * size, total);

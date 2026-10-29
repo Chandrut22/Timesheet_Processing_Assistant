@@ -8,7 +8,10 @@ import pytest
 from PIL import Image
 
 from src.config.settings import settings
-from src.core.services.documents.document_reader import UnreadableFileError, read_document_full
+from src.core.services.documents.document_reader import (
+    UnreadableFileError,
+    read_document_full,
+)
 from src.core.services.documents.file_problems import OLE_MAGIC, file_problem
 from tests.fixtures.pdfs import blank_pdf, encrypted_pdf
 
@@ -57,15 +60,24 @@ def test_files_that_open_have_no_problem() -> None:
 def test_damaged_files(name: str, data: bytes) -> None:
     extension = "." + name.rsplit(".", 1)[1]
     message = file_problem(name, extension, data)
-    assert message == f"'{name}' is damaged or not a valid file. Ask the sender to resend it."
+    assert (
+        message
+        == f"'{name}' is damaged or not a valid file. Ask the sender to resend it."
+    )
 
 
 def test_password_protected_files() -> None:
     expected = "is password-protected. Ask the sender for a copy without a password."
-    assert file_problem("locked.pdf", ".pdf", pdf("secret")) == f"'locked.pdf' {expected}"
+    assert (
+        file_problem("locked.pdf", ".pdf", pdf("secret")) == f"'locked.pdf' {expected}"
+    )
     locked_word = OLE_MAGIC + b"\x00" * 4000  # Office saves an encrypted file as OLE
-    assert file_problem("locked.docx", ".docx", locked_word) == f"'locked.docx' {expected}"
-    assert file_problem("locked.xlsx", ".xlsx", locked_word) == f"'locked.xlsx' {expected}"
+    assert (
+        file_problem("locked.docx", ".docx", locked_word) == f"'locked.docx' {expected}"
+    )
+    assert (
+        file_problem("locked.xlsx", ".xlsx", locked_word) == f"'locked.xlsx' {expected}"
+    )
 
 
 @pytest.mark.parametrize("vision", [True, False])
@@ -76,6 +88,8 @@ def test_the_reader_refuses_them_before_docling_or_the_vision_model(
     monkeypatch.setattr(settings, "vision_base_url", "https://example.invalid/v1")
     monkeypatch.setattr(settings, "vision_model", "m")
     with pytest.raises(UnreadableFileError, match="damaged"):
-        read_document_full("broken.pdf", b"%PDF-1.7 garbage" * 100)  # the crash in the log
+        read_document_full(
+            "broken.pdf", b"%PDF-1.7 garbage" * 100
+        )  # the crash in the log
     with pytest.raises(UnreadableFileError, match="password-protected"):
         read_document_full("locked.pdf", pdf("secret"))

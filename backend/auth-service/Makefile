@@ -1,6 +1,6 @@
 # Development commands (needs make: Git Bash, WSL, or `choco install make` on Windows).
 # Every target is one `uv run` command: see docs/runbook.md for the PowerShell versions.
-.PHONY: install lint format typecheck test check migrate revision run keys
+.PHONY: install lint format typecheck test check validate audit migrate revision run keys
 
 install:
 	uv sync
@@ -20,6 +20,9 @@ test:
 check: lint typecheck test
 	uv run ruff format --check .
 
+validate: lint typecheck test
+	uv run ruff format --check .
+
 migrate:
 	uv run alembic upgrade head
 
@@ -31,3 +34,8 @@ run:
 
 keys:
 	uv run python scripts/generate_keys.py
+
+audit:
+	uv run ruff check .
+	uv run ruff format --check .
+	uv run mypy

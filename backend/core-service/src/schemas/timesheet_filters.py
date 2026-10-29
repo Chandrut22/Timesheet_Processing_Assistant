@@ -42,7 +42,8 @@ class TimesheetFilters(BaseModel):
         default_factory=list, description="Timesheet status; repeat for several"
     )
     state: list[SubmissionState] = Field(
-        default_factory=list, description="State of the email / upload; repeat for several"
+        default_factory=list,
+        description="State of the email / upload; repeat for several",
     )
     severity: list[SeverityFilter] = Field(
         default_factory=list, description="Worst flag severity; 'none' = no flags"
@@ -62,10 +63,16 @@ class TimesheetFilters(BaseModel):
     q: str | None = Field(
         default=None, max_length=100, description="Part of the employee name or code"
     )
-    date_from: date | None = Field(default=None, description="Worked week overlaps from")
+    date_from: date | None = Field(
+        default=None, description="Worked week overlaps from"
+    )
     date_to: date | None = Field(default=None, description="Worked week overlaps until")
-    received_from: date | None = Field(default=None, description="Arrived on or after (UTC)")
-    received_to: date | None = Field(default=None, description="Arrived on or before (UTC)")
+    received_from: date | None = Field(
+        default=None, description="Arrived on or after (UTC)"
+    )
+    received_to: date | None = Field(
+        default=None, description="Arrived on or before (UTC)"
+    )
     min_confidence: float | None = Field(default=None, ge=0, le=1)
     max_confidence: float | None = Field(default=None, ge=0, le=1)
     sort: TimesheetSort = TimesheetSort.RECEIVED
@@ -75,7 +82,11 @@ class TimesheetFilters(BaseModel):
     def check_ranges(self) -> "TimesheetFilters":
         if self.date_from and self.date_to and self.date_from > self.date_to:
             raise ValueError("date_from must not be after date_to")
-        if self.received_from and self.received_to and self.received_from > self.received_to:
+        if (
+            self.received_from
+            and self.received_to
+            and self.received_from > self.received_to
+        ):
             raise ValueError("received_from must not be after received_to")
         low, high = self.min_confidence, self.max_confidence
         if low is not None and high is not None and low > high:

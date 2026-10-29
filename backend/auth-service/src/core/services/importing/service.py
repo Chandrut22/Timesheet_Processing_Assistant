@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 def template_csv() -> str:
-    """The exact headers and one example row (UTF-8 with BOM, so Excel opens it right)."""
+    """The exact headers and one example row (UTF-8 with BOM, so Excel opens it
+    right)."""
     out = io.StringIO()
     writer = csv.writer(out, lineterminator="\r\n")
     writer.writerow([c.name for c in USER_COLUMNS])

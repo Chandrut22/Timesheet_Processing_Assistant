@@ -31,7 +31,12 @@ SCHEMA = "core"
 def upgrade() -> None:
     op.add_column(
         "timesheet_entries",
-        sa.Column("sheet_holiday", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column(
+            "sheet_holiday",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
         schema=SCHEMA,
     )
     op.execute(

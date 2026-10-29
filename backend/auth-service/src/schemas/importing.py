@@ -43,6 +43,7 @@ class ImportReport(BaseModel):
     )
     rows: list[RowResult] = Field(
         default_factory=list,
-        description="Row details, failed rows first, at most IMPORT_REPORT_ROWS of them",
+        description="Row details, failed rows first, at most IMPORT_REPORT_ROWS "
+        "of them",
     )
     rows_omitted: int = Field(default=0, description="Rows not listed in `rows`")

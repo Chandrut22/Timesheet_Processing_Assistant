@@ -18,7 +18,9 @@ EXE = b"MZ\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00\xff\xff\x00\x00" + b"\x00" * 
 
 def check(name: str, data: bytes, **kw: int) -> str | None:
     ext = "." + name.rsplit(".", 1)[-1].lower()
-    return check_file(name, ext, data, max_uncompressed_mb=kw.get("mb", 100), max_ratio=100)
+    return check_file(
+        name, ext, data, max_uncompressed_mb=kw.get("mb", 100), max_ratio=100
+    )
 
 
 def image(fmt: str) -> bytes:
@@ -41,7 +43,9 @@ def docx() -> bytes:
     out = io.BytesIO()
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("[Content_Types].xml", "<Types/>")
-        z.writestr("word/document.xml", "<w:document><w:body>Grace 8</w:body></w:document>")
+        z.writestr(
+            "word/document.xml", "<w:document><w:body>Grace 8</w:body></w:document>"
+        )
     return out.getvalue()
 
 
@@ -88,7 +92,8 @@ def test_a_renamed_exe_is_refused(name: str) -> None:
 def test_a_text_file_called_pdf_is_refused() -> None:
     reason = check("timesheet.pdf", b"Grace worked 40 hours this week")
     assert reason == (
-        "'timesheet.pdf' is not a real PDF file: its content does not match the .pdf extension."
+        "'timesheet.pdf' is not a real PDF file: its content does not match the .pdf "
+        "extension."
     )
 
 
@@ -125,7 +130,12 @@ def test_small_well_compressed_files_are_fine() -> None:
     out = io.BytesIO()
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("xl/workbook.xml", b"0" * 500_000)  # 500 KB, ratio > 100, but small
-    assert zip_bomb_reason("w.xlsx", out.getvalue(), max_uncompressed_mb=100, max_ratio=100) is None
+    assert (
+        zip_bomb_reason(
+            "w.xlsx", out.getvalue(), max_uncompressed_mb=100, max_ratio=100
+        )
+        is None
+    )
 
 
 def test_the_reader_refuses_a_zip_bomb_too(monkeypatch: pytest.MonkeyPatch) -> None:

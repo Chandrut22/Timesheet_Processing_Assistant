@@ -26,9 +26,9 @@ _runner: asyncio.Runner | None = None
 def run_async[T](coro: Coroutine[Any, Any, T]) -> T:
     """Run one task's coroutine on the process's event loop.
 
-    Each call gets a fresh copy of the CURRENT context: without it, asyncio.Runner reuses
-    the context of its first run, so every later job would still see the first job's
-    trace (and any other context variable set then)."""
+    Each call gets a fresh copy of the CURRENT context: without it, asyncio.Runner
+    reuses the context of its first run, so every later job would still see the first
+    job's trace (and any other context variable set then)."""
     global _runner
     if _runner is None:
         _runner = asyncio.Runner()

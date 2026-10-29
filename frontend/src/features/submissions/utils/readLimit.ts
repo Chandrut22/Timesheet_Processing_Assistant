@@ -10,7 +10,7 @@ function first(obj: Record<string, unknown>, keys: string[]): unknown {
   return undefined;
 }
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 export function describeReadLimit(limit: unknown): string | null {
   if (limit === null || limit === undefined || limit === false) return null;

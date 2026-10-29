@@ -8,6 +8,7 @@ const FLAG_LABELS: Record<string, string> = {
   writing_unclear: "Hard to read",
   handwriting_present: "Some handwriting",
   fuzzy_match: "Close spelling",
+  holiday_in_week: "Holiday in the week",
 };
 
 const MATCH_METHOD_LABELS: Record<string, string> = {

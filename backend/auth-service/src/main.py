@@ -1,10 +1,12 @@
-"""auth-service entry point: `uvicorn src.main:app` (the app itself is in api/rest/app.py)."""
+"""auth-service entry point: `uvicorn src.main:app` (the app itself is in
+api/rest/app.py)."""
 
 from src.observability.logging.setup import setup_logging
 
-setup_logging()  # first: every log record (ours and the libraries') goes through OpenTelemetry
+# first: every log record (ours and the libraries') goes through OpenTelemetry
+setup_logging()
 
-from src.api.rest.app import create_app
+from src.api.rest.app import create_app  # noqa: E402 (after setup_logging, on purpose)
 
 app = create_app()
 

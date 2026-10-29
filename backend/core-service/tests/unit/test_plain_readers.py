@@ -79,12 +79,13 @@ def test_txt_is_its_text() -> None:
     assert decode_text(b"\xe9") == "é"  # not UTF-8: Windows-1252
 
 
-# --- the PDF text layer -----------------------------------------------------------------
+# --- the PDF text layer
+# -----------------------------------------------------------------
 
 DOCLING_SAW_A_PICTURE = (
-    "## ABC Staffing Solutions Pvt Ltd\n\nWeekly Timesheet Employee: Priya Nair "
-    "ID: SYN-EMP-002 Week starting: 2026-10-05\n\n<!-- image -->\n\n"
-    "Employee signature: ____________ Supervisor: approved"
+    "## ABC Staffing Solutions Pvt Ltd\n\nWeekly Timesheet Employee: Priya Nair ID: "
+    "SYN-EMP-002 Week starting: 2026-10-05\n\n<!-- image -->\n\nEmployee signature: "
+    "____________ Supervisor: approved"
 )
 
 

@@ -1,7 +1,8 @@
 // Shown over the whole page while files are dragged over the window.
 import { CloudUpload } from "lucide-react";
+import type { JSX } from "react";
 
-export function DropOverlay({ visible }: { visible: boolean }) {
+export function DropOverlay({ visible }: { visible: boolean }): JSX.Element | null {
   if (!visible) return null;
   return (
     <div

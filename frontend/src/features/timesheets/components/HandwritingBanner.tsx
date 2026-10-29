@@ -2,12 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import type { TimesheetRead } from "../types/timesheet";
 import { Banner } from "@/components/common/States";
 import { hasHandwrittenHours, submissionService, submissionKeys } from "@/features/submissions";
+import type { JSX } from "react";
 
 /**
  * For a timesheet from a photo / scan read by the vision model: a reminder to check the
  * values against the original (hours by hand), or that the page was hard to read.
  */
-export function HandwritingBanner({ t }: { t: TimesheetRead }) {
+export function HandwritingBanner({ t }: { t: TimesheetRead }): JSX.Element | null {
   // The submission is also loaded (and cached) by the Source panel.
   const q = useQuery({
     queryKey: submissionKeys.detail(t.submission_id),

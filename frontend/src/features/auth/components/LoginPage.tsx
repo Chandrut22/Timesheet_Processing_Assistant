@@ -1,6 +1,6 @@
 import { getRouteApi, Link, useRouter } from "@tanstack/react-router";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useState, type JSX } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { errorMessage } from "@/services/apiErrors";
@@ -26,7 +26,7 @@ function safeRedirect(target: string | undefined): string {
   return target;
 }
 
-export function LoginPage() {
+export function LoginPage(): JSX.Element {
   const { redirect } = routeApi.useSearch();
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);

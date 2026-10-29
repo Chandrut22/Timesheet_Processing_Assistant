@@ -1,6 +1,6 @@
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useState, type JSX } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -28,7 +28,7 @@ const schema = z
   });
 type Values = z.infer<typeof schema>;
 
-export function ResetPasswordPage() {
+export function ResetPasswordPage(): JSX.Element {
   const { email } = routeApi.useSearch();
   const navigate = useNavigate();
   const [formError, setFormError] = useState<string | null>(null);

@@ -1,7 +1,7 @@
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, FileSpreadsheet } from "lucide-react";
-import { useState } from "react";
+import { useState, type JSX } from "react";
 import { toast } from "sonner";
 import { errorMessage } from "@/services/apiErrors";
 import { type CompanyRead, CompanySelect, useCompanyMap } from "@/features/companies";
@@ -43,7 +43,7 @@ type ExportSearch = { company_id?: string; week?: string };
 
 // Admins and reviewers: no role guard (the API's export routes allow both).
 
-export function ExportPage() {
+export function ExportPage(): JSX.Element {
   const search = routeApi.useSearch();
   const navigate = routeApi.useNavigate();
   const companies = useCompanyMap();
@@ -51,10 +51,10 @@ export function ExportPage() {
   const week = search.week ?? (company ? latestWeekStart(company.week_start) : undefined);
   const weekOk = !!company && !!week && backendWeekday(week) === company.week_start;
 
-  const setSearch = (patch: ExportSearch) =>
+  const setSearch = (patch: ExportSearch): void =>
     void navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true });
 
-  const onCompany = (id: string) => {
+  const onCompany = (id: string): void => {
     const c = companies.get(id);
     setSearch({ company_id: id || undefined, week: c ? latestWeekStart(c.week_start) : undefined });
   };
@@ -140,7 +140,7 @@ export function ExportPage() {
   );
 }
 
-function PreviewSection({ company, week }: { company: CompanyRead; week: string }) {
+function PreviewSection({ company, week }: { company: CompanyRead; week: string }): JSX.Element {
   const queryClient = useQueryClient();
   const [allowPending, setAllowPending] = useState(false);
   const [created, setCreated] = useState<ExportBatchRead | null>(null);
@@ -353,7 +353,7 @@ function HoursCell({
   hours: number;
   amount: number | null;
   currency: string | null;
-}) {
+}): JSX.Element {
   return (
     <TableCell className="text-right">
       <span className="tabular block">{formatHours(hours)}</span>
@@ -366,7 +366,7 @@ function HoursCell({
   );
 }
 
-function Warnings({ p }: { p: ExportPreview }) {
+function Warnings({ p }: { p: ExportPreview }): JSX.Element | null {
   const items: string[] = [];
   if (p.pending_review > 0)
     items.push(
@@ -399,7 +399,7 @@ function Warnings({ p }: { p: ExportPreview }) {
   );
 }
 
-function History({ companyId }: { companyId?: string }) {
+function History({ companyId }: { companyId?: string }): JSX.Element {
   const [page, setPage] = useState(1);
   const params = { company_id: companyId, page, size: 10 };
   const q = useQuery({

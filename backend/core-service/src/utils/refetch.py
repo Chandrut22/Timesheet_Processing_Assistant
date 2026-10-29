@@ -11,14 +11,17 @@ def refetch_blocker(
         return "An upload has no copy in the mailbox: upload the file again."
     if not enabled:
         return (
-            "Fetching emails again from the mailbox is turned off (EMAIL_REFETCH_ENABLED). "
-            "Ask the sender to send it again."
+            "Fetching emails again from the mailbox is turned off "
+            "(EMAIL_REFETCH_ENABLED). Ask the sender to send it again."
         )
     if not imap_ready:
         return (
-            "The mailbox is not set up (IMAP_HOST, IMAP_USER, IMAP_PASSWORD), so the email "
-            "cannot be fetched again. Ask the sender to send it again."
+            "The mailbox is not set up (IMAP_HOST, IMAP_USER, IMAP_PASSWORD), so the "
+            "email cannot be fetched again. Ask the sender to send it again."
         )
     if not (message_id or "").strip():
-        return "This email has no Message-ID to find it by. Ask the sender to send it again."
+        return (
+            "This email has no Message-ID to find it by. Ask the sender to send it "
+            "again."
+        )
     return None

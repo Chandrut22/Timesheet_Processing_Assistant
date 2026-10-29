@@ -4,8 +4,9 @@ The code keeps calling `logging.getLogger(__name__).info(...)`, the way OpenTele
 Python docs say to (its logs API is meant for bridges, not for application code). The
 root logger has ONE handler, OpenTelemetry's LoggingHandler, which turns every record
 (ours and the libraries': uvicorn, SQLAlchemy, Celery, httpx, ...) into an OpenTelemetry
-log record with the service name, the severity, the file and line, any exception with its
-stack trace, and the trace and span ids when it is written inside a request or a job.
+log record with the service name, the severity, the file and line, any exception with
+its stack trace, and the trace and span ids when it is written inside a request or a
+job.
 
 Where the records go:
   - stdout (OTEL_LOGS_CONSOLE, on by default), so `docker compose logs` shows
@@ -29,7 +30,11 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import IO, Any, cast
 
-from opentelemetry.sdk._logs import LoggerProvider, LogRecordProcessor, ReadableLogRecord
+from opentelemetry.sdk._logs import (
+    LoggerProvider,
+    LogRecordProcessor,
+    ReadableLogRecord,
+)
 from opentelemetry.sdk._logs.export import (
     BatchLogRecordProcessor,
     ConsoleLogRecordExporter,
@@ -40,8 +45,9 @@ from opentelemetry.sdk.resources import Resource
 from src.config.settings import settings
 
 # opentelemetry-sdk 1.44 marks its LoggingHandler as moving to the
-# opentelemetry-instrumentation-logging package; it is the same handler and still part of
-# the SDK pinned here. Switch the import when that package is added to pyproject.toml.
+# opentelemetry-instrumentation-logging package; it is the same handler and still part
+# of the SDK pinned here. Switch the import when that package is added to
+# pyproject.toml.
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", DeprecationWarning)
     from opentelemetry.sdk._logs import LoggingHandler
@@ -93,10 +99,14 @@ def one_line(record: ReadableLogRecord) -> str:
     log = record.log_record
     timestamp = log.timestamp or log.observed_timestamp or 0
     line: dict[str, Any] = {
-        "time": datetime.fromtimestamp(timestamp / 1e9, UTC).isoformat(timespec="milliseconds"),
+        "time": datetime.fromtimestamp(timestamp / 1e9, UTC).isoformat(
+            timespec="milliseconds"
+        ),
         "level": log.severity_text,
         "service": record.resource.attributes.get("service.name"),
-        "logger": record.instrumentation_scope.name if record.instrumentation_scope else None,
+        "logger": record.instrumentation_scope.name
+        if record.instrumentation_scope
+        else None,
         "message": log.body if isinstance(log.body, str) else str(log.body),
     }
     if log.trace_id:
@@ -146,13 +156,17 @@ def _processors() -> list[LogRecordProcessor]:
     processors: list[LogRecordProcessor] = []
     if settings.otel_logs_console:
         formatter = one_line if settings.otel_logs_format == "json" else text_line
-        exporter = ConsoleLogRecordExporter(out=cast(IO[str], _Stdout()), formatter=formatter)
+        exporter = ConsoleLogRecordExporter(
+            out=cast(IO[str], _Stdout()), formatter=formatter
+        )
         processors.append(SimpleLogRecordProcessor(exporter))
     if settings.otel_enabled and settings.otel_exporter_otlp_endpoint:
         from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 
         endpoint = settings.otel_exporter_otlp_endpoint.rstrip("/") + "/v1/logs"
-        processors.append(BatchLogRecordProcessor(OTLPLogExporter(endpoint=endpoint, timeout=5)))
+        processors.append(
+            BatchLogRecordProcessor(OTLPLogExporter(endpoint=endpoint, timeout=5))
+        )
     return processors
 
 
@@ -190,7 +204,11 @@ def setup_logging(
     for old in list(root.handlers):
         # Ours from an earlier call, and plain stream handlers (basicConfig, Celery's).
         # Other handlers (pytest's capture) are left alone.
-        if old is _handler or isinstance(old, LoggingHandler) or type(old) is logging.StreamHandler:
+        if (
+            old is _handler
+            or isinstance(old, LoggingHandler)
+            or type(old) is logging.StreamHandler
+        ):
             root.removeHandler(old)
     root.addHandler(handler)
     root.setLevel((level or settings.log_level).upper())
@@ -207,8 +225,8 @@ def setup_logging(
     _provider, _handler, _pid = provider, handler, os.getpid()
     if not chosen:
         sys.stderr.write(
-            "Logging: OTEL_LOGS_CONSOLE is false and no OTLP endpoint is set, "
-            "so log records go nowhere.\n"
+            "Logging: OTEL_LOGS_CONSOLE is false and no OTLP endpoint is set, so log "
+            "records go nowhere.\n"
         )
     return provider
 
@@ -219,7 +237,9 @@ def _own_diagnostics_to_stderr() -> None:
     own.setLevel(logging.WARNING)
     if not own.handlers:
         handler = logging.StreamHandler(sys.stderr)
-        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+        )
         own.addHandler(handler)
 
 

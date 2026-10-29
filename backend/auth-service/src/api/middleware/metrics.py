@@ -1,7 +1,8 @@
 """HTTP metrics for every request: how many, how long, how many at once.
 
-OpenTelemetry metrics (observability/metrics/): sent to the collector with the traces and
-logs when OTEL_ENABLED and OTEL_EXPORTER_OTLP_ENDPOINT are set; free no-ops otherwise.
+OpenTelemetry metrics (observability/metrics/): sent to the collector with the traces
+and logs when OTEL_ENABLED and OTEL_EXPORTER_OTLP_ENDPOINT are set; free no-ops
+otherwise.
 
   http.server.requests          counter    method, route, status
   http.server.duration          histogram  method, route, status  (milliseconds)
@@ -26,7 +27,8 @@ _NUMBER = re.compile(r"/\d+(?=/|$)")
 
 
 def route_of(path: str) -> str:
-    """'/api/timesheets/3f2a...-.../versions/2' -> '/api/timesheets/{id}/versions/{n}'"""
+    """'/api/timesheets/3f2a...-.../versions/2' ->
+    '/api/timesheets/{id}/versions/{n}'"""
     return _NUMBER.sub("/{n}", _UUID.sub("/{id}", path)) or "/"
 
 

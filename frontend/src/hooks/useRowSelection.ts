@@ -11,11 +11,23 @@ type State = { key: string; ids: ReadonlySet<string>; anchor: string | null };
 
 const EMPTY: ReadonlySet<string> = new Set();
 
+/** What useRowSelection gives a page: the ticked rows and the actions on them. */
+export type RowSelection = {
+  selected: Set<string>;
+  selectedRows: BulkRow[];
+  header: "all" | "some" | "none";
+  hasSelectable: boolean;
+  toggle: (id: string, shift?: boolean) => void;
+  toggleAll: () => void;
+  clear: () => void;
+  set: (ids: Iterable<string>, nextAnchor?: string | null) => void;
+};
+
 /**
  * Ticked rows on the current page only. The selection belongs to `pageKey` (the filters
  * and page number): when that changes, it starts empty again.
  */
-export function useRowSelection(rows: readonly BulkRow[], pageKey: string) {
+export function useRowSelection(rows: readonly BulkRow[], pageKey: string): RowSelection {
   const [state, setState] = useState<State>({ key: pageKey, ids: EMPTY, anchor: null });
   const current = state.key === pageKey ? state : { key: pageKey, ids: EMPTY, anchor: null };
 
@@ -50,5 +62,3 @@ export function useRowSelection(rows: readonly BulkRow[], pageKey: string) {
     set,
   };
 }
-
-export type RowSelection = ReturnType<typeof useRowSelection>;

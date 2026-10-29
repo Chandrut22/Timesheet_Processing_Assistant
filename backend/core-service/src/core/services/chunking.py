@@ -55,7 +55,8 @@ CUT_WINDOW = 0.4
 _PAGE_BREAK = re.compile(r"^-{3}\s*page\s+\d+\s*-{3}$", re.IGNORECASE)
 # "Employee: Rahul Kumar", "| Employee Name | Rahul |", "Name - Grace": a person block.
 _PERSON_BLOCK = re.compile(
-    r"^\s*\|?\s*(employee|emp|staff|worker|associate|name)\b[^|:\n]{0,30}[:|-]", re.IGNORECASE
+    r"^\s*\|?\s*(employee|emp|staff|worker|associate|name)\b[^|:\n]{0,30}[:|-]",
+    re.IGNORECASE,
 )
 
 
@@ -63,7 +64,9 @@ _PERSON_BLOCK = re.compile(
 class Piece:
     text: str
     people: int = 0  # people in this piece's tables (0 = unknown / no table)
-    first_line: int = 0  # 0-based line range of the document in this piece (end exclusive)
+    first_line: int = (
+        0  # 0-based line range of the document in this piece (end exclusive)
+    )
     end_line: int = 0
     overlap_chars: int = 0  # characters repeated from the previous piece
 
@@ -73,7 +76,9 @@ class Split:
     pieces: list[Piece]
     total_chars: int
     read_chars: int  # characters of the document in some piece
-    stopped_at_line: int | None = None  # 1-based line where reading stopped (CHUNK_MAX_PARTS)
+    stopped_at_line: int | None = (
+        None  # 1-based line where reading stopped (CHUNK_MAX_PARTS)
+    )
 
     @property
     def capped(self) -> bool:
@@ -120,9 +125,14 @@ def _cut_scores(lines: list[str], tables: list[Table]) -> tuple[list[int], list[
         elif _PERSON_BLOCK.match(line):
             score[i] = max(score[i], 4)
     in_people_table = {
-        i for table in tables if table.has_person_column for i in range(table.start, table.end)
+        i
+        for table in tables
+        if table.has_person_column
+        for i in range(table.start, table.end)
     }
-    for i in range(n):  # "Employee: ..." / "| Employee Name | Rahul |" outside a people table
+    for i in range(
+        n
+    ):  # "Employee: ..." / "| Employee Name | Rahul |" outside a people table
         if i not in in_people_table and _PERSON_BLOCK.match(lines[i].strip()):
             starts[i] = True
     score[0] = 0
@@ -144,16 +154,23 @@ def split_with_overlap(
     characters and at most `max_people` new people each (0 = no people limit; see the
     module docstring)."""
     people_total = _people(text)
-    if target < 1 or (len(text) <= target and (not max_people or people_total <= max_people)):
+    if target < 1 or (
+        len(text) <= target and (not max_people or people_total <= max_people)
+    ):
         return single_piece(text)
     lines = text.split("\n")
     n = len(lines)
     size = [len(line) + 1 for line in lines]
     tables = parse_tables(text)
-    # starts_person: the people limit keeps each AI answer short (about 200 tokens a person)
+    # starts_person: the people limit keeps each AI answer short (about 200 tokens a
+    # person)
     score, starts_person = _cut_scores(lines, tables)
     first_table = tables[0].start if tables else None
-    preamble = "\n".join(lines[:first_table]).strip()[:PREAMBLE_MAX_CHARS] if first_table else ""
+    preamble = (
+        "\n".join(lines[:first_table]).strip()[:PREAMBLE_MAX_CHARS]
+        if first_table
+        else ""
+    )
 
     def context(start: int) -> str:
         out = ""
@@ -192,11 +209,14 @@ def split_with_overlap(
                 end = best
         body = "\n".join(lines[start:end]).strip("\n")
         piece_text = ctx + body
-        pieces.append(Piece(piece_text, _people(piece_text), start, end, lead if pieces else 0))
+        pieces.append(
+            Piece(piece_text, _people(piece_text), start, end, lead if pieces else 0)
+        )
         if end >= n:
             break
-        # The next piece starts about `overlap` characters earlier, but never more than a
-        # quarter of this piece's new text (small pieces would otherwise repeat entirely).
+        # The next piece starts about `overlap` characters earlier, but never more than
+        # a quarter of this piece's new text (small pieces would otherwise repeat
+        # entirely).
         limit = min(overlap, sum(size[new_start:end]) // 4)
         back, acc = end, 0
         while back - 1 > start and acc + size[back - 1] <= limit:
@@ -211,7 +231,8 @@ def split_with_overlap(
     return Split(pieces, len(text), read_chars, stopped)
 
 
-# --- combining -------------------------------------------------------------------------
+# --- combining
+# -------------------------------------------------------------------------
 
 
 def _person_key(t: ExtractedTimesheet) -> tuple[str, str] | None:
@@ -226,11 +247,19 @@ def _person_key(t: ExtractedTimesheet) -> tuple[str, str] | None:
 
 
 def _day_key(day: ExtractedDay) -> str:
-    return day.work_date.isoformat() if day.work_date else f"w:{(day.weekday or '').lower()}"
+    return (
+        day.work_date.isoformat()
+        if day.work_date
+        else f"w:{(day.weekday or '').lower()}"
+    )
 
 
 def _day_label(day: ExtractedDay) -> str:
-    return day.work_date.strftime("%d %b %Y") if day.work_date else (day.weekday or "a day")
+    return (
+        day.work_date.strftime("%d %b %Y")
+        if day.work_date
+        else (day.weekday or "a day")
+    )
 
 
 @dataclass(slots=True)
@@ -242,7 +271,8 @@ class Entry:
 
 @dataclass(slots=True)
 class Combined:
-    """The combined answer, and per timesheet: the parts it came from and extra flags."""
+    """The combined answer, and per timesheet: the parts it came from and extra
+    flags."""
 
     result: ExtractionResult
     parts: list[frozenset[int]]
@@ -274,7 +304,9 @@ def _join(entry: Entry, other: ExtractedTimesheet, other_parts: set[int]) -> Non
         if any(days[i].hours == day.hours for i in same):
             continue  # read twice in the overlap: kept once
         old = days[same[0]]
-        days[same[0]] = day  # the later part read it with the header and the rows after it
+        days[same[0]] = (
+            day  # the later part read it with the header and the rows after it
+        )
         entry.disagreements.append(
             f"{_day_label(day)}: {old.hours:g} h in part {earlier}, {day.hours:g} h in "
             f"part {later} (kept {day.hours:g} h)"
@@ -284,7 +316,7 @@ def _join(entry: Entry, other: ExtractedTimesheet, other_parts: set[int]) -> Non
     if a.stated_total is not None and b.stated_total is not None:
         if a.stated_total != b.stated_total:
             issues.append(
-                f"Two totals for this person in different parts of the document: "
+                "Two totals for this person in different parts of the document: "
                 f"{a.stated_total} and {b.stated_total}"
             )
     elif stated is None:
@@ -318,8 +350,8 @@ _Item = tuple[Hashable | None, ExtractedTimesheet, set[int], list[dict[str, Any]
 def _overlap_flag(disagreements: list[str]) -> dict[str, Any]:
     return {
         "code": OVERLAP_FLAG,
-        "message": "This long document was read in overlapping parts, and two parts read "
-        "different hours: " + "; ".join(disagreements) + ". Check the original.",
+        "message": "This long document was read in overlapping parts, and two parts "
+        "read different hours: " + "; ".join(disagreements) + ". Check the original.",
         "days": disagreements,
     }
 
@@ -382,7 +414,11 @@ def combine_by(combined: Combined, keys: Sequence[Hashable | None]) -> Combined:
     items = [
         (key, t, set(parts), list(flags))
         for key, t, parts, flags in zip(
-            keys, combined.result.timesheets, combined.parts, combined.flags, strict=True
+            keys,
+            combined.result.timesheets,
+            combined.parts,
+            combined.flags,
+            strict=True,
         )
     ]
     again = _combine(items)

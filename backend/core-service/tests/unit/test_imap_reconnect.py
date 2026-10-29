@@ -13,7 +13,7 @@ import pytest
 from src.config.settings import settings
 from src.control.workers import email_listener as el
 from src.handlers.email import imap_source
-from src.handlers.email.imap_source import ImapSource, MailConnectionLost
+from src.handlers.email.imap_source import ImapSource, MailConnectionLostError
 
 
 class FakeIdle:
@@ -46,7 +46,7 @@ def source_with(error: BaseException) -> ImapSource:
     ],
 )
 def test_network_errors_from_imap_become_connection_lost(error: BaseException) -> None:
-    with pytest.raises(MailConnectionLost) as caught:
+    with pytest.raises(MailConnectionLostError) as caught:
         source_with(error).wait(120)
     assert caught.value.__cause__ is error
     assert type(error).__name__ in str(caught.value)
@@ -58,9 +58,13 @@ def test_other_errors_are_not_relabelled() -> None:
 
 
 def test_delays() -> None:
-    lost = MailConnectionLost("SSLEOFError: EOF")
-    assert el.next_delay(lost, True, 5, since_last_quick=1e9) == 2  # first drop: at once
-    assert el.next_delay(lost, True, 5, since_last_quick=10) == 5  # drops in a row: back off
+    lost = MailConnectionLostError("SSLEOFError: EOF")
+    assert (
+        el.next_delay(lost, True, 5, since_last_quick=1e9) == 2
+    )  # first drop: at once
+    assert (
+        el.next_delay(lost, True, 5, since_last_quick=10) == 5
+    )  # drops in a row: back off
     assert el.next_delay(lost, False, 40, since_last_quick=1e9) == 40  # never connected
     database_down = ConnectionRefusedError(111, "Connection refused")  # not from IMAP
     assert el.next_delay(database_down, True, 5, since_last_quick=1e9) == 5
@@ -104,7 +108,9 @@ def test_listener_logs_one_line_and_reconnects_quickly(
             pass
 
         def wait(self, timeout: int) -> bool:
-            raise MailConnectionLost("SSLEOFError: EOF occurred in violation of protocol")
+            raise MailConnectionLostError(
+                "SSLEOFError: EOF occurred in violation of protocol"
+            )
 
     async def caught_up(source: Any, cursor: Any) -> None:
         return None
@@ -131,7 +137,10 @@ def test_listener_logs_one_line_and_reconnects_quickly(
 
     assert sleeps == [2, 5]  # quick once, then back off: never a login every 2 s
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-    assert len(warnings) == 2 and "Mail server connection lost (SSLEOFError" in warnings[0].message
+    assert (
+        len(warnings) == 2
+        and "Mail server connection lost (SSLEOFError" in warnings[0].message
+    )
     assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
     assert all(r.exc_info is None for r in warnings)  # no traceback
     assert len(connects) == 2
@@ -144,7 +153,9 @@ def test_settings_defaults() -> None:
     assert defaults.email_idle_timeout == 120 and defaults.imap_timeout_s == 60
 
 
-def test_the_socket_timeout_is_passed_to_imap_tools(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_the_socket_timeout_is_passed_to_imap_tools(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     seen: dict[str, Any] = {}
 
     class FakeMailBoxClass:

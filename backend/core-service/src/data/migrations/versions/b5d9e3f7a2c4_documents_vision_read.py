@@ -34,17 +34,28 @@ def upgrade() -> None:
     op.add_column("documents", sa.Column("read_method", sa.String(10)), schema=SCHEMA)
     op.add_column(
         "documents",
-        sa.Column("unclear_marks", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column(
+            "unclear_marks", sa.Integer(), server_default=sa.text("0"), nullable=False
+        ),
         schema=SCHEMA,
     )
     op.add_column("documents", sa.Column("writing_class", sa.String(20)), schema=SCHEMA)
-    op.add_column("documents", sa.Column("writing_confidence", sa.Numeric(3, 2)), schema=SCHEMA)
+    op.add_column(
+        "documents", sa.Column("writing_confidence", sa.Numeric(3, 2)), schema=SCHEMA
+    )
     op.add_column(
         "documents",
-        sa.Column("has_handwritten_hours", sa.Boolean(), server_default=sa.false(), nullable=False),
+        sa.Column(
+            "has_handwritten_hours",
+            sa.Boolean(),
+            server_default=sa.false(),
+            nullable=False,
+        ),
         schema=SCHEMA,
     )
-    op.add_column("documents", sa.Column("writing_reason", sa.String(300)), schema=SCHEMA)
+    op.add_column(
+        "documents", sa.Column("writing_reason", sa.String(300)), schema=SCHEMA
+    )
     op.create_check_constraint(
         op.f("ck_documents_read_method_valid"),
         "documents",

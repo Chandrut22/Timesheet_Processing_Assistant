@@ -1,7 +1,8 @@
 """Pay rules: split worked hours into regular, overtime, double time and holiday,
 then price them with the company's pay rates (gross pay, no taxes or deductions).
 
-apply_pay_rules() and price() are pure (no database, no LLM), so every rule is unit-tested.
+apply_pay_rules() and price() are pure (no database, no LLM), so every rule is
+unit-tested.
 
 Per day, in this order:
   1. Holiday (marked on the sheet or in the holiday calendar) -> all hours holiday hours
@@ -21,9 +22,9 @@ Then the money:
      gross = the four amounts added up. No company -> no amounts.
 """
 
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -39,7 +40,13 @@ WEEK_ASSUMED_FLAG = "week_assumed"
 
 # Flags this module owns: removed and recomputed on every recalculation.
 RULE_FLAG_CODES = frozenset(
-    {"holiday_worked", "holiday_not_in_calendar", "default_rules", "missing_rate"}
+    {
+        "holiday_worked",
+        "holiday_not_in_calendar",
+        "holiday_in_week",
+        "default_rules",
+        "missing_rate",
+    }
 )
 
 
@@ -149,13 +156,18 @@ def _split_day(day: DayInput, rules: PayRules) -> DaySplit:
     return split
 
 
-def apply_pay_rules(days: Sequence[DayInput], rules: PayRules = DEFAULT_RULES) -> PayResult:
+def apply_pay_rules(
+    days: Sequence[DayInput], rules: PayRules = DEFAULT_RULES
+) -> PayResult:
     splits = [_split_day(day, rules) for day in sorted(days, key=lambda d: d.work_date)]
 
-    # Weekly cap, per week: move regular hours above the limit to overtime, latest days first.
+    # Weekly cap, per week: move regular hours above the limit to overtime, latest days
+    # first.
     weeks: dict[date, list[DaySplit]] = {}
     for split in splits:
-        weeks.setdefault(start_of_week(split.work_date, rules.week_start_day), []).append(split)
+        weeks.setdefault(
+            start_of_week(split.work_date, rules.week_start_day), []
+        ).append(split)
     for week in weeks.values():
         excess = sum((s.regular for s in week), ZERO) - rules.weekly_ot_after
         for split in reversed(week):
@@ -242,7 +254,8 @@ def rules_from_company(company: Company | None) -> PayRules:
 
 
 def _store_pay(timesheet: Timesheet, rules: PayRules, amounts: PayAmounts) -> None:
-    """Copy the rates used onto the timesheet, so a later rate change never alters it."""
+    """Copy the rates used onto the timesheet, so a later rate change never alters
+    it."""
     timesheet.currency = rules.currency
     timesheet.hourly_rate = rules.hourly_rate
     timesheet.overtime_rate = rules.overtime_rate
@@ -254,14 +267,24 @@ def _store_pay(timesheet: Timesheet, rules: PayRules, amounts: PayAmounts) -> No
     timesheet.holiday_amount = amounts.holiday
 
 
+def _holiday_name(holidays: Collection[date], day: date) -> str | None:
+    return holidays.get(day) if isinstance(holidays, Mapping) else None
+
+
 def recalculate(
     timesheet: Timesheet,
     rules: PayRules,
-    holidays: Collection[date],
+    holidays: Collection[date] | Mapping[date, str],
     *,
     default_rules_used: bool = False,
 ) -> PayResult:
     """Mark holidays, split the hours, price them, store the totals and flags.
+
+    `holidays` are the timesheet's COMPANY's active holidays (date -> name; a plain set
+    of dates also works). Hours on one are paid at the holiday rate and flagged
+    holiday_worked, which a reviewer must check (it blocks auto-approval); a holiday the
+    employee did not work (no day, or 0 h) changes nothing. A weekly-total sheet has no
+    days, so a holiday in its week gets holiday_in_week instead (the pay may be wrong).
 
     A day is a holiday if the sheet (or a reviewer) marks it OR it is in the holiday
     calendar. is_holiday is worked out fresh from sheet_holiday every time, so removing
@@ -289,7 +312,9 @@ def recalculate(
     timesheet.double_time_hours = result.double_time
     timesheet.holiday_hours = result.holiday
 
-    amounts = price(result.regular, result.overtime, result.double_time, result.holiday, rules)
+    amounts = price(
+        result.regular, result.overtime, result.double_time, result.holiday, rules
+    )
     _store_pay(timesheet, rules, amounts)
 
     flags: list[dict[str, Any]] = [
@@ -299,10 +324,14 @@ def recalculate(
         if not entry.is_holiday or entry.hours <= ZERO:
             continue
         if entry.work_date in holidays:
+            name = _holiday_name(holidays, entry.work_date)
             flags.append(
                 {
                     "code": "holiday_worked",
-                    "message": f"{entry.work_date}: {entry.hours} h on a holiday.",
+                    "message": f"{entry.work_date}: {entry.hours} h on a holiday"
+                    + (f" ({name})" if name else "")
+                    + ", paid at the holiday rate. Check it.",
+                    "date": entry.work_date.isoformat(),
                 }
             )
         else:
@@ -310,16 +339,34 @@ def recalculate(
                 {
                     "code": "holiday_not_in_calendar",
                     "message": (
-                        f"{entry.work_date} is marked as a holiday on the sheet but is not "
-                        "in the holiday calendar. Check it."
+                        f"{entry.work_date} is marked as a holiday on the sheet but is "
+                        "not in the holiday calendar. Check it."
                     ),
+                }
+            )
+    if total is not None and timesheet.week_start is not None:
+        week = [timesheet.week_start + timedelta(days=i) for i in range(7)]
+        in_week = [d for d in week if d in holidays]
+        if in_week:
+            days = ", ".join(
+                f"{d:%d %b}" + (f" ({n})" if (n := _holiday_name(holidays, d)) else "")
+                for d in in_week
+            )
+            flags.append(
+                {
+                    "code": "holiday_in_week",
+                    "message": f"The week includes a holiday: {days}. The sheet gives "
+                    "only a weekly total, so holiday pay can't be worked out: if a "
+                    "holiday was worked, add the days.",
+                    "dates": [d.isoformat() for d in in_week],
                 }
             )
     if default_rules_used:
         flags.append(
             {
                 "code": "default_rules",
-                "message": "No company set: default rules used (OT after 8 h/day, 40 h/week).",
+                "message": "No company set: default rules used (OT after 8 h/day, 40 "
+                "h/week).",
             }
         )
     if rules.has_rates and amounts.missing:
@@ -328,8 +375,9 @@ def recalculate(
             {
                 "code": "missing_rate",
                 "message": (
-                    f"There are {names} hours but the company has no {names} rate, so the "
-                    "pay cannot be calculated. Add the rate to the company, then recalculate."
+                    f"There are {names} hours but the company has no {names} rate, so "
+                    "the pay cannot be calculated. Add the rate to the company, then "
+                    "recalculate."
                 ),
                 "pay_codes": amounts.missing,
             }

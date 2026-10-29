@@ -16,13 +16,17 @@ import httpx
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--base-url", default="http://localhost", help="nginx (or Vite) URL")
+    parser.add_argument(
+        "--base-url", default="http://localhost", help="nginx (or Vite) URL"
+    )
     parser.add_argument("--email", required=True)
     args = parser.parse_args()
     password = getpass.getpass("Password: ")  # never on the command line
 
     with httpx.Client(base_url=args.base_url, timeout=None) as client:
-        login = client.post("/auth/login", json={"email": args.email, "password": password})
+        login = client.post(
+            "/auth/login", json={"email": args.email, "password": password}
+        )
         login.raise_for_status()
         token = login.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}", "Accept": "text/event-stream"}

@@ -5,7 +5,7 @@ vi.mock("sonner", () => ({ toast: { error: () => undefined } }));
 const { shouldRetry } = await import("./queryClient");
 const { ApiError } = await import("@/services/apiErrors");
 
-const error = (status: number, code: string | null = null) =>
+const error = (status: number, code: string | null = null): InstanceType<typeof ApiError> =>
   new ApiError({ status, message: "x", code });
 
 describe("query retries", () => {

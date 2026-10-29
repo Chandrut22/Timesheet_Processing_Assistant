@@ -32,7 +32,9 @@ RAHULI = emp("Rahul Kumari", "E2")
 
 
 def rank(name: str, *items: Shortlisted, allow_match: bool = True) -> MatchResult:
-    return rank_shortlist(name, items, accept=ACCEPT, margin=MARGIN, allow_match=allow_match)
+    return rank_shortlist(
+        name, items, accept=ACCEPT, margin=MARGIN, allow_match=allow_match
+    )
 
 
 def test_a_typo_is_suggested_even_though_trigrams_score_it_low() -> None:
@@ -69,7 +71,9 @@ def test_the_two_scorers_must_agree() -> None:
 
 def test_not_close_enough_or_one_word() -> None:
     assert rank("Jane Doe", Shortlisted(JOHN, 0.25)).employee_id is None
-    assert rank("Jon", Shortlisted(JOHN, 0.4)).employee_id is None  # first-name rule's job
+    assert (
+        rank("Jon", Shortlisted(JOHN, 0.4)).employee_id is None
+    )  # first-name rule's job
     assert rank("", Shortlisted(JOHN, 0.4)).candidates == ()
     assert rank("Jon Smth").candidates == ()
 
@@ -99,7 +103,9 @@ def test_a_suggested_match_is_flagged_and_explained() -> None:
     assert "Check it is the same person" in flag["message"]
     assert flag["candidates"][0]["spelling"] == 0.89
     assert "spelling 0.89, trigram 0.33" in (t.match_reason or "")
-    assert match_reason(result, "Jon Smth", JOHN).startswith("Suggested John Smith (E7)")
+    assert match_reason(result, "Jon Smth", JOHN).startswith(
+        "Suggested John Smith (E7)"
+    )
 
 
 def test_no_company_lists_close_names_from_other_companies() -> None:

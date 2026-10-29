@@ -1,9 +1,9 @@
 """OpenTelemetry tracing for auth-service: one span per request, plus SQL and Redis.
 
 Off unless OTEL_ENABLED=true. When on, log records written inside a request carry its
-trace id (observability/logging/setup.py). Spans leave the process only when OTEL_EXPORTER_OTLP_ENDPOINT
-is set (an OpenTelemetry Collector); if it is down they are dropped and sign-in is never
-slowed down. Request spans keep the path but not the
+trace id (observability/logging/setup.py). Spans leave the process only when
+OTEL_EXPORTER_OTLP_ENDPOINT is set (an OpenTelemetry Collector); if it is down they are
+dropped and sign-in is never slowed down. Request spans keep the path but not the
 query string, and never carry passwords, tokens or request bodies."""
 
 import logging

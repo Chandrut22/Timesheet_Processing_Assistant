@@ -29,7 +29,7 @@ const { ApiError } = await import("@/services/apiErrors");
 type Handler = (config: InternalAxiosRequestConfig) => { status: number; data: unknown };
 let seen: { url?: string; auth?: string; withCredentials?: boolean }[] = [];
 
-function useAdapter(handler: Handler) {
+function useAdapter(handler: Handler): void {
   http.defaults.adapter = async (config) => {
     seen.push({
       url: config.url,

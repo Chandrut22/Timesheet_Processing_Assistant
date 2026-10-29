@@ -7,7 +7,16 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Text, Uuid, text
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    Uuid,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -22,7 +31,8 @@ class ReprocessRun(UUIDPrimaryKeyMixin, Base):
         enum_check("refetch", RefetchMode),  # NULL passes: nothing fetched
         CheckConstraint("length(btrim(reason)) >= 3", name="reason_not_blank"),
         CheckConstraint(
-            "(status = 'running') = (completed_at IS NULL)", name="completion_consistent"
+            "(status = 'running') = (completed_at IS NULL)",
+            name="completion_consistent",
         ),
         Index("ix_reprocess_runs_submission", "submission_id", "created_at"),
         Index(
@@ -47,7 +57,8 @@ class ReprocessRun(UUIDPrimaryKeyMixin, Base):
         Uuid, ForeignKey(f"{SCHEMA}.documents.id", ondelete="SET NULL")
     )
     reason: Mapped[str] = mapped_column(Text)
-    # Fetch the email again from the mailbox first (RefetchMode), or NULL: use the saved text.
+    # Fetch the email again from the mailbox first (RefetchMode), or NULL: use the saved
+    # text.
     refetch: Mapped[str | None] = mapped_column(String(10))
     # auth-service user: UUID + name snapshot, no foreign key
     requested_by_id: Mapped[uuid.UUID] = mapped_column(Uuid)

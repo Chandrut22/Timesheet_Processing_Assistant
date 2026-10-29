@@ -5,7 +5,7 @@ vi.mock("../services/mailboxService", () => ({ mailboxService: {} }));
 const { followCheck } = await import("./useMailbox");
 
 const check = (state: MailboxCheck["state"]): MailboxCheck => ({ request_id: "r1", state });
-const noWait = () => Promise.resolve();
+const noWait = (): Promise<void> => Promise.resolve();
 
 describe("followCheck", () => {
   it("asks until the check is done", async () => {

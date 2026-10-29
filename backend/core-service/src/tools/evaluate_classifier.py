@@ -1,13 +1,15 @@
-"""Evaluate the attachment classifier on your own labelled sample files, BEFORE switching
-skipping on.
+"""Evaluate the attachment classifier on your own labelled sample files, BEFORE
+switching skipping on.
 
 Put the files in two folders (any names inside):
 
     samples/
-      timesheet/       real timesheets: clean PDFs, Excel, scans, phone photos, handwritten
-      not_timesheet/   invoices, payslips, letters, logos, random attachments
+      timesheet/       real timesheets: clean PDFs, Excel, scans, phone photos,
+      handwritten not_timesheet/   invoices, payslips, letters, logos, random
+      attachments
 
-Run (from core-service/, with JEV_API_KEY in .env; Docling reads the files, like the worker):
+Run (from core-service/, with JEV_API_KEY in .env; Docling reads the files, like the
+worker):
 
     uv run python -m src.tools.evaluate_classifier ..\\samples --out classifier-eval.csv
 
@@ -15,7 +17,8 @@ It writes one CSV row per file and prints, for thresholds 0.1 / 0.2 / 0.3:
   - real timesheets that WOULD BE WRONGLY SKIPPED   <- must be 0 to switch skipping on
   - non-timesheets skipped (= AI extraction calls saved)
   - average classifier time, and the estimated cost
-Nothing is written to the database. Only the start of each document's text is sent to Jev."""
+Nothing is written to the database. Only the start of each document's text is sent to
+Jev."""
 
 import argparse
 import asyncio
@@ -74,10 +77,19 @@ async def evaluate(samples: Path, read: Reader, classify: Classifier) -> list[Ro
             text = await asyncio.to_thread(read, path)
             result = await classify(text)
             rows.append(
-                Row(name, is_timesheet, result.label, result.p_timesheet, result.duration_ms, None)
+                Row(
+                    name,
+                    is_timesheet,
+                    result.label,
+                    result.p_timesheet,
+                    result.duration_ms,
+                    None,
+                )
             )
         except Exception as exc:  # a broken file or a failed call must not stop the run
-            rows.append(Row(name, is_timesheet, None, None, 0, f"{type(exc).__name__}: {exc}"))
+            rows.append(
+                Row(name, is_timesheet, None, None, 0, f"{type(exc).__name__}: {exc}")
+            )
         print(f"  {name:<50} {rows[-1].label or 'ERROR':<10} {rows[-1].p_timesheet}")
     return rows
 
@@ -104,7 +116,9 @@ def write_csv(rows: list[Row], out: Path) -> None:
         writer.writerow(["file", "truth", "label", "p_timesheet", "ms", "error"])
         for r in rows:
             truth = "timesheet" if r.is_timesheet else "not_timesheet"
-            writer.writerow([r.file, truth, r.label, r.p_timesheet, r.duration_ms, r.error])
+            writer.writerow(
+                [r.file, truth, r.label, r.p_timesheet, r.duration_ms, r.error]
+            )
 
 
 def summary(rows: list[Row]) -> str:
@@ -113,11 +127,13 @@ def summary(rows: list[Row]) -> str:
     lines = [
         f"\nFiles: {len(rows)} ({sum(r.is_timesheet for r in rows)} timesheets, "
         f"{sum(not r.is_timesheet for r in rows)} other), errors: "
-        f"{sum(r.label is None for r in rows)}, no P(timesheet) in the answer: {unknown}",
+        f"{sum(r.label is None for r in rows)}, no P(timesheet) in the answer: "
+        f"{unknown}",
         f"Average classifier time: {sum(timed) / len(timed):.0f} ms" if timed else "",
         f"Estimated cost: ${len(timed) * COST_PER_CALL_USD:.4f} for {len(timed)} calls",
         "",
-        "threshold | wrongly skipped timesheets | non-timesheets skipped (AI calls saved)",
+        "threshold | wrongly skipped timesheets | non-timesheets skipped (AI calls "
+        "saved)",
     ]
     for t in THRESHOLDS:
         rep = report(rows, t)
@@ -126,7 +142,8 @@ def summary(rows: list[Row]) -> str:
         lines += [f"             ! would skip: {name}" for name in rep.wrongly_skipped]
     safe = [t for t in THRESHOLDS if not report(rows, t).wrongly_skipped]
     lines.append(
-        f"\nSafe thresholds (no timesheet skipped): {', '.join(str(t) for t in safe) or 'none'}"
+        "\nSafe thresholds (no timesheet skipped): "
+        f"{', '.join(str(t) for t in safe) or 'none'}"
         + ("" if safe else ": keep CLASSIFIER_ENABLED=false or stay in shadow mode")
     )
     if unknown:
@@ -147,7 +164,9 @@ def _read_with_docling(path: Path) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Evaluate the attachment classifier")
-    parser.add_argument("samples", type=Path, help="folder with timesheet/ and not_timesheet/")
+    parser.add_argument(
+        "samples", type=Path, help="folder with timesheet/ and not_timesheet/"
+    )
     parser.add_argument("--out", type=Path, default=Path("classifier-eval.csv"))
     args = parser.parse_args()
     if not files_in(args.samples):

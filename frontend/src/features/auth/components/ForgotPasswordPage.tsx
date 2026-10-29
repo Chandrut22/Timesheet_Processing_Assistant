@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useState, type JSX } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { errorMessage } from "@/services/apiErrors";
@@ -17,7 +17,7 @@ type Values = z.infer<typeof schema>;
 const SENT_MESSAGE =
   "If an account exists for that email, we've sent a 6-digit code. It may take a minute to arrive.";
 
-export function ForgotPasswordPage() {
+export function ForgotPasswordPage(): JSX.Element {
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { email: "" } });

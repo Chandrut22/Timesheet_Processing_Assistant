@@ -7,12 +7,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants.timesheet_status import (
+    SKIPPED_BY_CLASSIFIER,
     DocumentStatus,
     SubmissionState,
     SubmissionStatus,
 )
 from src.core.services.activity_log import set_state, state_from_timesheets
-from src.core.services.pipeline.classifying import SKIPPED_BY_CLASSIFIER
 from src.data.models import Submission, Timesheet
 
 
@@ -40,11 +40,16 @@ async def finish(session: AsyncSession, submission: Submission) -> None:
         set_state(session, submission, state)
         return
     failed = [d for d in submission.documents if d.status == DocumentStatus.FAILED]
-    skipped = [d for d in submission.documents if (d.error or "").startswith(SKIPPED_BY_CLASSIFIER)]
+    skipped = [
+        d
+        for d in submission.documents
+        if (d.error or "").startswith(SKIPPED_BY_CLASSIFIER)
+    ]
     if failed:
         set_state(session, submission, SubmissionState.FAILED, reason=failed[0].error)
     elif skipped:
-        # Say why: the classifier skipped it (it may be wrong), not "no timesheet found".
+        # Say why: the classifier skipped it (it may be wrong), not "no timesheet
+        # found".
         set_state(session, submission, SubmissionState.IGNORED, reason=skipped[0].error)
     else:
         set_state(

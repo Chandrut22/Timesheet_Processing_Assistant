@@ -22,7 +22,8 @@ ResourceName = Literal["employees", "companies", "holidays"]
 
 
 def template_csv(resource: ResourceName) -> str:
-    """The exact headers and one example row (UTF-8 with BOM, so Excel opens it right)."""
+    """The exact headers and one example row (UTF-8 with BOM, so Excel opens it
+    right)."""
     columns = COLUMNS[resource]
     out = io.StringIO()
     writer = csv.writer(out, lineterminator="\r\n")
@@ -43,9 +44,13 @@ async def import_upload(
 ) -> ImportReport:
     max_bytes = settings.max_import_mb * 1024 * 1024
     data = await upload.read(max_bytes + 1)  # never read more than the limit
-    file_name = (upload.filename or "import").replace("\\", "/").rsplit("/", 1)[-1][:255]
+    file_name = (
+        (upload.filename or "import").replace("\\", "/").rsplit("/", 1)[-1][:255]
+    )
     if len(data) > max_bytes:
-        raise ValidationFailedError(f"The file is larger than {settings.max_import_mb} MB.")
+        raise ValidationFailedError(
+            f"The file is larger than {settings.max_import_mb} MB."
+        )
     if not data:
         raise ValidationFailedError("The file is empty.")
     table = read_table(

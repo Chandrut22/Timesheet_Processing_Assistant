@@ -5,8 +5,9 @@ Groq, OpenRouter, OpenAI) or native providers (Anthropic, Gemini) needs no code 
 
     LLM_PROVIDER=openai   LLM_BASE_URL=https://ollama.com/v1   LLM_MODEL=gpt-oss:20b
 
-An optional fallback model (LLM_FALLBACK_MODEL, see get_fallback_chat_model) is asked when
-the main one cannot answer: the extraction agent decides when (extraction_agent.py).
+An optional fallback model (LLM_FALLBACK_MODEL, see get_fallback_chat_model) is asked
+when the main one cannot answer: the extraction agent decides when
+(extraction_agent.py).
 """
 
 from functools import lru_cache
@@ -23,7 +24,9 @@ class LLMNotConfiguredError(RuntimeError):
     pass
 
 
-def _build(model: str, provider: str, base_url: str | None, api_key: SecretStr) -> BaseChatModel:
+def _build(
+    model: str, provider: str, base_url: str | None, api_key: SecretStr
+) -> BaseChatModel:
     options: dict[str, Any] = {
         "api_key": api_key.get_secret_value(),
         "temperature": 0,
@@ -47,15 +50,18 @@ def get_chat_model() -> BaseChatModel:
     if settings.llm_api_key is None:
         raise LLMNotConfiguredError("LLM_API_KEY is not set in .env.")
     return _build(
-        settings.llm_model, settings.llm_provider, settings.llm_base_url, settings.llm_api_key
+        settings.llm_model,
+        settings.llm_provider,
+        settings.llm_base_url,
+        settings.llm_api_key,
     )
 
 
 @lru_cache(maxsize=1)
 def get_fallback_chat_model() -> BaseChatModel | None:
-    """The fallback model, or None when LLM_FALLBACK_MODEL is not set. Same options as the
-    main model (timeout, retries, output cap); its own provider, base URL and key, with the
-    safe defaults described in settings.py."""
+    """The fallback model, or None when LLM_FALLBACK_MODEL is not set. Same options as
+    the main model (timeout, retries, output cap); its own provider, base URL and key,
+    with the safe defaults described in settings.py."""
     if settings.llm_fallback_model is None:
         return None
     key = settings.llm_fallback_api_key_effective
@@ -74,7 +80,9 @@ def get_vision_model() -> BaseChatModel:
     """The vision-language model that classifies and transcribes photos and scans
     (VISION_*), built like the extraction model, once per process."""
     if not settings.vision_model or not settings.vision_base_url:
-        raise LLMNotConfiguredError("VISION_BASE_URL and VISION_MODEL are not set in .env.")
+        raise LLMNotConfiguredError(
+            "VISION_BASE_URL and VISION_MODEL are not set in .env."
+        )
     key = settings.vision_api_key.get_secret_value() if settings.vision_api_key else ""
     model: BaseChatModel = init_chat_model(
         settings.vision_model,

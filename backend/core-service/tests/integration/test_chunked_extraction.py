@@ -25,7 +25,9 @@ from src.schemas.extraction import ExtractedDay, ExtractedTimesheet, ExtractionR
 
 MON = date(2026, 10, 12)
 PEOPLE = 60
-ROW = re.compile(r"^\| (E\d{3}) \| (Person \d{3}) \| (\d+) \| 8 \| 8 \| 8 \| 8 \| 40 \|$", re.M)
+ROW = re.compile(
+    r"^\| (E\d{3}) \| (Person \d{3}) \| (\d+) \| 8 \| 8 \| 8 \| 8 \| 40 \|$", re.M
+)
 
 
 def sheet(n: int) -> str:
@@ -35,7 +37,10 @@ def sheet(n: int) -> str:
         "| Emp ID | Employee Name | Mon | Tue | Wed | Thu | Fri | Total |",
         "|---|---|---|---|---|---|---|---|",
     ]
-    lines += [f"| E{i:03d} | Person {i:03d} | 8 | 8 | 8 | 8 | 8 | 40 |" for i in range(1, n + 1)]
+    lines += [
+        f"| E{i:03d} | Person {i:03d} | 8 | 8 | 8 | 8 | 8 | 40 |"
+        for i in range(1, n + 1)
+    ]
     return "\n".join(lines)
 
 
@@ -45,7 +50,9 @@ class FakeAI:
     def __init__(self) -> None:
         self.calls: list[int] = []
         self.fail: dict[int, int] = {}  # part -> failures left
-        self.monday_in_part: dict[tuple[int, str], float] = {}  # (part, code) -> Monday hours
+        self.monday_in_part: dict[
+            tuple[int, str], float
+        ] = {}  # (part, code) -> Monday hours
 
     async def __call__(self, **kwargs: Any) -> ExtractionResult:
         part = (kwargs.get("part") or (1, 1))[0]
@@ -97,7 +104,11 @@ async def seed(n: int = PEOPLE) -> uuid.UUID:
         s.add(company)
         await s.flush()
         s.add_all(
-            Employee(company_id=company.id, employee_code=f"E{i:03d}", full_name=f"Person {i:03d}")
+            Employee(
+                company_id=company.id,
+                employee_code=f"E{i:03d}",
+                full_name=f"Person {i:03d}",
+            )
             for i in range(1, n + 1)
         )
         submission = Submission(
@@ -129,7 +140,9 @@ async def run(submission_id: uuid.UUID) -> None:
 
 async def timesheets(submission_id: uuid.UUID) -> list[Timesheet]:
     async with SessionLocal() as s:
-        rows = await s.scalars(select(Timesheet).where(Timesheet.submission_id == submission_id))
+        rows = await s.scalars(
+            select(Timesheet).where(Timesheet.submission_id == submission_id)
+        )
         return list(rows.all())
 
 
@@ -137,7 +150,8 @@ async def extract_step(submission_id: uuid.UUID) -> ProcessingStep:
     async with SessionLocal() as s:
         step = await s.scalar(
             select(ProcessingStep).where(
-                ProcessingStep.submission_id == submission_id, ProcessingStep.step == "extract"
+                ProcessingStep.submission_id == submission_id,
+                ProcessingStep.step == "extract",
             )
         )
         assert step is not None
@@ -150,9 +164,13 @@ async def test_everyone_once_from_overlapping_parts(ai: FakeAI) -> None:
 
     sheets = await timesheets(submission_id)
     codes = sorted(t.extracted_code or "" for t in sheets)
-    assert codes == [f"E{i:03d}" for i in range(1, PEOPLE + 1)]  # each person exactly once
+    assert codes == [
+        f"E{i:03d}" for i in range(1, PEOPLE + 1)
+    ]  # each person exactly once
     assert all(len(t.entries) == 5 for t in sheets)  # no day counted twice
-    assert not any(f["code"] == "possible_missing_rows" for t in sheets for f in t.flags)
+    assert not any(
+        f["code"] == "possible_missing_rows" for t in sheets for f in t.flags
+    )
     assert len(set(ai.calls)) == len(ai.calls) > 1  # one call per part
 
     step = await extract_step(submission_id)
@@ -203,7 +221,9 @@ async def test_a_part_that_keeps_failing_saves_nothing(ai: FakeAI) -> None:
         assert submission is not None and submission.status != "processed"
 
 
-async def test_too_many_parts_is_flagged(ai: FakeAI, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_too_many_parts_is_flagged(
+    ai: FakeAI, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setattr(settings, "chunk_max_parts", 2)
     submission_id = await seed()
     await run(submission_id)

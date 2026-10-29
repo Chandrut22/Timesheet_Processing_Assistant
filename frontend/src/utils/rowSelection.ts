@@ -79,7 +79,7 @@ export function failedIds(result: BulkStatusResult | BulkDeleteResult): Set<stri
   return new Set(result.results.filter((r) => !r.ok).map((r) => r.id));
 }
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 
 /** "3 employees deactivated, 1 already inactive, 2 not changed." */
 export function resultSummary(

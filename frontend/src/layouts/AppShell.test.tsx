@@ -5,7 +5,8 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
+import type { UserEvent } from "@testing-library/user-event";
 
 const state = vi.hoisted(() => ({
   matches: [] as { staticData?: { fullWidth?: boolean } }[],
@@ -34,7 +35,7 @@ vi.mock("@/services/session", () => ({ logout: state.logout }));
 
 const { AppShell } = await import("./AppShell");
 
-function renderShell() {
+function renderShell(): { clear: MockInstance<QueryClient["clear"]>; user: UserEvent } {
   const client = new QueryClient();
   const clear = vi.spyOn(client, "clear");
   render(

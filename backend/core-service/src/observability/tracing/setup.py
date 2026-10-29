@@ -1,11 +1,12 @@
 """OpenTelemetry tracing: one trace per email or upload, across API -> queue -> worker.
 
-Off unless OTEL_ENABLED=true. When off, nothing here runs and every span in the code is a
-cheap no-op (the OpenTelemetry API's default). When on, every request and job has a trace
-id: log records written inside it carry that id (observability/logging/setup.py), and so does each
-step-log row. Spans leave the process only when OTEL_EXPORTER_OTLP_ENDPOINT is set (an
-OpenTelemetry Collector): batched, sent in the background, dropped if it is down.
-Processing never waits for, or fails because of, tracing.
+Off unless OTEL_ENABLED=true. When off, nothing here runs and every span in the code is
+a cheap no-op (the OpenTelemetry API's default). When on, every request and job has a
+trace
+id: log records written inside it carry that id (observability/logging/setup.py), and so
+does each step-log row. Spans leave the process only when OTEL_EXPORTER_OTLP_ENDPOINT is
+set (an OpenTelemetry Collector): batched, sent in the background, dropped if it is
+down. Processing never waits for, or fails because of, tracing.
 
 Spans carry ids, counts and timings only, never names, hours, email or document text.
 The state log and step log in PostgreSQL remain the record of what happened."""
@@ -82,13 +83,16 @@ def setup_tracing(
         logger.info(
             "Tracing on: %s -> %s",
             service_name or settings.otel_service_name,
-            settings.otel_exporter_otlp_endpoint or "trace ids in logs only (no endpoint)",
+            settings.otel_exporter_otlp_endpoint
+            or "trace ids in logs only (no endpoint)",
         )
 
     if app is not None:
         _instrument_once(f"fastapi:{id(app)}", lambda: _instrument_fastapi(app))
     if engine is not None:
-        _instrument_once(f"sqlalchemy:{id(engine)}", lambda: _instrument_sqlalchemy(engine))
+        _instrument_once(
+            f"sqlalchemy:{id(engine)}", lambda: _instrument_sqlalchemy(engine)
+        )
     if celery:
         _instrument_once("celery", _instrument_celery)
     return True

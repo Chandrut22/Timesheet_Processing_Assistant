@@ -1,10 +1,13 @@
-"""core-service entry point: `uvicorn src.main:app` (the app itself is in api/rest/app.py).
+"""core-service entry point: `uvicorn src.main:app` (the app itself is in
+api/rest/app.py).
 
-The Celery worker and the email listener have their own entry points in control/workers/."""
+The Celery worker and the email listener have their own entry points in
+control/workers/."""
 
 from src.observability.logging.setup import setup_logging
 
-setup_logging()  # first: every log record (ours and the libraries') goes through OpenTelemetry
+# first: every log record (ours and the libraries') goes through OpenTelemetry
+setup_logging()
 
 from src.api.rest.app import create_app  # noqa: E402  (after logging is set up)
 

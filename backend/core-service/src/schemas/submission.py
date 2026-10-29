@@ -5,6 +5,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from src.config.settings import settings
+from src.constants.timesheet_status import SKIPPED_BY_CLASSIFIER
 from src.schemas.review import AuditEventRead
 from src.utils.mail_link import mail_url
 from src.utils.refetch import refetch_blocker
@@ -20,9 +21,13 @@ class DocumentRead(BaseModel):
     sha256: str
     status: str
     error: str | None
-    read_limit: dict[str, Any] | None  # pages / sheets not read (big files); None = all read
+    read_limit: (
+        dict[str, Any] | None
+    )  # pages / sheets not read (big files); None = all read
     read_method: str | None = None  # docling / plain / vision; None = not read yet
-    unclear_marks: int = 0  # [UNCLEAR] left by the vision model (what it could not read)
+    unclear_marks: int = (
+        0  # [UNCLEAR] left by the vision model (what it could not read)
+    )
     # Photos / scans: how they are written (None for typed documents, see WritingClass).
     writing_class: str | None = None
     writing_confidence: float | None = None
@@ -34,6 +39,13 @@ class DocumentRead(BaseModel):
     updated_at: datetime
     created_by: uuid.UUID | None
     updated_by: uuid.UUID | None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def skipped_by_classifier(self) -> bool:
+        """Left unread on purpose: the classifier judged it not a timesheet from its
+        name and the email. A reprocess reads it."""
+        return (self.error or "").startswith(SKIPPED_BY_CLASSIFIER)
 
 
 class SubmissionRead(BaseModel):
@@ -70,18 +82,24 @@ class SubmissionRead(BaseModel):
         """Opens this email in the mailbox (Gmail); None for uploads or when
         MAILBOX_ACCOUNT is not set."""
         return mail_url(
-            self.source, self.message_id, settings.mailbox_account, settings.mailbox_link_template
+            self.source,
+            self.message_id,
+            settings.mailbox_account,
+            settings.mailbox_link_template,
         )
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def refetch_blocked(self) -> str | None:
-        """Why Reprocess cannot fetch this email again from the mailbox (None = it can)."""
+        """Why Reprocess cannot fetch this email again from the mailbox (None = it
+        can)."""
         return refetch_blocker(
             self.source,
             self.message_id,
             enabled=settings.email_refetch_enabled,
-            imap_ready=bool(settings.imap_host and settings.imap_user and settings.imap_password),
+            imap_ready=bool(
+                settings.imap_host and settings.imap_user and settings.imap_password
+            ),
         )
 
 
@@ -110,7 +128,9 @@ class ProcessingStepRead(BaseModel):
     error_details: str | None
     duration_ms: int
     reprocess_run_id: uuid.UUID | None  # set on steps written during a reprocess
-    trace_id: str | None  # OpenTelemetry trace: search the logs by it; None when tracing is off
+    trace_id: (
+        str | None
+    )  # OpenTelemetry trace: search the logs by it; None when tracing is off
     created_at: datetime
 
 
@@ -121,19 +141,20 @@ class ReprocessRequest(BaseModel):
         examples=["Employee list updated: added John Mathew (SYN-EMP-020)"],
     )
     document_id: uuid.UUID | None = Field(
-        default=None, description="Reprocess only this attachment (default: the whole email)"
+        default=None,
+        description="Reprocess only this attachment (default: the whole email)",
     )
     refetch: bool | None = Field(
         default=None,
-        description="Fetch the email again from the mailbox (by its Message-ID) and read "
-        "the attachments again. Left out: only when needed (a file failed or expired, or the "
-        "email was ignored). false: never; true: always (409 for uploads, or when "
-        "fetching is not possible).",
+        description="Fetch the email again from the mailbox (by its Message-ID) and "
+        "read the attachments again. Left out: only when needed (a file failed or "
+        "expired, or the email was ignored). false: never; true: always (409 for "
+        "uploads, or when fetching is not possible).",
     )
     confirm_approved: bool = Field(
         default=False,
-        description="Needed when approved timesheets would be replaced: they go back to "
-        "review (approvals are cleared). Without it the request is refused with 409 "
+        description="Needed when approved timesheets would be replaced: they go back "
+        "to review (approvals are cleared). Without it the request is refused with 409 "
         "confirmation_required, listing them.",
     )
 
@@ -147,7 +168,9 @@ class ReprocessRunRead(BaseModel):
     submission_id: uuid.UUID
     document_id: uuid.UUID | None
     reason: str
-    refetch: str | None  # missing | all: fetched again from the mailbox; None: saved text used
+    refetch: (
+        str | None
+    )  # missing | all: fetched again from the mailbox; None: saved text used
     requested_by_name: str
     status: str  # running | completed | failed
     before_result: dict[str, Any]

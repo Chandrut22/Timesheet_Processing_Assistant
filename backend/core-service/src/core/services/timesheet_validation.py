@@ -19,14 +19,22 @@ VALIDATION_FLAG_CODES = frozenset({"duplicate_file", "duplicate_week"})
 
 # Flags that are only information and do not stop auto-approval.
 # handwriting_present: a photo / scan with some handwriting, but the hours are printed.
-NON_BLOCKING_FLAGS = frozenset({"holiday_worked", "company_from_sheet", "handwriting_present"})
+# Flags that are only a note: the timesheet can still be approved automatically.
+# holiday_worked is NOT one of them: hours paid at the holiday rate are always checked.
+NON_BLOCKING_FLAGS = frozenset({"company_from_sheet", "handwriting_present"})
 
-LIVE_STATUSES = (TimesheetStatus.NEEDS_REVIEW, TimesheetStatus.APPROVED, TimesheetStatus.EXPORTED)
+LIVE_STATUSES = (
+    TimesheetStatus.NEEDS_REVIEW,
+    TimesheetStatus.APPROVED,
+    TimesheetStatus.EXPORTED,
+)
 
 
 def _week_lock_key(employee_id: uuid.UUID, week_start: date) -> int:
     """A stable signed 64-bit number for (employee, week): the advisory lock's key."""
-    digest = hashlib.blake2b(f"{employee_id}:{week_start}".encode(), digest_size=8).digest()
+    digest = hashlib.blake2b(
+        f"{employee_id}:{week_start}".encode(), digest_size=8
+    ).digest()
     return int.from_bytes(digest, "big", signed=True)
 
 
@@ -39,13 +47,19 @@ async def lock_employee_weeks(
     Keys are taken in sorted order so two sessions can never deadlock on them.
     Locks are re-entrant within a session, so taking one twice is harmless."""
     keys = sorted(
-        {_week_lock_key(emp, week) for emp, week in pairs if emp is not None and week is not None}
+        {
+            _week_lock_key(emp, week)
+            for emp, week in pairs
+            if emp is not None and week is not None
+        }
     )
     for key in keys:
         await session.execute(select(func.pg_advisory_xact_lock(key)))
 
 
-async def other_paid_timesheet(session: AsyncSession, timesheet: Timesheet) -> Timesheet | None:
+async def other_paid_timesheet(
+    session: AsyncSession, timesheet: Timesheet
+) -> Timesheet | None:
     """Another approved or exported timesheet for the same employee and week, if any."""
     if timesheet.employee_id is None or timesheet.week_start is None:
         return None
@@ -85,12 +99,15 @@ async def validate_duplicates(
             flags.append(
                 {
                     "code": "duplicate_file",
-                    "message": f"This exact file was already processed (as '{earlier}').",
+                    "message": "This exact file was already processed (as "
+                    f"'{earlier}').",
                 }
             )
 
     if timesheet.employee_id is not None and timesheet.week_start is not None:
-        await lock_employee_weeks(session, [(timesheet.employee_id, timesheet.week_start)])
+        await lock_employee_weeks(
+            session, [(timesheet.employee_id, timesheet.week_start)]
+        )
         other = await session.scalar(
             select(Timesheet.id)
             .where(
@@ -106,7 +123,7 @@ async def validate_duplicates(
                 {
                     "code": "duplicate_week",
                     "message": (
-                        f"Another timesheet exists for this employee and the week of "
+                        "Another timesheet exists for this employee and the week of "
                         f"{timesheet.week_start}. Keep one, reject the other."
                     ),
                     "other_timesheet_id": str(other),
@@ -117,7 +134,9 @@ async def validate_duplicates(
 
 
 def blocking_flags(timesheet: Timesheet) -> list[dict[str, Any]]:
-    return [f for f in (timesheet.flags or []) if f.get("code") not in NON_BLOCKING_FLAGS]
+    return [
+        f for f in (timesheet.flags or []) if f.get("code") not in NON_BLOCKING_FLAGS
+    ]
 
 
 def can_auto_approve(timesheet: Timesheet) -> bool:
@@ -150,21 +169,30 @@ def _ranges(days: Sequence[date]) -> str:
     return ", ".join(parts)
 
 
-def check_assignment(timesheet: Timesheet, start: date | None, end: date | None) -> None:
-    """Flag hours worked outside the employee's assignment dates (rebuilt every time)."""
-    flags = [f for f in (timesheet.flags or []) if f.get("code") != "outside_assignment"]
+def check_assignment(
+    timesheet: Timesheet, start: date | None, end: date | None
+) -> None:
+    """Flag hours worked outside the employee's assignment dates (rebuilt every
+    time)."""
+    flags = [
+        f for f in (timesheet.flags or []) if f.get("code") != "outside_assignment"
+    ]
     outside = [
         e.work_date
         for e in timesheet.entries
         if e.hours > 0
-        and ((start is not None and e.work_date < start) or (end is not None and e.work_date > end))
+        and (
+            (start is not None and e.work_date < start)
+            or (end is not None and e.work_date > end)
+        )
     ]
     if outside:
         period = f"{start or 'open'} to {end or 'open'}"
         flags.append(
             {
                 "code": "outside_assignment",
-                "message": f"Hours on {_ranges(outside)} fall outside the assignment ({period}).",
+                "message": f"Hours on {_ranges(outside)} fall outside the assignment "
+                f"({period}).",
                 "dates": [d.isoformat() for d in sorted(outside)],
             }
         )

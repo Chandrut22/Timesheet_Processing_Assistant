@@ -10,14 +10,15 @@ import { useCountdown } from "../hooks/useCountdown";
 import { useCheckMailNow, useMailboxStatus } from "../hooks/useMailbox";
 import type { MailboxCheck } from "../types/mailbox";
 import { describeCheck } from "../utils/describeCheck";
+import type { JSX } from "react";
 
-function showResult(check: MailboxCheck | null) {
+function showResult(check: MailboxCheck | null): void {
   if (!check) toast.warning("The mailbox check is taking long. The results will appear below.");
   else if (check.state === "failed") toast.error(check.error ?? "The mailbox check failed.");
   else toast.success(describeCheck(check));
 }
 
-export function MailCheckButton() {
+export function MailCheckButton(): JSX.Element | null {
   const status = useMailboxStatus();
   const s = status.data;
   const cooldown = useCountdown(s?.cooldown_seconds ?? 0, status.dataUpdatedAt);

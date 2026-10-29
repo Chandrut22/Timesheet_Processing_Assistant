@@ -3,8 +3,17 @@ import uuid
 from fastapi import APIRouter
 from fastapi import status as http_status
 
-from src.api.rest.dependencies import CurrentPrincipal, PaginationDep, Reviewer, SessionDep
-from src.constants.timesheet_status import SubmissionSource, SubmissionState, SubmissionStatus
+from src.api.rest.dependencies import (
+    CurrentPrincipal,
+    PaginationDep,
+    Reviewer,
+    SessionDep,
+)
+from src.constants.timesheet_status import (
+    SubmissionSource,
+    SubmissionState,
+    SubmissionStatus,
+)
 from src.core.exceptions import NotFoundError
 from src.core.services.submission_service import SubmissionService
 from src.data.repositories.activity_repository import ActivityRepository
@@ -70,18 +79,31 @@ async def get_timeline(
     activity = ActivityRepository(session)
     return SubmissionTimeline(
         submission=SubmissionRead.model_validate(submission),
-        states=[StateChangeRead.model_validate(s) for s in await activity.states(submission_id)],
-        steps=[ProcessingStepRead.model_validate(s) for s in await activity.steps(submission_id)],
-        audit=[AuditEventRead.model_validate(e) for e in await activity.audit(submission_id)],
+        states=[
+            StateChangeRead.model_validate(s)
+            for s in await activity.states(submission_id)
+        ],
+        steps=[
+            ProcessingStepRead.model_validate(s)
+            for s in await activity.steps(submission_id)
+        ],
+        audit=[
+            AuditEventRead.model_validate(e)
+            for e in await activity.audit(submission_id)
+        ],
         reprocess_runs=[
-            ReprocessRunRead.model_validate(r) for r in await activity.reprocess_runs(submission_id)
+            ReprocessRunRead.model_validate(r)
+            for r in await activity.reprocess_runs(submission_id)
         ],
     )
 
 
 @router.post("/{submission_id}/reprocess", status_code=http_status.HTTP_202_ACCEPTED)
 async def reprocess(
-    submission_id: uuid.UUID, body: ReprocessRequest, session: SessionDep, actor: Reviewer
+    submission_id: uuid.UUID,
+    body: ReprocessRequest,
+    session: SessionDep,
+    actor: Reviewer,
 ) -> ReprocessRunRead:
     """Run the email (or one attachment) again with the current master data. A reason is
     required. The timesheets are updated in place (version + 1); their earlier data is

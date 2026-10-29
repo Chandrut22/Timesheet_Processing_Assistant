@@ -49,7 +49,9 @@ def col(name: str) -> int:
 
 
 def test_same_header_and_rows_as_the_csv() -> None:
-    sheet = sheet_for([row("E002", "Grace Okoye", "40", "2"), row("E001", "Ravi Kumar", "38")])
+    sheet = sheet_for(
+        [row("E002", "Grace Okoye", "40", "2"), row("E001", "Ravi Kumar", "38")]
+    )
     assert [c.value for c in sheet[1]] == CSV_COLUMNS
     assert sheet.cell(2, col("employee_code")).value == "E001"  # sorted like the CSV
     assert sheet.cell(3, col("employee_name")).value == "Grace Okoye"

@@ -28,10 +28,14 @@ from src.schemas.extraction import ExtractedDay, ExtractedTimesheet, ExtractionR
 
 RECEIVED = datetime(2026, 10, 19, 9, tzinfo=UTC)  # Monday
 WEEK = date(2026, 10, 12)
-TRANSCRIPT = "Name: Grace Hopper\n| Day | Hours |\n|---|---|\n| Mon | 8 |\n| Tue | [UNCLEAR] |"
+TRANSCRIPT = (
+    "Name: Grace Hopper\n| Day | Hours |\n|---|---|\n| Mon | 8 |\n| Tue | [UNCLEAR] |"
+)
 
 
-def vision_answer(transcription: str, classification: str = "mixed", by_hand: bool = True) -> str:
+def vision_answer(
+    transcription: str, classification: str = "mixed", by_hand: bool = True
+) -> str:
     return json.dumps(
         {
             "classification": classification,
@@ -62,7 +66,9 @@ class FakeVisionModel:
 
 def photo() -> bytes:
     out = io.BytesIO()
-    Image.effect_noise((1200, 1600), 60).convert("RGB").save(out, format="JPEG", quality=90)
+    Image.effect_noise((1200, 1600), 60).convert("RGB").save(
+        out, format="JPEG", quality=90
+    )
     return out.getvalue()
 
 
@@ -87,7 +93,9 @@ def sheet(unreadable: list[str]) -> ExtractionResult:
 
 
 @pytest.fixture
-async def world(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> AsyncIterator[dict[str, Any]]:
+async def world(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> AsyncIterator[dict[str, Any]]:
     monkeypatch.setattr(settings, "upload_dir", str(tmp_path / "uploads"))
     monkeypatch.setattr(settings, "vision_base_url", "https://ollama.com/v1")
     monkeypatch.setattr(settings, "vision_model", "gemma4:31b-cloud")
@@ -110,8 +118,14 @@ async def seed(data: bytes) -> tuple[uuid.UUID, uuid.UUID]:
         )
         s.add(company)
         await s.flush()
-        s.add(Employee(company_id=company.id, employee_code="E001", full_name="Grace Hopper"))
-        submission = Submission(source="upload", received_at=RECEIVED, company_id=company.id)
+        s.add(
+            Employee(
+                company_id=company.id, employee_code="E001", full_name="Grace Hopper"
+            )
+        )
+        submission = Submission(
+            source="upload", received_at=RECEIVED, company_id=company.id
+        )
         s.add(submission)
         await s.flush()
         document = Document(
@@ -137,7 +151,9 @@ async def results(document_id: uuid.UUID) -> tuple[Document, list[Timesheet]]:
         document = await s.get(Document, document_id)
         assert document is not None
         sheets = (
-            await s.scalars(select(Timesheet).where(Timesheet.document_id == document_id))
+            await s.scalars(
+                select(Timesheet).where(Timesheet.document_id == document_id)
+            )
         ).all()
         return document, list(sheets)
 
@@ -168,7 +184,9 @@ async def test_a_handwritten_photo_ends_in_review_with_the_new_flags(
     assert (document.writing_class, document.has_handwritten_hours) == ("mixed", True)
     assert ts.status == "needs_review"
     assert {"handwritten_hours", "unreadable_values"} <= set(codes(ts))
-    assert "2026-10-13" in next(f["message"] for f in ts.flags if f["code"] == "unreadable_values")
+    assert "2026-10-13" in next(
+        f["message"] for f in ts.flags if f["code"] == "unreadable_values"
+    )
     assert date(2026, 10, 13) not in {e.work_date for e in ts.entries}  # never 0 hours
 
 

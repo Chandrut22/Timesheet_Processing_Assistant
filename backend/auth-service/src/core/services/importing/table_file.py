@@ -1,4 +1,5 @@
-"""(Copy of core-service/src/core/services/importing/table_file.py: change both together.)
+"""(Copy of core-service/src/core/services/importing/table_file.py: change both
+together.)
 
 Read an import file (CSV or XLSX) into rows of text.
 

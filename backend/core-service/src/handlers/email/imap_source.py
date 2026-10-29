@@ -28,10 +28,11 @@ def placeholder_uid(message_id: str) -> tuple[int, int] | None:
     return (int(found[1]), int(found[2])) if found else None
 
 
-class MailConnectionLost(Exception):
+class MailConnectionLostError(Exception):
     """The network or the mail server closed the IMAP connection (SSLEOFError, reset,
-    timeout, IMAP abort, DNS down). Expected now and then on a long-lived connection: the
-    listener reconnects and catches up. Database / Redis errors are never wrapped."""
+    timeout, IMAP abort, DNS down). Expected now and then on a long-lived connection:
+    the listener reconnects and catches up. Database / Redis errors are never
+    wrapped."""
 
 
 def _mail_call[**P, R](fn: Callable[P, R]) -> Callable[P, R]:
@@ -40,7 +41,9 @@ def _mail_call[**P, R](fn: Callable[P, R]) -> Callable[P, R]:
         try:
             return fn(*args, **kwargs)
         except (OSError, EOFError, imaplib.IMAP4.abort) as exc:
-            raise MailConnectionLost(f"{type(exc).__name__}: {exc or 'closed'}") from exc
+            raise MailConnectionLostError(
+                f"{type(exc).__name__}: {exc or 'closed'}"
+            ) from exc
 
     return call
 
@@ -59,7 +62,8 @@ class ImapSource:
     def __enter__(self) -> "ImapSource":
         if not (settings.imap_host and settings.imap_user and settings.imap_password):
             raise RuntimeError("IMAP_HOST, IMAP_USER and IMAP_PASSWORD must be set.")
-        # Gmail shows App Passwords as "abcd efgh ijkl mnop": the spaces are not part of it
+        # Gmail shows App Passwords as "abcd efgh ijkl mnop": the spaces are not part of
+        # it
         password = settings.imap_password.get_secret_value().replace(" ", "")
         # The socket timeout bounds every call on a dead connection (IDLE sets its own
         # timeout for its wait and puts this one back afterwards).
@@ -87,7 +91,9 @@ class ImapSource:
     @_mail_call
     def status(self) -> tuple[int, int]:
         """(UIDVALIDITY, UIDNEXT) of the folder."""
-        st = self.mailbox.folder.status(settings.imap_folder, ["UIDVALIDITY", "UIDNEXT"])
+        st = self.mailbox.folder.status(
+            settings.imap_folder, ["UIDVALIDITY", "UIDNEXT"]
+        )
         return int(st["UIDVALIDITY"]), int(st["UIDNEXT"])
 
     @_mail_call
@@ -96,7 +102,10 @@ class ImapSource:
         return [
             (int(msg.uid or 0), msg.obj)
             for msg in self.mailbox.fetch(
-                AND(uid=U(str(start_uid), "*")), mark_seen=False, limit=FETCH_LIMIT, bulk=True
+                AND(uid=U(str(start_uid), "*")),
+                mark_seen=False,
+                limit=FETCH_LIMIT,
+                bulk=True,
             )
         ]
 
@@ -116,14 +125,16 @@ class ImapSource:
         self.mailbox.flag(str(uid), MailMessageFlags.SEEN, True)
 
     @_mail_call
-    def find_message(self, message_id: str, folders: Sequence[str] = ()) -> Message | None:
+    def find_message(
+        self, message_id: str, folders: Sequence[str] = ()
+    ) -> Message | None:
         """The email with this Message-ID, or None. Searches IMAP_FOLDER, then `folders`
         (a folder this server does not have is skipped). Opens each folder READ-ONLY and
         fetches with mark_seen=False, so nothing in the mailbox changes.
 
-        An id the listener made up (<uid-VALIDITY-UID@imap.local>) is found by its UID in
-        IMAP_FOLDER, but only while the folder's UIDVALIDITY is the same: after a reset
-        the number may belong to another email."""
+        An id the listener made up (<uid-VALIDITY-UID@imap.local>) is found by its UID
+        in IMAP_FOLDER, but only while the folder's UIDVALIDITY is the same: after a
+        reset the number may belong to another email."""
         placeholder = placeholder_uid(message_id)
         if placeholder is not None:
             validity, uid = placeholder

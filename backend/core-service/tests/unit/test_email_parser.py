@@ -39,14 +39,19 @@ def test_basic_fields() -> None:
 
 
 def test_missing_message_id_uses_fallback() -> None:
-    email = parse_message(make_email(message_id=None), fallback_id="<uid-1-7@imap.local>")
+    email = parse_message(
+        make_email(message_id=None), fallback_id="<uid-1-7@imap.local>"
+    )
     assert email.message_id == "<uid-1-7@imap.local>"
 
 
 def test_attachment_bytes_and_name() -> None:
     msg = make_email()
     msg.add_attachment(
-        b"%PDF-1.4 fake", maintype="application", subtype="pdf", filename="Priya_Nair_WE.pdf"
+        b"%PDF-1.4 fake",
+        maintype="application",
+        subtype="pdf",
+        filename="Priya_Nair_WE.pdf",
     )
     email = parse_message(msg, fallback_id="x")
     assert len(email.attachments) == 1
@@ -62,7 +67,9 @@ def test_inline_logo_is_marked_inline() -> None:
     msg = make_email(html='<p>Hi</p><img src="cid:logo1">')
     html_part = msg.get_payload()[1]  # type: ignore[index]
     assert isinstance(html_part, EmailMessage)
-    html_part.add_related(b"\x89PNG fake", maintype="image", subtype="png", cid="<logo1>")
+    html_part.add_related(
+        b"\x89PNG fake", maintype="image", subtype="png", cid="<logo1>"
+    )
     email = parse_message(msg, fallback_id="x")
     assert len(email.attachments) == 1
     assert email.attachments[0].is_inline is True
@@ -72,8 +79,8 @@ def test_html_only_body_becomes_text() -> None:
     msg = EmailMessage()
     msg["From"] = "a@b.com"
     msg.set_content(
-        "<html><style>p{}</style><body><p>Mon 8</p><table><tr><td>Tue</td><td>9</td></tr>"
-        "</table></body></html>",
+        "<html><style>p{}</style><body><p>Mon "
+        "8</p><table><tr><td>Tue</td><td>9</td></tr></table></body></html>",
         subtype="html",
     )
     email = parse_message(msg, fallback_id="x")
@@ -90,7 +97,8 @@ def test_html_to_text_skips_scripts() -> None:
 
 def test_encoded_subject_and_name() -> None:
     msg = make_email(
-        sender="=?utf-8?b?UmHDumwgR8OzbWV6?= <raul@abc.com>", subject="=?utf-8?q?Hoja_de_horas?="
+        sender="=?utf-8?b?UmHDumwgR8OzbWV6?= <raul@abc.com>",
+        subject="=?utf-8?q?Hoja_de_horas?=",
     )
     email = parse_message(msg, fallback_id="x")
     assert email.from_name == "Raúl Gómez"
@@ -100,9 +108,10 @@ def test_encoded_subject_and_name() -> None:
 def test_sender_auth_uses_only_the_top_header() -> None:
     passed = make_email(
         auth=[
-            "mx.google.com; dkim=pass header.i=@abcstaffing.com header.s=s1; "
-            "spf=pass (google.com: domain of payroll@abcstaffing.com designates 1.2.3.4) "
-            "smtp.mailfrom=payroll@abcstaffing.com; dmarc=pass (p=NONE) header.from=abcstaffing.com"
+            "mx.google.com; dkim=pass header.i=@abcstaffing.com header.s=s1; spf=pass "
+            "(google.com: domain of payroll@abcstaffing.com designates 1.2.3.4) "
+            "smtp.mailfrom=payroll@abcstaffing.com; dmarc=pass (p=NONE) "
+            "header.from=abcstaffing.com"
         ]
     )
     assert sender_auth_passed(passed) is True
@@ -117,8 +126,8 @@ def test_sender_auth_uses_only_the_top_header() -> None:
 
     dkim_aligned = make_email(
         auth=[
-            "mx.example; spf=pass smtp.mailfrom=bounce@other.net; "
-            "dkim=pass header.d=abcstaffing.com; dmarc=none"
+            "mx.example; spf=pass smtp.mailfrom=bounce@other.net; dkim=pass "
+            "header.d=abcstaffing.com; dmarc=none"
         ]
     )
     assert sender_auth_passed(dkim_aligned) is True
@@ -133,8 +142,8 @@ def test_sender_auth_refuses_a_spoofed_from() -> None:
     # The attacker passes SPF and DKIM for THEIR domain and writes our client in From.
     own_domain = make_email(
         auth=[
-            "mx.google.com; dkim=pass header.d=evil.example; "
-            "spf=pass smtp.mailfrom=x@evil.example; dmarc=fail header.from=abcstaffing.com"
+            "mx.google.com; dkim=pass header.d=evil.example; spf=pass "
+            "smtp.mailfrom=x@evil.example; dmarc=fail header.from=abcstaffing.com"
         ]
     )
     assert sender_auth_passed(own_domain) is False
@@ -142,8 +151,8 @@ def test_sender_auth_refuses_a_spoofed_from() -> None:
     # "dmarc=pass" hidden in the envelope sender or in a comment is not a result.
     hidden = make_email(
         auth=[
-            "mx.google.com; spf=pass smtp.mailfrom=dmarc=pass@evil.example; "
-            "dkim=none (dmarc=pass header.from=abcstaffing.com)"
+            "mx.google.com; spf=pass smtp.mailfrom=dmarc=pass@evil.example; dkim=none "
+            "(dmarc=pass header.from=abcstaffing.com)"
         ]
     )
     assert sender_auth_passed(hidden) is False

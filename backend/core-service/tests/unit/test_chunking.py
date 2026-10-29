@@ -24,32 +24,48 @@ def grid(n: int) -> str:
     """A weekly grid with n people, the way Docling writes an Excel sheet."""
     lines = [TITLE, "", "| Emp ID | Employee Name | " + " | ".join(DAYS) + " | Total |"]
     lines.append("|" + "---|" * (len(DAYS) + 3))
-    lines += [f"| E{i:03d} | Person {i:03d} | 8 | 8 | 8 | 8 | 8 | 40 |" for i in range(1, n + 1)]
-    lines += [f"| Total | | | | | | | {40 * n} |", "", "Notes: OT approved for Person 010."]
+    lines += [
+        f"| E{i:03d} | Person {i:03d} | 8 | 8 | 8 | 8 | 8 | 40 |"
+        for i in range(1, n + 1)
+    ]
+    lines += [
+        f"| Total | | | | | | | {40 * n} |",
+        "",
+        "Notes: OT approved for Person 010.",
+    ]
     return "\n".join(lines)
 
 
 def monthly(people: int, days: int = 31) -> str:
-    """One row per person per day for a month, the name only on each person's first row."""
+    """One row per person per day for a month, the name only on each person's first
+    row."""
     lines = ["| Name | Date | Hours | Notes |", "| --- | --- | --- | --- |"]
     for i in range(people):
         for d in range(days):
             name = f"Person {i:02d}" if d == 0 else ""
-            lines.append(f"| {name} | 2026-07-{d + 1:02d} | 8 | regular shift at client site {i} |")
+            lines.append(
+                f"| {name} | 2026-07-{d + 1:02d} | 8 | regular shift at client site "
+                f"{i} |"
+            )
     return "\n".join(lines)
 
 
 def blocks(people: int) -> str:
     """Free text / a vision transcription: one block per person, no tables."""
     return "\n\n".join(
-        f"Employee: Person {i}\nMonday 8 hours, Tuesday 8 hours, Wednesday 7.5 hours on the "
-        "north site; Thursday 8 hours; Friday off (doctor)."
+        f"Employee: Person {i}\nMonday 8 hours, Tuesday 8 hours, Wednesday 7.5 hours "
+        "on the north site; Thursday 8 hours; Friday off (doctor)."
         for i in range(people)
     )
 
 
 def split(text: str, **kw: int) -> Split:
-    options = {"target": 12_000, "overlap": 1_500, "max_parts": 40, "max_people": 15} | kw
+    options = {
+        "target": 12_000,
+        "overlap": 1_500,
+        "max_parts": 40,
+        "max_people": 15,
+    } | kw
     return split_with_overlap(
         text,
         target=options["target"],
@@ -66,7 +82,8 @@ def covered(text: str, s: Split) -> set[int]:
     return lines
 
 
-# --- cutting ---------------------------------------------------------------------------
+# --- cutting
+# ---------------------------------------------------------------------------
 
 
 def test_a_short_document_is_one_piece_unchanged() -> None:
@@ -76,7 +93,9 @@ def test_a_short_document_is_one_piece_unchanged() -> None:
 
 
 @pytest.mark.parametrize(
-    "text", [grid(60), grid(400), monthly(15), blocks(120)], ids=["60", "400", "monthly", "text"]
+    "text",
+    [grid(60), grid(400), monthly(15), blocks(120)],
+    ids=["60", "400", "monthly", "text"],
 )
 def test_every_line_is_read_and_no_piece_is_too_big(text: str) -> None:
     s = split(text)
@@ -111,7 +130,9 @@ def test_a_piece_inside_a_table_repeats_the_title_and_header() -> None:
 
 def test_at_most_chunk_people_new_people_per_piece() -> None:
     s = split(grid(60))
-    assert max(p.people for p in s.pieces) <= 15 + 4  # 15 new + a few repeated from before
+    assert (
+        max(p.people for p in s.pieces) <= 15 + 4
+    )  # 15 new + a few repeated from before
     assert s.pieces[0].people == 15
 
 
@@ -141,15 +162,21 @@ def test_too_many_parts_stops_and_says_where() -> None:
 def test_one_huge_line_is_a_piece_of_its_own() -> None:
     text = "intro\n" + "x" * 30_000 + "\nend"
     s = split(text)
-    assert any(len(p.text) > 12_000 for p in s.pieces)  # caller flags document_truncated
+    assert any(
+        len(p.text) > 12_000 for p in s.pieces
+    )  # caller flags document_truncated
     assert covered(text, s) == {0, 1, 2}
 
 
-# --- combining -------------------------------------------------------------------------
+# --- combining
+# -------------------------------------------------------------------------
 
 
 def sheet(
-    code: str | None, name: str | None, days: list[tuple[int, float]], week: date | None = None
+    code: str | None,
+    name: str | None,
+    days: list[tuple[int, float]],
+    week: date | None = None,
 ) -> ExtractedTimesheet:
     return ExtractedTimesheet(
         employee_code=code,
@@ -165,7 +192,9 @@ def parts(*answers: list[ExtractedTimesheet]) -> list[ExtractionResult]:
 
 
 def test_answers_are_joined_in_order() -> None:
-    c = merge_results(parts([sheet("E001", "A", [(1, 8)])], [sheet("E002", "B", [(1, 8)])]))
+    c = merge_results(
+        parts([sheet("E001", "A", [(1, 8)])], [sheet("E002", "B", [(1, 8)])])
+    )
     assert [t.employee_code for t in c.result.timesheets] == ["E001", "E002"]
     assert c.joined == 0
 
@@ -189,7 +218,11 @@ def test_a_disagreement_keeps_the_later_part_and_flags_it() -> None:
     b = sheet("E001", "Grace", [(2, 9), (3, 8)])
     c = merge_results(parts([a], [b]))
     (one,) = c.result.timesheets
-    assert {(d.work_date.day, d.hours) for d in one.days if d.work_date} == {(1, 8), (2, 9), (3, 8)}
+    assert {(d.work_date.day, d.hours) for d in one.days if d.work_date} == {
+        (1, 8),
+        (2, 9),
+        (3, 8),
+    }
     (flag,) = c.flags[0]
     assert flag["code"] == OVERLAP_FLAG
     assert "8 h in part 1, 9 h in part 2 (kept 9 h)" in flag["message"]
@@ -215,11 +248,16 @@ def test_after_matching_the_same_employee_written_differently_becomes_one() -> N
     c = merge_results(
         parts(
             [sheet("E001", "R. Kumar", [(1, 8), (2, 8)], week)],
-            [sheet(None, "Rahul Kumar", [(3, 8), (4, 8)], week), sheet("E9", "Other", [(1, 8)])],
+            [
+                sheet(None, "Rahul Kumar", [(3, 8), (4, 8)], week),
+                sheet("E9", "Other", [(1, 8)]),
+            ],
         )
     )
     assert len(c.result.timesheets) == 3  # different keys before matching
-    again = combine_by(c, [("co", "emp-1", "2026-06-01"), ("co", "emp-1", "2026-06-01"), None])
+    again = combine_by(
+        c, [("co", "emp-1", "2026-06-01"), ("co", "emp-1", "2026-06-01"), None]
+    )
     assert len(again.result.timesheets) == 2
     rahul = again.result.timesheets[0]
     assert len(rahul.days) == 4 and rahul.employee_code == "E001"
@@ -228,7 +266,9 @@ def test_after_matching_the_same_employee_written_differently_becomes_one() -> N
 
 def test_combine_by_never_joins_timesheets_from_the_same_part() -> None:
     c = Combined.of(
-        ExtractionResult(timesheets=[sheet("E1", "A", [(1, 8)]), sheet("E1", "A", [(1, 8)])])
+        ExtractionResult(
+            timesheets=[sheet("E1", "A", [(1, 8)]), sheet("E1", "A", [(1, 8)])]
+        )
     )
     assert len(combine_by(c, ["k", "k"]).result.timesheets) == 2
 

@@ -13,10 +13,11 @@ async def enqueue_submission(
     reprocess_run_id: uuid.UUID | None = None,
     retry_token: uuid.UUID | None = None,
 ) -> None:
-    """Queue a submission for the worker, by task name: the API never imports the worker's
-    code (Docling, LLM). send_task is a blocking Redis call, so it runs in a thread.
-    reprocess_run_id is set when the job is a reprocess (see reprocess_runs); retry_token
-    when it is a scheduled retry (only that run may claim the submission)."""
+    """Queue a submission for the worker, by task name: the API never imports the
+    worker's code (Docling, LLM). send_task is a blocking Redis call, so it runs in a
+    thread. reprocess_run_id is set when the job is a reprocess (see reprocess_runs);
+    retry_token when it is a scheduled retry (only that run may claim the
+    submission)."""
     args = [
         str(submission_id),
         str(reprocess_run_id) if reprocess_run_id else None,
@@ -33,7 +34,8 @@ async def enqueue_or_leave_for_sweeper(submission_id: uuid.UUID) -> bool:
         await enqueue_submission(submission_id)
     except Exception:
         logger.exception(
-            "Could not queue submission %s now; the sweeper will queue it later", submission_id
+            "Could not queue submission %s now; the sweeper will queue it later",
+            submission_id,
         )
         return False
     return True

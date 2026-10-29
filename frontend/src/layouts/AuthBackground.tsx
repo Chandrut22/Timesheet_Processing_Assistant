@@ -1,11 +1,11 @@
-// The decorative background of the sign-in pages (login, forgot / reset password, and
+import type { JSX } from "react"; // The decorative background of the sign-in pages (login, forgot / reset password, and
 // so the page you land on after signing out). Purely visual: hidden from assistive
 // technology, not clickable, nothing focusable. Styles are in styles/globals.css
 // ("Auth pages background"): token colours only, CSS-only motion that stops under
 // prefers-reduced-motion, and everything hidden in forced-colors mode.
 
 /** A week on a calendar: header row, 7 columns, 5 rows, a few "filled" days. */
-function CalendarMotif({ className }: { className: string }) {
+function CalendarMotif({ className }: { className: string }): JSX.Element {
   const cols = Array.from({ length: 8 }, (_, i) => 20 + i * 60);
   const rows = Array.from({ length: 6 }, (_, i) => 90 + i * 60);
   return (
@@ -42,7 +42,7 @@ function CalendarMotif({ className }: { className: string }) {
 }
 
 /** A clock ring with hour ticks and hands. */
-function ClockMotif({ className }: { className: string }) {
+function ClockMotif({ className }: { className: string }): JSX.Element {
   const ticks = Array.from({ length: 12 }, (_, i) => (i * Math.PI) / 6);
   return (
     <svg viewBox="0 0 400 400" fill="none" className={className}>
@@ -68,7 +68,7 @@ function ClockMotif({ className }: { className: string }) {
   );
 }
 
-export function AuthBackground() {
+export function AuthBackground(): JSX.Element {
   return (
     <div
       aria-hidden="true"

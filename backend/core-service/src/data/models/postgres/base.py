@@ -46,14 +46,18 @@ class AuditMixin:
     and updated_by are set again, so no service has to remember to do it."""
 
     # Read the database's own values (now()) back with RETURNING on every INSERT and
-    # UPDATE, so updated_at is never left expired (a lazy load would fail in async code).
+    # UPDATE, so updated_at is never left expired (a lazy load would fail in async
+    # code).
     __mapper_args__ = {"eager_defaults": True}
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), sort_order=100
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), sort_order=101
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        sort_order=101,
     )
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, default=current_actor_id, sort_order=102

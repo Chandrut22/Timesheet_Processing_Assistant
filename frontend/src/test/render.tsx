@@ -1,7 +1,7 @@
 // Shared test helper: render a component inside a fresh QueryClient that never retries,
 // so a failing request shows its error state at once.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render } from "@testing-library/react";
+import { render, type RenderResult } from "@testing-library/react";
 import type { ReactElement } from "react";
 
 export function testQueryClient(): QueryClient {
@@ -10,6 +10,9 @@ export function testQueryClient(): QueryClient {
   });
 }
 
-export function renderWithClient(ui: ReactElement, client: QueryClient = testQueryClient()) {
+export function renderWithClient(
+  ui: ReactElement,
+  client: QueryClient = testQueryClient(),
+): RenderResult & { client: QueryClient } {
   return { client, ...render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>) };
 }

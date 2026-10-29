@@ -5,7 +5,7 @@ import {
   useLocation,
   useNavigate,
 } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type JSX } from "react";
 import { ensureSession } from "@/services/session";
 import { useSession } from "@/features/auth";
 import { AppShell } from "@/layouts/AppShell";
@@ -37,7 +37,7 @@ export const Route = createFileRoute("/_app")({
   component: AppLayout,
 });
 
-function AppLayout() {
+function AppLayout(): JSX.Element | null {
   const session = useSession();
   const navigate = useNavigate();
   const location = useLocation();

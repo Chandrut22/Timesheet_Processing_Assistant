@@ -1,4 +1,5 @@
-"""Reprocessing: which old timesheet a newly extracted one updates, and the summaries."""
+"""Reprocessing: which old timesheet a newly extracted one updates, and the
+summaries."""
 
 import uuid
 from datetime import date
@@ -19,10 +20,17 @@ WEEK = date(2026, 10, 12)
 
 
 def ts(
-    name: str | None, doc: uuid.UUID = DOC_A, code: str | None = None, week: date | None = WEEK
+    name: str | None,
+    doc: uuid.UUID = DOC_A,
+    code: str | None = None,
+    week: date | None = WEEK,
 ) -> Timesheet:
     return Timesheet(
-        id=uuid.uuid4(), document_id=doc, extracted_name=name, extracted_code=code, week_start=week
+        id=uuid.uuid4(),
+        document_id=doc,
+        extracted_name=name,
+        extracted_code=code,
+        week_start=week,
     )
 
 
@@ -50,14 +58,19 @@ def test_one_old_and_one_new_go_together() -> None:
 
 
 def test_none_when_ambiguous_or_missing() -> None:
-    assert pick_predecessor(ts("Anna"), [ts("Bob"), ts("Carl")], only_one_new=True) is None
+    assert (
+        pick_predecessor(ts("Anna"), [ts("Bob"), ts("Carl")], only_one_new=True) is None
+    )
     assert pick_predecessor(ts("Anna"), [], only_one_new=True) is None
 
 
 def test_the_email_state_comes_from_all_timesheets() -> None:
     assert state_from_timesheets([]) is None
     assert state_from_timesheets(["rejected", "approved"]) is SubmissionState.APPROVED
-    assert state_from_timesheets(["rejected", "needs_review"]) is SubmissionState.AWAITING_REVIEW
+    assert (
+        state_from_timesheets(["rejected", "needs_review"])
+        is SubmissionState.AWAITING_REVIEW
+    )
 
 
 def _timesheet(status: str, employee: bool) -> Timesheet:
@@ -81,7 +94,8 @@ def _timesheet(status: str, employee: bool) -> Timesheet:
 
 def test_snapshot_counts_and_values() -> None:
     snap = snapshot(
-        "awaiting_review", [_timesheet("needs_review", False), _timesheet("approved", True)]
+        "awaiting_review",
+        [_timesheet("needs_review", False), _timesheet("approved", True)],
     )
     assert snap["count"] == 2
     assert snap["unmatched"] == 1

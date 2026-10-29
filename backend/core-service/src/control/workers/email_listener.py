@@ -35,7 +35,11 @@ from src.data.clients.mailbox_signals import (
 )
 from src.data.clients.postgres import engine
 from src.data.clients.redis import redis_client
-from src.handlers.email.imap_source import FETCH_LIMIT, ImapSource, MailConnectionLost
+from src.handlers.email.imap_source import (
+    FETCH_LIMIT,
+    ImapSource,
+    MailConnectionLostError,
+)
 from src.handlers.email.listener import Cursor, process_new_mail
 from src.handlers.email.parser import ParsedEmail
 from src.observability.logging.setup import flush_logs, setup_logging
@@ -85,7 +89,9 @@ async def _catch_up(source: ImapSource, cursor: Cursor) -> Counter[str]:
 
     async with CatchUpLock(redis_client):
         while (
-            await process_new_mail(source, cursor, intake, batch_limit=FETCH_LIMIT, give_up=give_up)
+            await process_new_mail(
+                source, cursor, intake, batch_limit=FETCH_LIMIT, give_up=give_up
+            )
             >= FETCH_LIMIT
         ):
             pass
@@ -93,10 +99,15 @@ async def _catch_up(source: ImapSource, cursor: Cursor) -> Counter[str]:
 
 
 async def _beat(**fields: Any) -> None:
-    """Heartbeat for the API. A Redis problem is only logged: it never stops the inbox."""
+    """Heartbeat for the API. A Redis problem is only logged: it never stops the
+    inbox."""
     try:
         await write_status(
-            redis_client, alive_at=time.time(), enabled=True, mailbox=settings.imap_user, **fields
+            redis_client,
+            alive_at=time.time(),
+            enabled=True,
+            mailbox=settings.imap_user,
+            **fields,
         )
     except Exception as exc:
         logger.debug("Heartbeat not written: %s", exc)
@@ -140,7 +151,11 @@ class ManualChecks:
     async def fail(self, reason: str) -> None:
         for request_id in self.pending:
             await update_result(
-                redis_client, request_id, state="failed", finished_at=now_iso(), error=reason
+                redis_client,
+                request_id,
+                state="failed",
+                finished_at=now_iso(),
+                error=reason,
             )
         self.pending.clear()
 
@@ -208,7 +223,9 @@ async def _watch_requests(checks: ManualChecks, cursor: Cursor) -> None:
         except asyncio.CancelledError:
             raise
         except Exception:
-            logger.warning("Lost Redis for manual checks; retrying in 2 s", exc_info=True)
+            logger.warning(
+                "Lost Redis for manual checks; retrying in 2 s", exc_info=True
+            )
             await asyncio.sleep(2)
 
 
@@ -217,7 +234,9 @@ async def _sleep_or_wake(checks: ManualChecks, seconds: float) -> None:
     deadline = time.monotonic() + seconds
     while (left := deadline - time.monotonic()) > 0:
         try:
-            await asyncio.wait_for(checks.wake.wait(), timeout=min(left, HEARTBEAT_EVERY_S))
+            await asyncio.wait_for(
+                checks.wake.wait(), timeout=min(left, HEARTBEAT_EVERY_S)
+            )
         except TimeoutError:
             await _beat(connected=False)
             continue
@@ -231,9 +250,10 @@ def next_delay(
 ) -> int:
     """Seconds before reconnecting. A dropped connection that was working (healthy) gets
     a quick reconnect, at most once a minute; anything else (login refused, database or
-    Redis down, drops in a row) waits `backoff`, which grows 5 s, 10 s, ... up to 5 min."""
+    Redis down, drops in a row) waits `backoff`, which grows 5 s, 10 s, ... up to 5
+    min."""
     if (
-        isinstance(exc, MailConnectionLost)
+        isinstance(exc, MailConnectionLostError)
         and healthy_before
         and since_last_quick >= QUICK_RECONNECT_GAP_S
     ):
@@ -244,7 +264,9 @@ def next_delay(
 async def run() -> None:
     cursor = Cursor(redis_client)
     checks = ManualChecks()
-    watcher = asyncio.create_task(_watch_requests(checks, cursor), name="mailbox-checks")
+    watcher = asyncio.create_task(
+        _watch_requests(checks, cursor), name="mailbox-checks"
+    )
     backoff = 5
     last_quick = 0.0  # monotonic time of the last quick reconnect
     try:
@@ -261,7 +283,9 @@ async def run() -> None:
                         settings.imap_folder,
                     )
                     backoff = 5
-                    counts = await _catch_up(source, cursor)  # mail that came while away
+                    counts = await _catch_up(
+                        source, cursor
+                    )  # mail that came while away
                     healthy = True
                     checks.connected = True
                     await _checked(counts)
@@ -270,7 +294,9 @@ async def run() -> None:
                         # IDLE: the server tells us when mail arrives. The timeout is a
                         # safety net (and keeps the connection alive; Gmail drops IDLE
                         # after ~29 min).
-                        if await asyncio.to_thread(source.wait, settings.email_idle_timeout):
+                        if await asyncio.to_thread(
+                            source.wait, settings.email_idle_timeout
+                        ):
                             logger.info("Mailbox changed")
                         counts = await _catch_up(source, cursor)
                         await _checked(counts)
@@ -279,13 +305,15 @@ async def run() -> None:
                     await asyncio.to_thread(source.__exit__, None, None, None)
             except MailboxLoginError as exc:
                 logger.error(
-                    "IMAP login failed. Check IMAP_USER / IMAP_PASSWORD (Gmail: App Password)."
+                    "IMAP login failed. Check IMAP_USER / IMAP_PASSWORD (Gmail: App "
+                    "Password)."
                 )
                 reason = "IMAP login failed: check IMAP_USER / IMAP_PASSWORD."
                 delay = next_delay(exc, healthy, backoff, time.monotonic() - last_quick)
-            except MailConnectionLost as exc:
+            except MailConnectionLostError as exc:
                 # One line, no traceback: the network or Gmail closed the connection.
-                # Nothing is lost: after reconnecting, the listener reads everything it missed.
+                # Nothing is lost: after reconnecting, the listener reads everything it
+                # missed.
                 logger.warning("Mail server connection lost (%s)", exc)
                 reason = f"Mail server connection lost ({exc})"
                 delay = next_delay(exc, healthy, backoff, time.monotonic() - last_quick)
@@ -317,7 +345,8 @@ async def main() -> None:
     if not (settings.imap_host and settings.imap_user and settings.imap_password):
         logger.error("Set IMAP_HOST, IMAP_USER and IMAP_PASSWORD to read email.")
         await _beat(
-            connected=False, last_error="IMAP_HOST, IMAP_USER and IMAP_PASSWORD are not set."
+            connected=False,
+            last_error="IMAP_HOST, IMAP_USER and IMAP_PASSWORD are not set.",
         )
         return
     try:

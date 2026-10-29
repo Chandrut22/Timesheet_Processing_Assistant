@@ -71,7 +71,9 @@ def _one(found: list[CompanyRecord]) -> CompanyRecord | None:
     return next(iter(unique.values())) if len(unique) == 1 else None
 
 
-def match_company(written: str | None, companies: Sequence[CompanyRecord]) -> CompanyMatch:
+def match_company(
+    written: str | None, companies: Sequence[CompanyRecord]
+) -> CompanyMatch:
     norm = normalize_company(written)
     if not norm:
         return CompanyMatch(None, None)
@@ -80,12 +82,16 @@ def match_company(written: str | None, companies: Sequence[CompanyRecord]) -> Co
     if exact:
         return CompanyMatch(exact.id, "name", exact.name, 1.0)
 
-    alias = _one([c for c in companies if norm in {normalize_company(a) for a in c.aliases}])
+    alias = _one(
+        [c for c in companies if norm in {normalize_company(a) for a in c.aliases}]
+    )
     if alias:
         return CompanyMatch(alias.id, "alias", alias.name, 1.0)
 
     if len(norm.split()) >= 2:
-        prefix = _one([c for c in companies if normalize_company(c.name).startswith(norm + " ")])
+        prefix = _one(
+            [c for c in companies if normalize_company(c.name).startswith(norm + " ")]
+        )
         if prefix:
             return CompanyMatch(prefix.id, "prefix", prefix.name, 0.9)
 
@@ -94,7 +100,10 @@ def match_company(written: str | None, companies: Sequence[CompanyRecord]) -> Co
             (
                 max(
                     SequenceMatcher(None, norm, n).ratio()
-                    for n in [normalize_company(c.name), *(normalize_company(a) for a in c.aliases)]
+                    for n in [
+                        normalize_company(c.name),
+                        *(normalize_company(a) for a in c.aliases),
+                    ]
                     if n
                 )
                 if normalize_company(c.name)
@@ -106,7 +115,11 @@ def match_company(written: str | None, companies: Sequence[CompanyRecord]) -> Co
         key=lambda pair: pair[0],
         reverse=True,
     )
-    if scored and scored[0][0] >= FUZZY_MIN and (len(scored) == 1 or scored[1][0] < FUZZY_MIN):
+    if (
+        scored
+        and scored[0][0] >= FUZZY_MIN
+        and (len(scored) == 1 or scored[1][0] < FUZZY_MIN)
+    ):
         score, best = scored[0]
         return CompanyMatch(best.id, "fuzzy", best.name, round(score, 2))
     return CompanyMatch(None, None)
@@ -133,7 +146,9 @@ def decide_company(
     if sender_company is None:
         if found.company_id is None:
             return CompanyDecision(None)
-        if found.method in EXACT_METHODS:  # the sheet names the company (or a set alias)
+        if (
+            found.method in EXACT_METHODS
+        ):  # the sheet names the company (or a set alias)
             return CompanyDecision(
                 found.company_id,
                 {
@@ -142,8 +157,9 @@ def decide_company(
                     f"{found.company_name} (by {found.method}).",
                 },
             )
-        # Only a partial name or a close spelling: a guess, so a reviewer must confirm it
-        # (this flag blocks automatic approval; the guessed company's rates apply meanwhile).
+        # Only a partial name or a close spelling: a guess, so a reviewer must confirm
+        # it (this flag blocks automatic approval; the guessed company's rates apply
+        # meanwhile).
         how = (
             "start of the name"
             if found.method == "prefix"
@@ -154,7 +170,8 @@ def decide_company(
             {
                 "code": "company_guessed",
                 "message": f"Company guessed from the sheet: '{written}' looks like "
-                f"{found.company_name} ({how}). Confirm it, or pick the right employee.",
+                f"{found.company_name} ({how}). Confirm it, or pick the right "
+                "employee.",
             },
         )
 
@@ -164,8 +181,8 @@ def decide_company(
                 sender_company.id,
                 {
                     "code": "company_mismatch",
-                    "message": f"The sheet names '{written}', which is not a known company. "
-                    f"Used {sender_company.name} (from the sender). Check it.",
+                    "message": f"The sheet names '{written}', which is not a known "
+                    f"company. Used {sender_company.name} (from the sender). Check it.",
                 },
             )
         return CompanyDecision(sender_company.id)
@@ -174,7 +191,8 @@ def decide_company(
         found.company_id,
         {
             "code": "company_mismatch",
-            "message": f"The sheet is for {found.company_name} ('{written}'), but the sender "
-            f"belongs to {sender_company.name}. Used {found.company_name}. Confirm it.",
+            "message": f"The sheet is for {found.company_name} ('{written}'), but the "
+            f"sender belongs to {sender_company.name}. Used {found.company_name}. "
+            "Confirm it.",
         },
     )

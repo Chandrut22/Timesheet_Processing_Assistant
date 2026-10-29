@@ -11,7 +11,8 @@ Order:
   4. Same words, other order   "Kumar, Robert"
   5. Initial + surname         "R. Kumar" / "Kumar R"  (only if exactly one fits)
   6. First name only           "John"  (only if exactly one John; never auto-approved)
-  7. Close spelling            "Jon Smth" -> John Smith  (rank_shortlist; never auto-approved)
+  7. Close spelling            "Jon Smth" -> John Smith  (rank_shortlist; never
+  auto-approved)
 
 Step 7 combines two scorers. pg_trgm (Postgres, EmployeeRepository.similar_names, on the
 indexed employees.name_keys column) finds the names that share enough letter triples,
@@ -67,7 +68,9 @@ METHOD_LABEL: dict[str, str] = {
 MATCH_FLAG_CODES = frozenset(
     {"employee_unmatched", "name_mismatch", "unknown_code", "no_company", "fuzzy_match"}
 )
-SPELLING_WEIGHT = 0.6  # combined score (for ordering the list): 0.6 spelling + 0.4 trigram
+SPELLING_WEIGHT = (
+    0.6  # combined score (for ordering the list): 0.6 spelling + 0.4 trigram
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,7 +89,9 @@ class Candidate:
     score: float
     spelling: float | None = None  # difflib, for close spellings
     trigram: float | None = None  # pg_trgm, for close spellings
-    company_id: uuid.UUID | None = None  # set when suggested from another / unknown company
+    company_id: uuid.UUID | None = (
+        None  # set when suggested from another / unknown company
+    )
     company_name: str | None = None
 
 
@@ -107,11 +112,15 @@ class MatchResult:
     candidates: tuple[Candidate, ...] = ()
     name_mismatch: bool = False  # matched by code, but the name looks like someone else
     code_not_found: bool = False  # a code was written but no employee has it
-    ambiguous: tuple[Candidate, ...] = ()  # several employees fit equally (e.g. three Johns)
+    ambiguous: tuple[
+        Candidate, ...
+    ] = ()  # several employees fit equally (e.g. three Johns)
 
     @property
     def confidence(self) -> float:
-        return METHOD_CONFIDENCE.get(self.method or "", 0.0) if self.employee_id else 0.0
+        return (
+            METHOD_CONFIDENCE.get(self.method or "", 0.0) if self.employee_id else 0.0
+        )
 
 
 # --- text helpers ----------------------------------------------------------------
@@ -140,7 +149,10 @@ def _all_names(employee: EmployeeRecord) -> list[str]:
 
 
 def _score(name: str, employee: EmployeeRecord) -> float:
-    return max((SequenceMatcher(None, name, n).ratio() for n in _all_names(employee)), default=0.0)
+    return max(
+        (SequenceMatcher(None, name, n).ratio() for n in _all_names(employee)),
+        default=0.0,
+    )
 
 
 def spelling_score(name: str, employee: EmployeeRecord) -> float:
@@ -166,9 +178,10 @@ def rank_shortlist(
     allow_match: bool = True,
     limit: int = 3,
 ) -> MatchResult:
-    """Pure: the close spellings pg_trgm found, scored by difflib. Returns a "fuzzy" match
-    when it is safe (see the module docstring), else the best candidates (score =
-    combined, with both scores kept). allow_match=False: suggestions only (no company)."""
+    """Pure: the close spellings pg_trgm found, scored by difflib. Returns a "fuzzy"
+    match when it is safe (see the module docstring), else the best candidates (score =
+    combined, with both scores kept). allow_match=False: suggestions only (no
+    company)."""
     norm = normalize(name)
     if not norm or not shortlist:
         return MatchResult(None, None)
@@ -214,7 +227,8 @@ def _only_one(found: list[EmployeeRecord]) -> EmployeeRecord | None:
 def _initial_surname(
     tokens: list[str], employees: Sequence[EmployeeRecord]
 ) -> list[EmployeeRecord]:
-    """'r kumar' or 'kumar r' -> employees whose first name starts with r and surname is kumar."""
+    """'r kumar' or 'kumar r' -> employees whose first name starts with r and surname is
+    kumar."""
     if len(tokens) != 2:
         return []
     first, second = tokens
@@ -276,7 +290,10 @@ def match_employee(
         rules: list[tuple[str, Callable[[EmployeeRecord], bool]]] = [
             ("name", lambda e: normalize(e.full_name) == norm),
             ("alias", lambda e: norm in {normalize(a) for a in e.aliases}),
-            ("name_reordered", lambda e: sorted(_tokens(e.full_name)) == sorted(tokens)),
+            (
+                "name_reordered",
+                lambda e: sorted(_tokens(e.full_name)) == sorted(tokens),
+            ),
         ]
         for method, fits in rules:
             hit = _only_one([e for e in employees if fits(e)])
@@ -298,13 +315,18 @@ def match_employee(
                 return _ambiguous(same_first, code_not_found)
 
     return MatchResult(
-        None, None, candidates=_candidates(norm, employees), code_not_found=code_not_found
+        None,
+        None,
+        candidates=_candidates(norm, employees),
+        code_not_found=code_not_found,
     )
 
 
 def _ambiguous(found: list[EmployeeRecord], code_not_found: bool) -> MatchResult:
     tied = tuple(Candidate(e.id, e.code, e.full_name, 1.0) for e in found)
-    return MatchResult(None, None, candidates=tied, code_not_found=code_not_found, ambiguous=tied)
+    return MatchResult(
+        None, None, candidates=tied, code_not_found=code_not_found, ambiguous=tied
+    )
 
 
 def describe(c: Candidate) -> str:
@@ -319,7 +341,12 @@ def describe(c: Candidate) -> str:
 
 def candidate_json(c: Candidate) -> dict[str, Any]:
     """A candidate as stored in a flag (the review page lists them as suggestions)."""
-    item: dict[str, Any] = {"id": str(c.id), "code": c.code, "name": c.full_name, "score": c.score}
+    item: dict[str, Any] = {
+        "id": str(c.id),
+        "code": c.code,
+        "name": c.full_name,
+        "score": c.score,
+    }
     if c.spelling is not None:
         item["spelling"] = c.spelling
     if c.trigram is not None:
@@ -341,18 +368,21 @@ def match_reason(result: MatchResult, who: str, matched: EmployeeRecord | None) 
             else ""
         )
         return (
-            f"Suggested {matched.full_name} ({matched.code}): close spelling of '{who}'{how}. "
-            "A reviewer must confirm it."
+            f"Suggested {matched.full_name} ({matched.code}): close spelling of "
+            f"'{who}'{how}. A reviewer must confirm it."
         )
     if result.employee_id is not None and matched is not None:
         how = METHOD_LABEL.get(result.method or "", result.method or "?")
         return (
-            f"Matched {matched.full_name} ({matched.code}) by {how} '{who}' "
-            f"(match confidence {result.confidence:.2f})."
+            f"Matched {matched.full_name} ({matched.code}) by {how} '{who}' (match "
+            f"confidence {result.confidence:.2f})."
         )
     if result.ambiguous:
         names = ", ".join(f"{c.full_name} ({c.code})" for c in result.ambiguous)
-        return f"{len(result.ambiguous)} employees fit '{who}': {names}. A reviewer must choose."
+        return (
+            f"{len(result.ambiguous)} employees fit '{who}': {names}. A reviewer must "
+            "choose."
+        )
     if result.candidates:
         names = ", ".join(describe(c) for c in result.candidates)
         return f"No exact match for '{who}'. Closest: {names}."
@@ -383,7 +413,11 @@ def apply_match(
     timesheet.employee_id = result.employee_id
     timesheet.match_method = result.method
     # Confidence = the lower of "how well it was read" and "how sure the match is".
-    read = float(timesheet.read_confidence) if timesheet.read_confidence is not None else 1.0
+    read = (
+        float(timesheet.read_confidence)
+        if timesheet.read_confidence is not None
+        else 1.0
+    )
     timesheet.confidence = Decimal(str(round(min(read, result.confidence), 2)))
 
     flags: list[dict[str, Any]] = [
@@ -392,7 +426,9 @@ def apply_match(
     who = timesheet.extracted_name or timesheet.extracted_code or "this timesheet"
     # Matched by code: quote the code that was written, not the name.
     shown = (
-        timesheet.extracted_code if result.method == "code" and timesheet.extracted_code else who
+        timesheet.extracted_code
+        if result.method == "code" and timesheet.extracted_code
+        else who
     )
     suggestions = ", ".join(describe(c) for c in result.candidates)
     timesheet.match_reason = (
@@ -416,8 +452,8 @@ def apply_match(
         flags.append(
             {
                 "code": "fuzzy_match",
-                "message": f"'{who}' is not written exactly like {matched.full_name}'s name "
-                "(close spelling). Check it is the same person."
+                "message": f"'{who}' is not written exactly like {matched.full_name}'s "
+                "name (close spelling). Check it is the same person."
                 + (f" Others: {', '.join(others)}." if others else ""),
                 "candidates": [candidate_json(c) for c in result.candidates],
             }
@@ -425,7 +461,9 @@ def apply_match(
     elif result.employee_id is None:
         if result.ambiguous:
             options = ", ".join(f"{c.full_name} ({c.code})" for c in result.ambiguous)
-            message = f"{len(result.ambiguous)} employees fit '{who}': {options}. Choose one."
+            message = (
+                f"{len(result.ambiguous)} employees fit '{who}': {options}. Choose one."
+            )
         elif result.candidates:
             options = ", ".join(f"{c.full_name} ({c.code})" for c in result.candidates)
             message = f"No unique employee for '{who}'. Possible: {options}."
@@ -442,14 +480,16 @@ def apply_match(
         flags.append(
             {
                 "code": "name_mismatch",
-                "message": f"Matched by code, but the name '{who}' looks different. Check it.",
+                "message": f"Matched by code, but the name '{who}' looks different. "
+                "Check it.",
             }
         )
     if result.code_not_found and timesheet.extracted_code:
         flags.append(
             {
                 "code": "unknown_code",
-                "message": f"Employee code '{timesheet.extracted_code}' is not in this company.",
+                "message": f"Employee code '{timesheet.extracted_code}' is not in this "
+                "company.",
             }
         )
     timesheet.flags = flags  # a new list, so SQLAlchemy saves the JSONB change

@@ -57,7 +57,9 @@ def _conditions(f: TimesheetFilters) -> list[ColumnElement[bool]]:
         where.append(Timesheet.employee_id == f.employee_id)
     if f.matched is not None:
         where.append(
-            Timesheet.employee_id.is_not(None) if f.matched else Timesheet.employee_id.is_(None)
+            Timesheet.employee_id.is_not(None)
+            if f.matched
+            else Timesheet.employee_id.is_(None)
         )
     if f.sender:
         where.append(_contains(Submission.sender_email, f.sender.strip()))
@@ -81,7 +83,9 @@ def _conditions(f: TimesheetFilters) -> list[ColumnElement[bool]]:
     if f.received_from is not None:
         where.append(Submission.received_at >= _start_of_day(f.received_from))
     if f.received_to is not None:
-        where.append(Submission.received_at < _start_of_day(f.received_to + timedelta(days=1)))
+        where.append(
+            Submission.received_at < _start_of_day(f.received_to + timedelta(days=1))
+        )
     if f.min_confidence is not None:
         where.append(Timesheet.confidence >= f.min_confidence)
     if f.max_confidence is not None:

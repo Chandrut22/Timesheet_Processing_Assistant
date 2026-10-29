@@ -6,7 +6,8 @@ redis_client = Redis.from_url(settings.redis_url, decode_responses=True)
 
 
 def redis_key(*parts: str) -> str:
-    """redis_key("job", "123") -> "core:job:123". Redis is shared, so always use this."""
+    """redis_key("job", "123") -> "core:job:123". Redis is shared, so always use
+    this."""
     return ":".join((settings.redis_prefix, *parts))
 
 

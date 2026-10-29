@@ -7,7 +7,11 @@ from typing import Any
 import pytest
 
 from src.config.settings import settings
-from src.core.services.failures import MailboxRefusedError, MailboxUnavailableError, explain
+from src.core.services.failures import (
+    MailboxRefusedError,
+    MailboxUnavailableError,
+    explain,
+)
 from src.handlers.email.imap_source import ImapSource, placeholder_uid
 from src.utils.refetch import refetch_blocker
 
@@ -19,7 +23,9 @@ def test_who_can_be_fetched_again() -> None:
     assert "EMAIL_REFETCH_ENABLED" in (
         refetch_blocker("email", "<a@b>", enabled=False, imap_ready=True) or ""
     )
-    assert "IMAP_HOST" in (refetch_blocker("email", "<a@b>", enabled=True, imap_ready=False) or "")
+    assert "IMAP_HOST" in (
+        refetch_blocker("email", "<a@b>", enabled=True, imap_ready=False) or ""
+    )
     assert "no Message-ID" in (refetch_blocker("email", " ", **ok) or "")
 
 
@@ -89,7 +95,10 @@ def test_searches_the_inbox_then_the_other_folders_read_only(
     found = source_with(mailbox).find_message("<a@b>", ["Archive", "[Gmail]/All Mail"])
 
     assert found is not None
-    assert folder.selected == [("INBOX", True), ("[Gmail]/All Mail", True)]  # Archive skipped
+    assert folder.selected == [
+        ("INBOX", True),
+        ("[Gmail]/All Mail", True),
+    ]  # Archive skipped
     assert all(mark_seen is False for _, mark_seen in mailbox.fetches)
     assert all('HEADER "Message-ID" "<a@b>"' in c for c, _ in mailbox.fetches)
 

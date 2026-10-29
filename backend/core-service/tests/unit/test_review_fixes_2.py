@@ -59,7 +59,8 @@ def test_the_sweeper_purges_only_old_files(store: Path) -> None:
     assert (store / "notes.txt").exists()
 
 
-# --- #15 time limits --------------------------------------------------------------------
+# --- #15 time limits
+# --------------------------------------------------------------------
 
 
 def test_a_job_that_is_too_slow_is_not_retried() -> None:
@@ -95,17 +96,18 @@ def test_ai_client_retries_are_small_by_default() -> None:
     assert Settings(_env_file=None).llm_max_retries == 1
 
 
-# --- #17 database conflicts -------------------------------------------------------------
+# --- #17 database conflicts
+# -------------------------------------------------------------
 
 
-class _Orig(Exception):
+class _OrigError(Exception):
     def __init__(self, text: str, constraint: str | None = None) -> None:
         super().__init__(text)
         self.constraint_name = constraint
 
 
 def conflict(text: str, constraint: str | None = None) -> IntegrityError:
-    return IntegrityError("INSERT ...", {}, _Orig(text, constraint))
+    return IntegrityError("INSERT ...", {}, _OrigError(text, constraint))
 
 
 def test_conflict_messages_name_the_problem() -> None:
@@ -113,9 +115,13 @@ def test_conflict_messages_name_the_problem() -> None:
 
     assert "only once" in conflict_message(conflict("dup", "uq_timesheet_entries_day"))
     assert "code already exists" in conflict_message(
-        conflict('duplicate key value violates unique constraint "uq_employees_company_code"')
+        conflict(
+            'duplicate key value violates unique constraint "uq_employees_company_code"'
+        )
     )
-    assert conflict_message(conflict("violates check constraint ck_x")) == GENERIC_CONFLICT
+    assert (
+        conflict_message(conflict("violates check constraint ck_x")) == GENERIC_CONFLICT
+    )
 
 
 def test_integrity_error_becomes_409() -> None:

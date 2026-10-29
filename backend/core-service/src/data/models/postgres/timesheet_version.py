@@ -32,7 +32,9 @@ from src.data.models.postgres.base import SCHEMA, Base, UUIDPrimaryKeyMixin, enu
 class TimesheetVersion(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "timesheet_versions"
     __table_args__ = (
-        UniqueConstraint("timesheet_id", "version", name="uq_timesheet_versions_version"),
+        UniqueConstraint(
+            "timesheet_id", "version", name="uq_timesheet_versions_version"
+        ),
         CheckConstraint("version >= 1", name="version_positive"),
         CheckConstraint("jsonb_typeof(snapshot) = 'object'", name="snapshot_is_object"),
         enum_check("change", TimesheetChange),
@@ -50,7 +52,11 @@ class TimesheetVersion(UUIDPrimaryKeyMixin, Base):
     reprocess_run_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey(f"{SCHEMA}.reprocess_runs.id", ondelete="SET NULL"), index=True
     )
-    reason: Mapped[str | None] = mapped_column(Text)  # a rollback's or reprocess's reason
+    reason: Mapped[str | None] = mapped_column(
+        Text
+    )  # a rollback's or reprocess's reason
     # The timesheet's data at this version (version_history.SNAPSHOT_FIELDS + entries).
     snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

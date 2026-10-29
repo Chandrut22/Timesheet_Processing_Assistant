@@ -3,7 +3,7 @@
 // assumed when the sheet and the email name no dates). Entering days below turns it into
 // a normal timesheet.
 import { CalendarClock, CopyPlus } from "lucide-react";
-import { useState } from "react";
+import { useState, type JSX } from "react";
 import { errorMessage } from "@/services/apiErrors";
 import type { TimesheetRead } from "../types/timesheet";
 import { FormError } from "@/components/forms/Field";
@@ -25,7 +25,7 @@ export function WeeklyTotalPanel({
   /** The company's first day of the week (0 = Monday), or undefined when unknown. */
   weekStartDay: number | undefined;
   readOnly: boolean;
-}) {
+}): JSX.Element {
   const [week, setWeek] = useState(t.week_start ?? "");
   const save = useTimesheetMutation(
     ({ w, newVersion }: { w: string; newVersion: boolean }) =>
@@ -38,7 +38,7 @@ export function WeeklyTotalPanel({
       silentError: true,
     },
   );
-  const change = (newVersion: boolean) => save.mutate({ w: week, newVersion });
+  const change = (newVersion: boolean): void => save.mutate({ w: week, newVersion });
   const savingAsNew = save.isPending && save.variables?.newVersion === true;
   const assumed = hasFlag(t.flags, "week_assumed");
   const startDay = weekStartDay ?? 0;

@@ -80,7 +80,7 @@ export function filenameFromDisposition(header: unknown): string | null {
   return plain ? plain[2].trim() : null;
 }
 
-export function saveBlob(blob: Blob, filename: string) {
+export function saveBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

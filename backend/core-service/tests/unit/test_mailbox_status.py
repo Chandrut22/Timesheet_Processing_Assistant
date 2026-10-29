@@ -60,4 +60,7 @@ def test_defaults() -> None:
     from src.config.settings import Settings
 
     d = Settings(_env_file=None)
-    assert d.email_manual_check_cooldown_seconds == 30 and d.email_listener_stale_seconds == 300
+    assert (
+        d.email_manual_check_cooldown_seconds == 30
+        and d.email_listener_stale_seconds == 300
+    )

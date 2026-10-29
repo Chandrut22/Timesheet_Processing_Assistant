@@ -1,7 +1,7 @@
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { SlidersHorizontal, RotateCcw } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type JSX } from "react";
 import { toast } from "sonner";
 import {
   TIMESHEET_STATUSES,
@@ -54,7 +54,7 @@ const routeApi = getRouteApi("/_app/review");
 const LOCKED = new Set(["exported"]);
 const EMPTY: Set<string> = new Set();
 
-export function ReviewQueuePage() {
+export function ReviewQueuePage(): JSX.Element {
   const search = routeApi.useSearch();
   const navigate = routeApi.useNavigate();
   const params = useMemo(() => reviewParams(search), [search]);
@@ -66,7 +66,7 @@ export function ReviewQueuePage() {
     ids: new Set(),
   });
   const selected = selection.key === paramsKey ? selection.ids : EMPTY;
-  const setSelected = (next: Set<string> | ((prev: Set<string>) => Set<string>)) =>
+  const setSelected = (next: Set<string> | ((prev: Set<string>) => Set<string>)): void =>
     setSelection((cur) => {
       const prev = cur.key === paramsKey ? cur.ids : EMPTY;
       return { key: paramsKey, ids: typeof next === "function" ? next(prev) : next };
@@ -90,14 +90,14 @@ export function ReviewQueuePage() {
 
   const sort = params.sort ?? REVIEW_DEFAULTS.sort;
   const order = params.order ?? REVIEW_DEFAULTS.order;
-  const onSort = (key: TimesheetSort) =>
+  const onSort = (key: TimesheetSort): void =>
     update({ sort: key, order: sort === key && order === "desc" ? "asc" : "desc" });
 
   const selectable = items.filter((t) => !LOCKED.has(t.status));
   const allSelected = selectable.length > 0 && selectable.every((t) => selected.has(t.id));
-  const toggleAll = () =>
+  const toggleAll = (): void =>
     setSelected(allSelected ? new Set() : new Set(selectable.map((t) => t.id)));
-  const toggle = (id: string) =>
+  const toggle = (id: string): void =>
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -111,7 +111,7 @@ export function ReviewQueuePage() {
   const matching = matchingId ? items.find((t) => t.id === matchingId) : undefined;
   const matchNext = matching ? nextUnmatched(items, matching.id) : null;
 
-  const labelFor = (id: string) => {
+  const labelFor = (id: string): string => {
     const t = items.find((x) => x.id === id);
     return t ? timesheetEmployeeName(t, employees).name : id.slice(0, 8);
   };
@@ -435,7 +435,7 @@ function QueueRow({
   employee: { name: string; matched: boolean; code: string | null };
   company: string;
   onMatch: () => void;
-}) {
+}): JSX.Element {
   return (
     <TableRow className="group" data-state={selected ? "selected" : undefined}>
       <TableCell>
@@ -496,7 +496,7 @@ function DateRange({
   from?: string;
   to?: string;
   onChange: (from: string | undefined, to: string | undefined) => void;
-}) {
+}): JSX.Element {
   return (
     // Two date boxes need two columns: in one they overflowed into the next filter.
     <div className="grid min-w-0 gap-1.5 sm:col-span-2">

@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyRound, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type JSX } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -43,7 +43,7 @@ import { formatDate, formatRelative } from "@/utils/format";
 import { userService } from "../services/userService";
 import { userKeys } from "../queries/userQueries";
 
-export function UsersPage() {
+export function UsersPage(): JSX.Element {
   const me = useUser();
   const queryClient = useQueryClient();
   const [q, setQ] = useState("");
@@ -300,7 +300,7 @@ function CreateUserDialog({
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-}) {
+}): JSX.Element {
   const queryClient = useQueryClient();
   const form = useForm<CreateValues>({
     resolver: zodResolver(createSchema),
@@ -386,7 +386,13 @@ const resetSchema = z
   });
 type ResetValues = z.infer<typeof resetSchema>;
 
-function ResetPasswordDialog({ user, onClose }: { user: UserRead; onClose: () => void }) {
+function ResetPasswordDialog({
+  user,
+  onClose,
+}: {
+  user: UserRead;
+  onClose: () => void;
+}): JSX.Element {
   const form = useForm<ResetValues>({
     resolver: zodResolver(resetSchema),
     defaultValues: { new_password: "", confirm: "" },

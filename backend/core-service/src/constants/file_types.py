@@ -15,7 +15,9 @@ SUPPORTED_EXTENSIONS: dict[str, str] = {
     ".webp": "image/webp",
 }
 
-IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"})
+IMAGE_EXTENSIONS = frozenset(
+    {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
+)
 MIN_TIMESHEET_IMAGE_BYTES = 20_000  # smaller images are logos / email signatures
 
 

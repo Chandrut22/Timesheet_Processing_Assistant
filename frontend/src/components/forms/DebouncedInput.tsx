@@ -1,5 +1,5 @@
 import type * as React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type JSX } from "react";
 import { Input } from "@/components/ui/input";
 import { SEARCH_DEBOUNCE_MS } from "@/config/constants";
 import { useDebouncedCallback } from "@/hooks/useDebounce";
@@ -20,7 +20,7 @@ export function DebouncedInput({
   value: string;
   onCommit: (value: string) => void;
   delay?: number;
-}) {
+}): JSX.Element {
   const [draft, setDraft] = useState(value);
   const [synced, setSynced] = useState(value);
   const [lastCommitted, setLastCommitted] = useState(value);

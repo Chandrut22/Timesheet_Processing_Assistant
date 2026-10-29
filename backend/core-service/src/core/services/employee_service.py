@@ -45,8 +45,8 @@ class EmployeeService:
         return employee
 
     async def add_new(self, data: EmployeeCreate) -> Employee:
-        """Every rule of create(), without the commit (the bulk import commits once for a
-        whole file)."""
+        """Every rule of create(), without the commit (the bulk import commits once for
+        a whole file)."""
         company = await self.companies.get(data.company_id)
         if company is None:
             raise ValidationFailedError("Company not found.")
@@ -82,7 +82,9 @@ class EmployeeService:
         code = changes.get("employee_code")
         code = " ".join(code.split()) if code else None
         email = changes["email"].lower() if changes.get("email") else None
-        await self._ensure_unique(employee.company_id, code, email, exclude_id=employee.id)
+        await self._ensure_unique(
+            employee.company_id, code, email, exclude_id=employee.id
+        )
 
         if code:
             employee.employee_code = code
@@ -103,7 +105,9 @@ class EmployeeService:
             and employee.assignment_end is not None
             and employee.assignment_end < employee.assignment_start
         ):
-            raise ValidationFailedError("assignment_end cannot be before assignment_start.")
+            raise ValidationFailedError(
+                "assignment_end cannot be before assignment_start."
+            )
         await self.session.flush()
 
     async def _ensure_unique(
@@ -116,7 +120,9 @@ class EmployeeService:
         if code:
             found = await self.employees.get_by_code(company_id, code)
             if found is not None and found.id != exclude_id:
-                raise ConflictError(f"Employee code '{code}' is already used in this company.")
+                raise ConflictError(
+                    f"Employee code '{code}' is already used in this company."
+                )
         if email:
             found = await self.employees.get_by_email(company_id, email)
             if found is not None and found.id != exclude_id:

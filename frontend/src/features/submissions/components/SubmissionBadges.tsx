@@ -3,6 +3,7 @@ import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { humanize } from "@/utils/format";
 import { IN_PROGRESS_STATES } from "../utils/submissionStates";
 import { writingChip } from "../utils/writing";
+import type { JSX } from "react";
 
 const STATE_TONE: Record<string, BadgeVariant> = {
   received: "secondary",
@@ -23,7 +24,7 @@ const STATE_LABEL: Record<string, string> = {
   awaiting_review: "Awaiting review",
 };
 
-export function SubmissionStateBadge({ state }: { state: string }) {
+export function SubmissionStateBadge({ state }: { state: string }): JSX.Element {
   const busy = IN_PROGRESS_STATES.has(state);
   return (
     <Badge variant={STATE_TONE[state] ?? "secondary"}>
@@ -43,11 +44,11 @@ const STATUS_TONE: Record<string, BadgeVariant> = {
   ignored: "muted",
 };
 
-export function SubmissionStatusBadge({ status }: { status: string }) {
+export function SubmissionStatusBadge({ status }: { status: string }): JSX.Element {
   return <Badge variant={STATUS_TONE[status] ?? "secondary"}>{humanize(status)}</Badge>;
 }
 
-export function SourceIcon({ source }: { source: string }) {
+export function SourceIcon({ source }: { source: string }): JSX.Element {
   return source === "upload" ? (
     <Upload className="size-4 text-muted-foreground" aria-label="Upload" />
   ) : (
@@ -56,7 +57,11 @@ export function SourceIcon({ source }: { source: string }) {
 }
 
 /** On a photo / scan read by the vision model: printed, mixed, handwritten or unclear. */
-export function WritingClassChip({ doc }: { doc: Parameters<typeof writingChip>[0] }) {
+export function WritingClassChip({
+  doc,
+}: {
+  doc: Parameters<typeof writingChip>[0];
+}): JSX.Element | null {
   const chip = writingChip(doc);
   if (!chip) return null;
   return (

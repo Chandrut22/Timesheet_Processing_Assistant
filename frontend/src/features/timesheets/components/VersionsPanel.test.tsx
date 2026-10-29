@@ -6,6 +6,7 @@ import { renderWithClient } from "@/test/render";
 import { cleanup, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TimesheetRead } from "../types/timesheet";
+import type { UserEvent } from "@testing-library/user-event";
 
 const listVersions = vi.hoisted(() => vi.fn());
 const getVersion = vi.hoisted(() => vi.fn());
@@ -19,7 +20,7 @@ const { VersionsPanel } = await import("./VersionsPanel");
 
 const timesheet = { ...(fixtures.core.timesheet as TimesheetRead), version: 2 };
 
-function renderPanel(readOnly = false) {
+function renderPanel(readOnly = false): UserEvent {
   renderWithClient(<VersionsPanel t={timesheet} readOnly={readOnly} />);
   return userEvent.setup();
 }

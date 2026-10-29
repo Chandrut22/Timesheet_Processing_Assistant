@@ -1,4 +1,9 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  type UseMutationResult,
+  type DefaultError,
+} from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { TimesheetRead } from "../types/timesheet";
 import { auditKeys } from "@/features/audit";
@@ -17,7 +22,7 @@ export function useTimesheetMutation<V>(
     silentError?: boolean;
     onSuccess?: (t: TimesheetRead) => void;
   } = {},
-) {
+): UseMutationResult<TimesheetRead, DefaultError, V> {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: fn,

@@ -5,7 +5,8 @@ admin    - master data (companies, rates, employees, whitelist, holidays, and th
 reviewer - upload, review (edit hours, match, recalculate, approve / reject, bulk),
            reprocess, payroll export (preview, create, download as CSV or Excel), read
            the lists and the audit log
-Any signed-in user is an admin or a reviewer, so read-only routes use CurrentPrincipal."""
+Any signed-in user is an admin or a reviewer, so read-only routes use
+CurrentPrincipal."""
 
 from src.constants.roles import RoleName
 

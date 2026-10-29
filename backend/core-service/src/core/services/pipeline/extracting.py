@@ -16,9 +16,19 @@ from src.config.settings import settings
 from src.constants.timesheet_status import StepName, StepResult
 from src.control.agents.extraction_agent import extract_timesheets
 from src.core.services.activity_log import Stopwatch, record_step
-from src.core.services.chunking import Combined, Piece, Split, merge_results, single_piece
+from src.core.services.chunking import (
+    Combined,
+    Piece,
+    Split,
+    merge_results,
+    single_piece,
+)
 from src.core.services.chunking import split_with_overlap as split_document
-from src.core.services.document_tables import PersonRows, count_people, missing_rows_flag
+from src.core.services.document_tables import (
+    PersonRows,
+    count_people,
+    missing_rows_flag,
+)
 from src.core.services.failures import AnswerTooLongError
 from src.core.services.timesheet_builder import truncation_flag
 from src.data.models import Document, Submission
@@ -27,10 +37,12 @@ from src.observability.tracing.spans import pipeline_span
 from src.schemas.extraction import ExtractionResult
 
 logger = logging.getLogger(__name__)
-RETRY_PAUSE_S = 1.0  # between attempts of one piece (a dropped connection, a busy model)
+RETRY_PAUSE_S = (
+    1.0  # between attempts of one piece (a dropped connection, a busy model)
+)
 
 
-class _PieceSkipped(Exception):
+class _PieceSkippedError(Exception):
     """A piece not sent to the AI because another piece of the same document failed."""
 
 
@@ -42,7 +54,9 @@ class Extraction:
     text: str  # the document text the AI was given
     parts: int  # pieces the document was read in (1 = read whole)
     missing_flag: dict[str, object] | None  # people in the tables with no timesheet
-    size_flags: list[dict[str, Any]] = field(default_factory=list)  # truncated / too large
+    size_flags: list[dict[str, Any]] = field(
+        default_factory=list
+    )  # truncated / too large
 
     @property
     def result(self) -> ExtractionResult:
@@ -50,7 +64,8 @@ class Extraction:
 
 
 def split_for_extraction(text: str) -> Split:
-    """The pieces this document is read in (one piece when chunking is off or it is short)."""
+    """The pieces this document is read in (one piece when chunking is off or it is
+    short)."""
     if not settings.chunking_enabled:
         return single_piece(text)
     return split_document(
@@ -67,18 +82,22 @@ def size_flags(split: Split) -> list[dict[str, Any]]:
     flags: list[dict[str, Any]] = []
     limit = settings.llm_max_input_chars
     if len(split.pieces) == 1:
-        flag = truncation_flag(split.pieces[0].text)  # one piece longer than the AI reads
+        flag = truncation_flag(
+            split.pieces[0].text
+        )  # one piece longer than the AI reads
         if flag is not None:
             flags.append(flag)
     else:
-        long_parts = [n for n, p in enumerate(split.pieces, start=1) if len(p.text) > limit]
+        long_parts = [
+            n for n, p in enumerate(split.pieces, start=1) if len(p.text) > limit
+        ]
         if long_parts:
             flags.append(
                 {
                     "code": "document_truncated",
-                    "message": f"Part(s) {', '.join(map(str, long_parts))} of this long "
-                    f"document had a single block longer than {limit:,} characters; only "
-                    "the start of it was read. Check the original.",
+                    "message": f"Part(s) {', '.join(map(str, long_parts))} of this "
+                    f"long document had a single block longer than {limit:,} "
+                    "characters; only the start of it was read. Check the original.",
                     "parts": long_parts,
                 }
             )
@@ -86,10 +105,10 @@ def size_flags(split: Split) -> list[dict[str, Any]]:
         flags.append(
             {
                 "code": "document_too_large",
-                "message": f"The document is too long ({split.total_chars:,} characters): "
-                f"it was read in {len(split.pieces)} parts (the most allowed), up to line "
-                f"{split.stopped_at_line}. Hours after that are missing. Split the file "
-                "and send it again.",
+                "message": f"The document is too long ({split.total_chars:,} "
+                f"characters): it was read in {len(split.pieces)} parts (the most "
+                f"allowed), up to line {split.stopped_at_line}. Hours after that are "
+                "missing. Split the file and send it again.",
                 "characters": split.total_chars,
                 "read_characters": split.read_chars,
                 "stopped_at_line": split.stopped_at_line,
@@ -150,20 +169,27 @@ async def extract_pieces(
             attempt = 0
             while True:
                 if failed.is_set():
-                    raise _PieceSkipped
+                    raise _PieceSkippedError
                 attempt += 1
                 try:
                     result = await call(number, piece)
                     break
                 except AnswerTooLongError:
                     failed.set()  # a retry gives the same long answer
-                    parts.append({**line, "attempts": attempt, "ms": watch.ms, "result": "error"})
+                    parts.append(
+                        {**line, "attempts": attempt, "ms": watch.ms, "result": "error"}
+                    )
                     raise
                 except Exception as exc:
                     if attempt > retries:
                         failed.set()
                         parts.append(
-                            {**line, "attempts": attempt, "ms": watch.ms, "result": "error"}
+                            {
+                                **line,
+                                "attempts": attempt,
+                                "ms": watch.ms,
+                                "result": "error",
+                            }
                         )
                         raise
                     logger.warning(
@@ -175,7 +201,12 @@ async def extract_pieces(
                     )
                     await asyncio.sleep(RETRY_PAUSE_S)
             parts.append(
-                {**line, "attempts": attempt, "ms": watch.ms, "timesheets": len(result.timesheets)}
+                {
+                    **line,
+                    "attempts": attempt,
+                    "ms": watch.ms,
+                    "timesheets": len(result.timesheets),
+                }
             )
             return result
 
@@ -184,7 +215,7 @@ async def extract_pieces(
     )
     parts.sort(key=lambda p: int(p["part"]))
     errors = [o for o in outcomes if isinstance(o, BaseException)]
-    real = [e for e in errors if not isinstance(e, _PieceSkipped)]
+    real = [e for e in errors if not isinstance(e, _PieceSkippedError)]
     if real or errors:
         raise (real or errors)[0]
     results = [o for o in outcomes if isinstance(o, ExtractionResult)]
@@ -294,7 +325,8 @@ async def extract_document(
         )
         + ("; the document was too long to read in full" if split.capped else "")
         + (
-            f"; {counts['people_missing']} of {people.total} people on the sheet missing"
+            f"; {counts['people_missing']} of {people.total} people on the sheet "
+            "missing"
             if missing_flag and people is not None
             else ""
         ),

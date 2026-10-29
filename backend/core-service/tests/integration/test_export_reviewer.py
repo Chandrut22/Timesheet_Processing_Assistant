@@ -1,6 +1,6 @@
-"""Payroll export by a REVIEWER, through the HTTP API, on a real database (see conftest.py):
-create, download as CSV and as Excel (the same rows), who created it, and two exports of
-the same week at the same moment."""
+"""Payroll export by a REVIEWER, through the HTTP API, on a real database (see
+conftest.py): create, download as CSV and as Excel (the same rows), who created it, and
+two exports of the same week at the same moment."""
 
 import asyncio
 import csv
@@ -33,7 +33,9 @@ from src.data.models import Company, Employee, ExportBatch, Submission, Timeshee
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 PUBLIC = (
     KEY.public_key()
-    .public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
+    .public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
+    )
     .decode()
 )
 WEEK = date(2026, 9, 7)  # a Monday (the company's weeks start on Monday)
@@ -42,7 +44,8 @@ REVIEWER_NAME = "Rita Reviewer"
 NUMERIC = {
     c
     for c in CSV_COLUMNS
-    if c.endswith(("_hours", "_rate", "_amount")) or c in ("hourly_rate", "gross_amount")
+    if c.endswith(("_hours", "_rate", "_amount"))
+    or c in ("hourly_rate", "gross_amount")
 }
 
 
@@ -63,7 +66,8 @@ def bearer(role: str, user_id: uuid.UUID, name: str) -> dict[str, str]:
 
 
 async def seed(people: int = 3) -> uuid.UUID:
-    """One company and `people` approved, priced timesheets for WEEK. Returns the company id."""
+    """One company and `people` approved, priced timesheets for WEEK. Returns the
+    company id."""
     async with SessionLocal() as s:
         await s.execute(
             text(
@@ -90,7 +94,9 @@ async def seed(people: int = 3) -> uuid.UUID:
         await s.flush()
         for n in range(people):
             employee = Employee(
-                company_id=company.id, employee_code=f"E{n:03d}", full_name=f"Person {n}"
+                company_id=company.id,
+                employee_code=f"E{n:03d}",
+                full_name=f"Person {n}",
             )
             s.add(employee)
             await s.flush()
@@ -155,7 +161,8 @@ async def test_reviewer_creates_an_export_and_downloads_both_formats(
     company_id = await seed(people=3)
 
     preview = await reviewer.get(
-        "/exports/preview", params={"company_id": str(company_id), "week_start": WEEK.isoformat()}
+        "/exports/preview",
+        params={"company_id": str(company_id), "week_start": WEEK.isoformat()},
     )
     assert preview.status_code == 200, preview.text
     assert len(preview.json()["rows"]) == 3
@@ -177,7 +184,9 @@ async def test_reviewer_creates_an_export_and_downloads_both_formats(
     assert batch["filename"] in as_csv.headers["content-disposition"]
     assert batch["filename"].endswith(".csv")
 
-    as_xlsx = await reviewer.get(f"/exports/{batch['id']}/download", params={"format": "xlsx"})
+    as_xlsx = await reviewer.get(
+        f"/exports/{batch['id']}/download", params={"format": "xlsx"}
+    )
     assert as_xlsx.status_code == 200
     assert as_xlsx.headers["content-type"] == (
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -197,7 +206,9 @@ async def test_reviewer_creates_an_export_and_downloads_both_formats(
             assert got == expected, column
 
 
-async def test_the_creator_recorded_is_the_reviewer(reviewer: httpx.AsyncClient) -> None:
+async def test_the_creator_recorded_is_the_reviewer(
+    reviewer: httpx.AsyncClient,
+) -> None:
     company_id = await seed(people=1)
     r = await reviewer.post(
         "/exports", json={"company_id": str(company_id), "week_start": WEEK.isoformat()}
@@ -218,7 +229,9 @@ async def test_unknown_format_is_refused(reviewer: httpx.AsyncClient) -> None:
     r = await reviewer.post(
         "/exports", json={"company_id": str(company_id), "week_start": WEEK.isoformat()}
     )
-    bad = await reviewer.get(f"/exports/{r.json()['id']}/download", params={"format": "pdf"})
+    bad = await reviewer.get(
+        f"/exports/{r.json()['id']}/download", params={"format": "pdf"}
+    )
     assert bad.status_code == 422
 
 
@@ -230,9 +243,17 @@ async def test_parallel_exports_never_put_a_timesheet_in_two_batches(
     company_id = await seed(people=4)
     people = [
         Principal(
-            id=REVIEWER_ID, role=RoleName.REVIEWER, name=REVIEWER_NAME, email="rita@example.com"
+            id=REVIEWER_ID,
+            role=RoleName.REVIEWER,
+            name=REVIEWER_NAME,
+            email="rita@example.com",
         ),
-        Principal(id=uuid.uuid4(), role=RoleName.ADMIN, name="Ada Admin", email="ada@example.com"),
+        Principal(
+            id=uuid.uuid4(),
+            role=RoleName.ADMIN,
+            name="Ada Admin",
+            email="ada@example.com",
+        ),
     ]
 
     async def create(actor: Principal) -> uuid.UUID | str:

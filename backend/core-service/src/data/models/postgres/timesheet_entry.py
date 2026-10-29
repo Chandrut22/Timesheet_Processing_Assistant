@@ -10,7 +10,8 @@ In Python each day is a TimesheetEntry (a plain dataclass, not a table). The col
 type (EntryList) checks and orders the days on the way in: one entry per date, hours
 0-24, sorted by date. To change days, assign a new list (timesheet.entries = [...]);
 list operations (append, clear, ...) are tracked too. Changing a field of a day that
-is already saved is NOT seen by the database: build a new entry (dataclasses.replace)."""
+is already saved is NOT seen by the database: build a new entry
+(dataclasses.replace)."""
 
 from dataclasses import asdict, dataclass
 from datetime import date
@@ -69,7 +70,9 @@ def check_entries(entries: list[TimesheetEntry]) -> list[TimesheetEntry]:
         if not (Decimal("0") <= Decimal(entry.hours) <= MAX_HOURS):
             raise ValueError(f"{entry.work_date}: {entry.hours} h is outside 0-24.")
         if entry.note is not None and len(entry.note) > NOTE_MAX:
-            raise ValueError(f"{entry.work_date}: the note is longer than {NOTE_MAX} characters.")
+            raise ValueError(
+                f"{entry.work_date}: the note is longer than {NOTE_MAX} characters."
+            )
     return sorted(entries, key=lambda e: e.work_date)
 
 

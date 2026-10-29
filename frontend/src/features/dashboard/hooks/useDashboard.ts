@@ -1,4 +1,9 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useQueryClient,
+  type UseQueryResult,
+  type DefaultError,
+} from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import type { DashboardSnapshot } from "../types/dashboard";
 import { SseError } from "@/lib/sse";
@@ -8,7 +13,7 @@ import { dashboardKeys } from "../queries/dashboardQueries";
 
 export type StreamState = "connecting" | "live" | "reconnecting";
 
-const sleep = (ms: number, signal: AbortSignal) =>
+const sleep = (ms: number, signal: AbortSignal): Promise<void> =>
   new Promise<void>((resolve) => {
     const timer = setTimeout(resolve, ms);
     signal.addEventListener("abort", () => (clearTimeout(timer), resolve()), { once: true });
@@ -16,7 +21,9 @@ const sleep = (ms: number, signal: AbortSignal) =>
 
 /** The dashboard numbers, kept live by the stream. While the stream is down the
  *  query polls every 15 s, so the page never freezes. */
-export function useDashboard() {
+export function useDashboard(): UseQueryResult<DashboardSnapshot, DefaultError> & {
+  stream: StreamState;
+} {
   const qc = useQueryClient();
   const [stream, setStream] = useState<StreamState>("connecting");
 

@@ -23,24 +23,24 @@ export function useWindowFileDrop(
   });
 
   useEffect(() => {
-    const onDragEnter = (e: DragEvent) => {
+    const onDragEnter = (e: DragEvent): void => {
       if (!hasFiles(e)) return;
       e.preventDefault();
       depth.current += 1;
       if (latest.current.enabled) setDragging(true);
     };
-    const onDragLeave = (e: DragEvent) => {
+    const onDragLeave = (e: DragEvent): void => {
       if (!hasFiles(e)) return;
       depth.current = Math.max(0, depth.current - 1);
       if (depth.current === 0) setDragging(false);
     };
-    const onDragOver = (e: DragEvent) => {
+    const onDragOver = (e: DragEvent): void => {
       e.preventDefault();
       if (e.dataTransfer && hasFiles(e)) {
         e.dataTransfer.dropEffect = latest.current.enabled ? "copy" : "none";
       }
     };
-    const onDrop = (e: DragEvent) => {
+    const onDrop = (e: DragEvent): void => {
       e.preventDefault();
       depth.current = 0;
       setDragging(false);

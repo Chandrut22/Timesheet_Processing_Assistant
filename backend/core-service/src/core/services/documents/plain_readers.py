@@ -43,10 +43,14 @@ def csv_to_markdown(data: bytes, filename: str = "file.csv") -> str:
         raise PlainReadError(f"'{filename}' is empty.")
     sample = text[:4096]
     try:
-        dialect: type[csv.Dialect] | csv.Dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
+        dialect: type[csv.Dialect] | csv.Dialect = csv.Sniffer().sniff(
+            sample, delimiters=",;\t|"
+        )
     except csv.Error:
         dialect = csv.excel
-    rows = [r for r in csv.reader(io.StringIO(text), dialect) if any(c.strip() for c in r)]
+    rows = [
+        r for r in csv.reader(io.StringIO(text), dialect) if any(c.strip() for c in r)
+    ]
     if not rows:
         raise PlainReadError(f"No rows found in '{filename}'.")
     width = max(len(r) for r in rows)
@@ -107,15 +111,15 @@ def missing_numbers(markdown: str, text_layer: str) -> list[str]:
 
 
 def with_pdf_text_layer(markdown: str, text_layer: str, min_missing: int = 3) -> str:
-    """Docling's output, plus the PDF's text layer when Docling replaced part of the page
-    by a picture and the text layer holds at least `min_missing` numbers it dropped."""
+    """Docling's output, plus the PDF's text layer when Docling replaced part of the
+    page by a picture and the text layer holds at least `min_missing` numbers it
+    dropped."""
     if IMAGE_PLACEHOLDER not in markdown or not text_layer.strip():
         return markdown
     if len(missing_numbers(markdown, text_layer)) < min_missing:
         return markdown
     return (
-        f"{markdown}\n\n## Text layer of the PDF\n\n"
-        "(The reader saw part of the page as a picture; this is the PDF's own text, "
-        "including what that picture covered.)\n\n"
-        f"{text_layer}"
+        f"{markdown}\n\n## Text layer of the PDF\n\n(The reader saw part of the page "
+        "as a picture; this is the PDF's own text, including what that picture "
+        f"covered.)\n\n{text_layer}"
     )

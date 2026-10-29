@@ -52,7 +52,13 @@ export default defineConfig([
       reactRefresh.configs.vite,
       prettier,
     ],
-    languageOptions: { globals: globals.browser },
+    languageOptions: {
+      globals: globals.browser,
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
     rules: {
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/explicit-function-return-type": ["warn", { allowExpressions: true }],

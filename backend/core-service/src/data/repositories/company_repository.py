@@ -24,13 +24,17 @@ class CompanyRepository(BaseRepository[Company]):
             query = query.where(Company.name.ilike(f"%{q.strip()}%"))
         if is_active is not None:
             query = query.where(Company.is_active.is_(is_active))
-        return await self.paginate(query.order_by(Company.name, Company.id), page=page, size=size)
+        return await self.paginate(
+            query.order_by(Company.name, Company.id), page=page, size=size
+        )
 
 
 class WhitelistRepository(BaseRepository[WhitelistSender]):
     model = WhitelistSender
 
-    async def list_for_company(self, company_id: uuid.UUID) -> Sequence[WhitelistSender]:
+    async def list_for_company(
+        self, company_id: uuid.UUID
+    ) -> Sequence[WhitelistSender]:
         rows = await self.session.scalars(
             select(WhitelistSender)
             .where(WhitelistSender.company_id == company_id)
@@ -54,9 +58,13 @@ class WhitelistRepository(BaseRepository[WhitelistSender]):
             .where(
                 Company.is_active.is_(True),
                 or_(
-                    and_(WhitelistSender.kind == SenderKind.EMAIL, WhitelistSender.value == email),
                     and_(
-                        WhitelistSender.kind == SenderKind.DOMAIN, WhitelistSender.value == domain
+                        WhitelistSender.kind == SenderKind.EMAIL,
+                        WhitelistSender.value == email,
+                    ),
+                    and_(
+                        WhitelistSender.kind == SenderKind.DOMAIN,
+                        WhitelistSender.value == domain,
                     ),
                 ),
             )

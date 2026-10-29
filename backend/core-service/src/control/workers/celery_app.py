@@ -6,7 +6,9 @@ from celery.signals import setup_logging as celery_setup_logging
 from src.config.settings import settings
 from src.observability.logging.setup import setup_logging
 
-celery_app = Celery("core", broker=settings.redis_url, include=["src.control.workers.tasks"])
+celery_app = Celery(
+    "core", broker=settings.redis_url, include=["src.control.workers.tasks"]
+)
 
 
 @celery_setup_logging.connect

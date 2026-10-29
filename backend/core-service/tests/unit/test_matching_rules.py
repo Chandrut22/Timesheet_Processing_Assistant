@@ -37,11 +37,17 @@ MON = date(2026, 10, 5)
 
 
 def test_legal_words_and_punctuation_are_ignored() -> None:
-    assert normalize_company("ABC Staffing Solutions Pvt. Ltd.") == "abc staffing solutions"
+    assert (
+        normalize_company("ABC Staffing Solutions Pvt. Ltd.")
+        == "abc staffing solutions"
+    )
 
 
 def test_company_found_by_name_alias_prefix_and_spelling() -> None:
-    assert match_company("abc staffing solutions private limited", COMPANIES).company_id == ABC.id
+    assert (
+        match_company("abc staffing solutions private limited", COMPANIES).company_id
+        == ABC.id
+    )
     assert match_company("ABC Staff.", COMPANIES).method == "alias"
     assert match_company("Northwind Workforce", COMPANIES).method == "prefix"
     fuzzy = match_company("Northwnd Workforce Partners", COMPANIES)
@@ -69,7 +75,9 @@ def test_sender_company_used_when_sheet_agrees_or_is_silent() -> None:
 def test_unknown_company_on_the_sheet_keeps_sender_but_flags() -> None:
     decision = decide_company("Contoso Ltd", ABC, COMPANIES)
     assert decision.company_id == ABC.id
-    assert decision.flag is not None and "not a known company" in decision.flag["message"]
+    assert (
+        decision.flag is not None and "not a known company" in decision.flag["message"]
+    )
 
 
 def test_upload_without_company_takes_it_from_the_sheet() -> None:
@@ -78,7 +86,8 @@ def test_upload_without_company_takes_it_from_the_sheet() -> None:
     assert decision.flag is not None and decision.flag["code"] == "company_from_sheet"
 
 
-# --- employees: confidence and reasons (cases 1 and 3) ----------------------------------
+# --- employees: confidence and reasons (cases 1 and 3)
+# ----------------------------------
 
 
 def emp(name: str, code: str, *aliases: str) -> EmployeeRecord:
@@ -87,7 +96,9 @@ def emp(name: str, code: str, *aliases: str) -> EmployeeRecord:
 
 def test_r_kumar_matches_by_initial_and_surname_with_a_reason() -> None:
     ramesh = emp("Ramesh Kumar", "SYN-EMP-101")
-    result = match_employee("R. Kumar", None, [ramesh, emp("Priya Nair", "SYN-EMP-002")])
+    result = match_employee(
+        "R. Kumar", None, [ramesh, emp("Priya Nair", "SYN-EMP-002")]
+    )
     assert (result.employee_id, result.method, result.confidence) == (
         ramesh.id,
         "initial_surname",
@@ -98,7 +109,11 @@ def test_r_kumar_matches_by_initial_and_surname_with_a_reason() -> None:
 
 
 def test_three_johns_are_not_matched_and_all_are_named() -> None:
-    johns = [emp("John Abraham", "E7"), emp("John Mathew", "E9"), emp("John Paul", "E12")]
+    johns = [
+        emp("John Abraham", "E7"),
+        emp("John Mathew", "E9"),
+        emp("John Paul", "E12"),
+    ]
     result = match_employee("John", None, [*johns, emp("Priya Nair", "E2")])
     assert result.employee_id is None
     assert len(result.ambiguous) == 3
@@ -106,7 +121,9 @@ def test_three_johns_are_not_matched_and_all_are_named() -> None:
     assert reason.startswith("3 employees fit 'John'")
     assert "John Mathew (E9)" in reason
 
-    timesheet = Timesheet(flags=[], extracted_name="John", read_confidence=Decimal("0.95"))
+    timesheet = Timesheet(
+        flags=[], extracted_name="John", read_confidence=Decimal("0.95")
+    )
     apply_match(timesheet, result)
     flag = next(f for f in timesheet.flags if f["code"] == "employee_unmatched")
     assert "3 employees fit 'John'" in flag["message"]
@@ -116,15 +133,24 @@ def test_three_johns_are_not_matched_and_all_are_named() -> None:
 def test_a_single_john_matches_by_first_name_but_is_never_auto_approved() -> None:
     john = emp("John Mathew", "E9")
     result = match_employee("John", None, [john, emp("Priya Nair", "E2")])
-    assert (result.employee_id, result.method, result.confidence) == (john.id, "first_name", 0.7)
+    assert (result.employee_id, result.method, result.confidence) == (
+        john.id,
+        "first_name",
+        0.7,
+    )
 
 
 def test_confidence_is_the_lower_of_reading_and_matching() -> None:
     priya = emp("Priya Nair", "E2", "P. Nair")
-    timesheet = Timesheet(flags=[], extracted_name="P. Nair", read_confidence=Decimal("0.80"))
+    timesheet = Timesheet(
+        flags=[], extracted_name="P. Nair", read_confidence=Decimal("0.80")
+    )
     apply_match(timesheet, match_employee("P. Nair", None, [priya]), matched=priya)
     assert timesheet.confidence == Decimal("0.8")  # reading (0.80) < alias (0.95)
-    assert timesheet.match_reason is not None and "by alias 'P. Nair'" in timesheet.match_reason
+    assert (
+        timesheet.match_reason is not None
+        and "by alias 'P. Nair'" in timesheet.match_reason
+    )
 
 
 # --- email vs attachment hours (case 4) ----------------------------------------------
@@ -134,7 +160,10 @@ def test_conflicting_hours_shows_both_values() -> None:
     flag = conflicting_hours_flag(Decimal("40"), Decimal("38"))
     assert flag is not None
     assert (flag["email_hours"], flag["attachment_hours"]) == (40.0, 38.0)
-    assert "email says 40 h" in flag["message"] and "attachment says 38 h" in flag["message"]
+    assert (
+        "email says 40 h" in flag["message"]
+        and "attachment says 38 h" in flag["message"]
+    )
     assert conflicting_hours_flag(Decimal("38"), Decimal("38")) is None
     assert conflicting_hours_flag(None, Decimal("38")) is None
 
@@ -154,7 +183,9 @@ def _extracted(email_total: float | None) -> ExtractedTimesheet:
 
 
 def _ctx(is_email_body: bool = False) -> BuildContext:
-    return BuildContext(uuid.uuid4(), uuid.uuid4(), None, MON, is_email_body=is_email_body)
+    return BuildContext(
+        uuid.uuid4(), uuid.uuid4(), None, MON, is_email_body=is_email_body
+    )
 
 
 def test_builder_flags_email_40_vs_attachment_38() -> None:
@@ -171,7 +202,8 @@ def test_no_conflict_when_the_email_body_is_the_timesheet() -> None:
     assert not any(f["code"] == "conflicting_hours" for f in timesheet.flags)
 
 
-# --- assignment dates -------------------------------------------------------------------
+# --- assignment dates
+# -------------------------------------------------------------------
 
 
 def _week(*hours: int) -> Timesheet:
@@ -195,7 +227,9 @@ def test_hours_inside_the_assignment_clear_the_flag() -> None:
     timesheet = _week(8, 8)
     check_assignment(timesheet, None, date(2026, 10, 5))
     assert any(f["code"] == "outside_assignment" for f in timesheet.flags)
-    check_assignment(timesheet, date(2026, 10, 1), date(2026, 12, 31))  # dates corrected
+    check_assignment(
+        timesheet, date(2026, 10, 1), date(2026, 12, 31)
+    )  # dates corrected
     assert not any(f["code"] == "outside_assignment" for f in timesheet.flags)
 
 

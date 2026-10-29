@@ -25,7 +25,8 @@ class EmployeeRepository(BaseRepository[Employee]):
     async def get_by_email(self, company_id: uuid.UUID, email: str) -> Employee | None:
         return await self.session.scalar(
             select(Employee).where(
-                Employee.company_id == company_id, Employee.email == email.strip().lower()
+                Employee.company_id == company_id,
+                Employee.email == email.strip().lower(),
             )
         )
 
@@ -67,7 +68,9 @@ class EmployeeRepository(BaseRepository[Employee]):
     async def list_active(self, company_id: uuid.UUID) -> Sequence[Employee]:
         """Everyone matching may pick from: the company's active employees."""
         rows = await self.session.scalars(
-            select(Employee).where(Employee.company_id == company_id, Employee.is_active.is_(True))
+            select(Employee).where(
+                Employee.company_id == company_id, Employee.is_active.is_(True)
+            )
         )
         return rows.all()
 
@@ -80,8 +83,8 @@ class EmployeeRepository(BaseRepository[Employee]):
         limit: int = 10,
     ) -> list[tuple[uuid.UUID, uuid.UUID, float]]:
         """Active employees (of active companies) whose full name or an alias looks like
-        `name` by trigrams (pg_trgm): [(employee_id, company_id, similarity)], best first.
-        company_id=None searches every company.
+        `name` by trigrams (pg_trgm): [(employee_id, company_id, similarity)], best
+        first. company_id=None searches every company.
 
         employees.name_keys holds all of an employee's names in one text, so this uses
         word_similarity (the best-matching part of that text: an alias scores fully next
@@ -95,7 +98,9 @@ class EmployeeRepository(BaseRepository[Employee]):
             text(
                 """
                 SELECT e.id, e.company_id,
-                       public.word_similarity(core.name_key(:name), e.name_keys) AS score
+                       public.word_similarity(
+                           core.name_key(:name), e.name_keys
+                       ) AS score
                 FROM core.employees e
                 JOIN core.companies c ON c.id = e.company_id
                 WHERE core.name_key(:name) OPERATOR(public.<%) e.name_keys

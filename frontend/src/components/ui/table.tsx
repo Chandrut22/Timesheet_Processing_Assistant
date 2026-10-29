@@ -1,8 +1,9 @@
 import type * as React from "react";
 import { cn } from "@/lib/utils";
+import type { JSX } from "react";
 
 /** Scrolls horizontally on small screens instead of breaking the layout. */
-export function Table({ className, ...props }: React.ComponentProps<"table">) {
+export function Table({ className, ...props }: React.ComponentProps<"table">): JSX.Element {
   return (
     <div data-slot="table-container" className="relative w-full overflow-x-auto">
       <table className={cn("w-full caption-bottom text-sm", className)} {...props} />
@@ -10,15 +11,15 @@ export function Table({ className, ...props }: React.ComponentProps<"table">) {
   );
 }
 
-export function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
+export function TableHeader({ className, ...props }: React.ComponentProps<"thead">): JSX.Element {
   return <thead className={cn("[&_tr]:border-b", className)} {...props} />;
 }
 
-export function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
+export function TableBody({ className, ...props }: React.ComponentProps<"tbody">): JSX.Element {
   return <tbody className={cn("[&_tr:last-child]:border-0", className)} {...props} />;
 }
 
-export function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
+export function TableRow({ className, ...props }: React.ComponentProps<"tr">): JSX.Element {
   return (
     <tr
       className={cn(
@@ -30,7 +31,7 @@ export function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   );
 }
 
-export function TableHead({ className, ...props }: React.ComponentProps<"th">) {
+export function TableHead({ className, ...props }: React.ComponentProps<"th">): JSX.Element {
   return (
     <th
       className={cn(
@@ -42,6 +43,6 @@ export function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   );
 }
 
-export function TableCell({ className, ...props }: React.ComponentProps<"td">) {
+export function TableCell({ className, ...props }: React.ComponentProps<"td">): JSX.Element {
   return <td className={cn("px-3 py-2.5 align-middle whitespace-nowrap", className)} {...props} />;
 }

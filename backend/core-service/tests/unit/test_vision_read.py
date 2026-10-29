@@ -18,7 +18,10 @@ from src.config.settings import Settings, settings
 from src.constants.flags import FLAG_SEVERITY
 from src.control.agents.extraction_prompt import SYSTEM_PROMPT
 from src.core.services.documents import document_limits, document_reader
-from src.core.services.documents.document_reader import DocumentReadError, read_document_full
+from src.core.services.documents.document_reader import (
+    DocumentReadError,
+    read_document_full,
+)
 from src.core.services.failures import VisionUnavailableError, explain, plan_retry
 from src.core.services.pipeline import reading
 from src.core.services.timesheet_builder import BuildContext, build_timesheets
@@ -41,12 +44,13 @@ from src.schemas.extraction import ExtractedDay, ExtractedTimesheet
 
 WRITING_FLAGS = {"handwritten_hours", "handwriting_present", "writing_unclear"}
 TRANSCRIPT = (
-    "Employee: Grace Okoye\n\n| Day | Date | Hours |\n|---|---|---|\n"
-    "| Mon | 2026-10-12 | 8 |\n| Tue | 2026-10-13 | [UNCLEAR] |\n| Wed | 2026-10-14 | 7.5 |"
+    "Employee: Grace Okoye\n\n| Day | Date | Hours |\n|---|---|---|\n| Mon | "
+    "2026-10-12 | 8 |\n| Tue | 2026-10-13 | [UNCLEAR] |\n| Wed | 2026-10-14 | 7.5 |"
 )
 
 
-# --- test files -------------------------------------------------------------------------
+# --- test files
+# -------------------------------------------------------------------------
 
 
 def photo(width: int = 640, height: int = 480, fmt: str = "PNG", **save: Any) -> bytes:
@@ -59,13 +63,18 @@ def photo(width: int = 640, height: int = 480, fmt: str = "PNG", **save: Any) ->
 
 def scanned_pdf(pages: int = 1) -> bytes:
     """A PDF made of pictures only: no text layer, like a scan."""
-    images = [Image.frombytes("RGB", (300, 400), os.urandom(300 * 400 * 3)) for _ in range(pages)]
+    images = [
+        Image.frombytes("RGB", (300, 400), os.urandom(300 * 400 * 3))
+        for _ in range(pages)
+    ]
     out = io.BytesIO()
     images[0].save(out, format="PDF", save_all=True, append_images=images[1:])
     return out.getvalue()
 
 
-def typed_pdf(text: str = "Timesheet Rahul Kumar Mon 8 Tue 8 Wed 8 Thu 8 Fri 8") -> bytes:
+def typed_pdf(
+    text: str = "Timesheet Rahul Kumar Mon 8 Tue 8 Wed 8 Thu 8 Fri 8",
+) -> bytes:
     """A minimal PDF with a real text layer (what a typed / generated PDF has)."""
     stream = f"BT /F1 12 Tf 50 750 Td ({text}) Tj ET".encode()
     objects = [
@@ -73,7 +82,11 @@ def typed_pdf(text: str = "Timesheet Rahul Kumar Mon 8 Tue 8 Wed 8 Thu 8 Fri 8")
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
         b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R "
         b"/Resources << /Font << /F1 5 0 R >> >> >>",
-        b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream",
+        b"<< /Length "
+        + str(len(stream)).encode()
+        + b" >>\nstream\n"
+        + stream
+        + b"\nendstream",
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
     ]
     out = io.BytesIO()
@@ -87,12 +100,14 @@ def typed_pdf(text: str = "Timesheet Rahul Kumar Mon 8 Tue 8 Wed 8 Thu 8 Fri 8")
     for offset in offsets:
         out.write(f"{offset:010d} 00000 n \n".encode())
     out.write(
-        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
+        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R "
+        f">>\nstartxref\n{xref}\n%%EOF\n".encode()
     )
     return out.getvalue()
 
 
-# --- a fake model -----------------------------------------------------------------------
+# --- a fake model
+# -----------------------------------------------------------------------
 
 
 def answer(
@@ -177,7 +192,8 @@ def page(number: int = 1) -> PageImage:
     return PageImage(number, b"\xff\xd8jpeg", 10, 10)
 
 
-# --- settings ---------------------------------------------------------------------------
+# --- settings
+# ---------------------------------------------------------------------------
 
 
 def bare_settings(monkeypatch: pytest.MonkeyPatch, **values: object) -> Settings:
@@ -196,9 +212,16 @@ def test_off_by_default_and_needs_a_host_a_model_and_enough_job_time(
     with pytest.raises(ValidationError, match="VISION_BASE_URL and VISION_MODEL"):
         bare_settings(monkeypatch, vision_enabled=True)
     ok = bare_settings(
-        monkeypatch, vision_enabled=True, vision_base_url="https://ollama.com/v1", vision_model="m"
+        monkeypatch,
+        vision_enabled=True,
+        vision_base_url="https://ollama.com/v1",
+        vision_model="m",
     )
-    assert (ok.vision_timeout_s, ok.vision_max_retries, ok.vision_max_pages) == (120, 2, 6)
+    assert (ok.vision_timeout_s, ok.vision_max_retries, ok.vision_max_pages) == (
+        120,
+        2,
+        6,
+    )
     with pytest.raises(ValidationError, match="WORKER_JOB_TIMEOUT_SECONDS"):
         bare_settings(
             monkeypatch,
@@ -210,13 +233,16 @@ def test_off_by_default_and_needs_a_host_a_model_and_enough_job_time(
         )
 
 
-# --- routing ----------------------------------------------------------------------------
+# --- routing
+# ----------------------------------------------------------------------------
 
 
 def test_routing() -> None:
     assert needs_vision(".png", photo())
     assert needs_vision(".jpg", photo(fmt="JPEG"))
-    assert not needs_vision(".png", b"\x89PNG" + b"x" * 100)  # logo-sized: skipped as before
+    assert not needs_vision(
+        ".png", b"\x89PNG" + b"x" * 100
+    )  # logo-sized: skipped as before
     assert needs_vision(".pdf", scanned_pdf())
     assert not needs_vision(".pdf", typed_pdf())
     for ext in (".docx", ".xlsx", ".csv", ".txt"):
@@ -228,11 +254,17 @@ def test_vision_off_means_docling_as_before(monkeypatch: pytest.MonkeyPatch) -> 
     seen = docling_says(monkeypatch)
     model = use_model(monkeypatch, FakeModel())
     outcome = read_document_full("sheet.png", photo())
-    assert (outcome.method, outcome.text, outcome.writing_class) == ("docling", "OCR text", None)
+    assert (outcome.method, outcome.text, outcome.writing_class) == (
+        "docling",
+        "OCR text",
+        None,
+    )
     assert seen == ["sheet.png"] and model.calls == []
 
 
-def test_typed_files_stay_on_docling_with_vision_on(vision_on: pytest.MonkeyPatch) -> None:
+def test_typed_files_stay_on_docling_with_vision_on(
+    vision_on: pytest.MonkeyPatch,
+) -> None:
     seen = docling_says(vision_on)
     model = use_model(vision_on, FakeModel())
     outcome = read_document_full("typed.pdf", typed_pdf())
@@ -240,7 +272,8 @@ def test_typed_files_stay_on_docling_with_vision_on(vision_on: pytest.MonkeyPatc
     assert read_document_full("hours.csv", b"name,hours\nA,8\n").method == "plain"
 
 
-# --- preprocessing ----------------------------------------------------------------------
+# --- preprocessing
+# ----------------------------------------------------------------------
 
 
 def test_phone_photos_are_turned_upright() -> None:
@@ -261,7 +294,9 @@ def test_large_pages_are_shrunk_small_ones_are_not_enlarged() -> None:
 
 
 def test_a_multi_page_tiff_is_capped_and_the_rest_is_recorded() -> None:
-    frames = [Image.frombytes("RGB", (200, 200), os.urandom(200 * 200 * 3)) for _ in range(5)]
+    frames = [
+        Image.frombytes("RGB", (200, 200), os.urandom(200 * 200 * 3)) for _ in range(5)
+    ]
     out = io.BytesIO()
     frames[0].save(out, format="TIFF", save_all=True, append_images=frames[1:])
     pages, limit = page_images(".tiff", out.getvalue(), max_pages=3)
@@ -281,7 +316,8 @@ def test_a_broken_image_is_a_plain_read_error(vision_on: pytest.MonkeyPatch) -> 
         read_document_full("broken.png", b"\x89PNG not an image" * 3000)
 
 
-# --- one page ---------------------------------------------------------------------------
+# --- one page
+# ---------------------------------------------------------------------------
 
 
 def test_the_image_goes_first_with_the_rules_as_system_message() -> None:
@@ -323,17 +359,25 @@ def test_a_bad_answer_is_asked_again_once() -> None:
 
 
 def test_two_bad_answers_make_the_page_unclear_never_guessed() -> None:
-    model = FakeModel("I'm sorry, I can't help with that.", '{"classification": "oops"}')
+    model = FakeModel(
+        "I'm sorry, I can't help with that.", '{"classification": "oops"}'
+    )
     reading = read_page(model, page())
     assert len(model.calls) == 2
     assert reading.classification == "uncertain" and reading.confidence == 0
     assert reading.text.startswith("[UNCLEAR]") and reading.unclear_marks == 1
 
 
-def test_low_confidence_is_uncertain_decided_in_code(vision_on: pytest.MonkeyPatch) -> None:
-    low = read_page(FakeModel(answer("printed_only", 0.55, hours_by_hand=False)), page())
+def test_low_confidence_is_uncertain_decided_in_code(
+    vision_on: pytest.MonkeyPatch,
+) -> None:
+    low = read_page(
+        FakeModel(answer("printed_only", 0.55, hours_by_hand=False)), page()
+    )
     assert low.classification == "uncertain" and low.confidence == 0.55
-    empty = read_page(FakeModel(answer("no_text", 0.3, "", hours_by_hand=False)), page())
+    empty = read_page(
+        FakeModel(answer("no_text", 0.3, "", hours_by_hand=False)), page()
+    )
     assert empty.classification == "no_text"
 
 
@@ -342,11 +386,17 @@ def test_injected_tags_are_stripped_and_runaway_text_is_not_trusted() -> None:
     reading = read_page(FakeModel(answer(transcription=injected)), page())
     assert "</source" not in reading.text and "<source" not in reading.text
     runaway = read_page(FakeModel(answer(transcription="8 " * 20_000)), page())
-    assert runaway.classification == "uncertain" and runaway.text.startswith("[UNCLEAR]")
+    assert runaway.classification == "uncertain" and runaway.text.startswith(
+        "[UNCLEAR]"
+    )
 
 
 def test_server_trouble_is_temporary_but_a_bad_key_is_not() -> None:
-    for error in (APITimeoutError("slow"), InternalServerError("down"), ConnectionError("x")):
+    for error in (
+        APITimeoutError("slow"),
+        InternalServerError("down"),
+        ConnectionError("x"),
+    ):
         with pytest.raises(VisionUnavailableError):
             read_page(FakeModel(error), page())
     with pytest.raises(AuthenticationError):
@@ -356,16 +406,32 @@ def test_server_trouble_is_temporary_but_a_bad_key_is_not() -> None:
     assert plan_retry(failure, 1, max_attempts=3, base_delay=60).retry
 
 
-# --- the whole document -----------------------------------------------------------------
+# --- the whole document
+# -----------------------------------------------------------------
 
 
 def reading_of(cls: str, confidence: float = 0.9, hours: bool = False) -> PageReading:
-    return PageReading(1, cls, confidence, hours or cls != "printed_only", hours, "", "", 0)  # type: ignore[arg-type]
+    return PageReading(
+        1,
+        cls,  # type: ignore[arg-type]
+        confidence,
+        hours or cls != "printed_only",
+        hours,
+        "",
+        "",
+        0,
+    )
 
 
 def test_the_worst_page_decides_the_class() -> None:
-    assert combine([reading_of("printed_only"), reading_of("mixed", hours=True)])[0] == "mixed"
-    assert combine([reading_of("mixed"), reading_of("uncertain", 0.4)])[:2] == ("uncertain", 0.4)
+    assert (
+        combine([reading_of("printed_only"), reading_of("mixed", hours=True)])[0]
+        == "mixed"
+    )
+    assert combine([reading_of("mixed"), reading_of("uncertain", 0.4)])[:2] == (
+        "uncertain",
+        0.4,
+    )
     assert combine([reading_of("no_text"), reading_of("no_text")])[0] == "no_text"
     # handwritten hours on a page the model called printed: still not printed_only
     assert combine([reading_of("printed_only", hours=True)])[0] == "mixed"
@@ -402,13 +468,16 @@ def test_pages_stay_in_order_with_markers(vision_on: pytest.MonkeyPatch) -> None
     )
 
 
-# --- what the decision sees -------------------------------------------------------------
+# --- what the decision sees
+# -------------------------------------------------------------
 
 SUBMISSION, DOCUMENT = uuid.uuid4(), uuid.uuid4()
 
 
 def context(
-    writing_class: str | None = None, hours_by_hand: bool = False, unclear_marks: int = 0
+    writing_class: str | None = None,
+    hours_by_hand: bool = False,
+    unclear_marks: int = 0,
 ) -> BuildContext:
     return BuildContext(
         submission_id=SUBMISSION,
@@ -427,9 +496,12 @@ def codes(flags: list[dict[str, Any]] | None) -> list[str]:
 
 def sheet(**extra: Any) -> ExtractedTimesheet:
     days = [
-        ExtractedDay(work_date=date(2026, 10, 12) + timedelta(days=i), hours=8) for i in range(5)
+        ExtractedDay(work_date=date(2026, 10, 12) + timedelta(days=i), hours=8)
+        for i in range(5)
     ]
-    return ExtractedTimesheet(employee_name="Grace", days=days, confidence=0.97, **extra)
+    return ExtractedTimesheet(
+        employee_name="Grace", days=days, confidence=0.97, **extra
+    )
 
 
 def ready(ts: Timesheet) -> Timesheet:
@@ -443,7 +515,12 @@ def ready(ts: Timesheet) -> Timesheet:
     [
         (None, False, None, True),  # typed document: as before
         ("printed_only", False, None, True),
-        ("mixed", False, "handwriting_present", True),  # hours printed: low, normal rules
+        (
+            "mixed",
+            False,
+            "handwriting_present",
+            True,
+        ),  # hours printed: low, normal rules
         ("mixed", True, "handwritten_hours", False),
         ("handwritten_only", False, "handwritten_hours", False),
         ("uncertain", False, "writing_unclear", False),
@@ -472,7 +549,10 @@ def test_an_unreadable_day_is_left_out_never_zero() -> None:
     [ts] = build_timesheets(extracted, ctx)
     assert date(2026, 10, 13) not in {e.work_date for e in ts.entries}
     unreadable = next(f for f in ts.flags if f["code"] == "unreadable_values")
-    assert "2026-10-13" in unreadable["message"] and FLAG_SEVERITY["unreadable_values"] == "high"
+    assert (
+        "2026-10-13" in unreadable["message"]
+        and FLAG_SEVERITY["unreadable_values"] == "high"
+    )
 
 
 def test_unclear_marks_without_listed_days_are_still_flagged() -> None:
@@ -485,7 +565,8 @@ def test_the_extraction_prompt_never_guesses_unclear_values() -> None:
     assert "[UNCLEAR]" in SYSTEM_PROMPT and "unreadable_days" in SYSTEM_PROMPT
 
 
-# --- the read step ----------------------------------------------------------------------
+# --- the read step
+# ----------------------------------------------------------------------
 
 
 class FakeSession:
@@ -524,7 +605,10 @@ async def test_the_read_step_stores_the_class_never_images_or_transcripts(
     assert document.has_handwritten_hours is True and document.unclear_marks == 1
     assert document.writing_reason == "Printed table, hours written in pen"
     [step] = session.added
-    assert step.output["read_method"] == "vision" and step.output["model"] == "gemma4:31b-cloud"
+    assert (
+        step.output["read_method"] == "vision"
+        and step.output["model"] == "gemma4:31b-cloud"
+    )
     assert (step.output["writing_class"], step.output["unclear_marks"]) == ("mixed", 1)
     everything = repr(step.input) + repr(step.output) + caplog.text
     assert "base64" not in everything and "Grace Okoye" not in everything

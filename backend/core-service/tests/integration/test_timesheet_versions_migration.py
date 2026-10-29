@@ -26,7 +26,8 @@ OLD_DATA = f"""
 INSERT INTO core.submissions (id, source) VALUES ('{SUB}', 'upload');
 INSERT INTO core.reprocess_runs (id, submission_id, reason, requested_by_id,
     requested_by_name, status, before_result, completed_at)
-VALUES ('{RUN}', '{SUB}', 'rates fixed', gen_random_uuid(), 'Rita', 'completed', '{{}}', now());
+VALUES ('{RUN}', '{SUB}', 'rates fixed', gen_random_uuid(), 'Rita', 'completed',
+    '{{}}', now());
 INSERT INTO core.timesheets (id, submission_id, extracted_name, version, status,
     regular_hours, reprocess_run_id)
 VALUES ('{V3}', '{SUB}', 'Grace', 3, 'needs_review', 40, '{RUN}');
@@ -78,7 +79,9 @@ async def test_upgrade_moves_days_and_old_versions_and_downgrade_restores(
 ) -> None:
     alembic("downgrade", BEFORE)
     async with db.begin() as conn:
-        await conn.execute(text("TRUNCATE core.submissions, core.reprocess_runs CASCADE"))
+        await conn.execute(
+            text("TRUNCATE core.submissions, core.reprocess_runs CASCADE")
+        )
         for statement in OLD_DATA.split(";"):
             if statement.strip():
                 await conn.execute(text(statement))
@@ -124,7 +127,10 @@ async def test_upgrade_moves_days_and_old_versions_and_downgrade_restores(
         (V3, 1, "reprocessed"),
         (V3, 2, "reprocessed"),
     ]
-    assert (history[1][3], history[1][4]) == ("Rita", "rates fixed")  # the run that replaced v2
+    assert (history[1][3], history[1][4]) == (
+        "Rita",
+        "rates fixed",
+    )  # the run that replaced v2
     v1 = history[0][5]
     v1 = v1 if isinstance(v1, dict) else json.loads(str(v1))
     assert v1["regular_hours"] == "36.00" and len(v1["entries"]) == 1
@@ -133,8 +139,8 @@ async def test_upgrade_moves_days_and_old_versions_and_downgrade_restores(
     alembic("downgrade", BEFORE)
     days = await rows(
         db,
-        "SELECT work_date::text, hours, sheet_holiday, note FROM core.timesheet_entries "
-        f"WHERE timesheet_id = '{V3}' ORDER BY work_date",
+        "SELECT work_date::text, hours, sheet_holiday, note FROM "
+        f"core.timesheet_entries WHERE timesheet_id = '{V3}' ORDER BY work_date",
     )
     assert [(d[0], float(d[1]), d[2], d[3]) for d in days] == [  # type: ignore[arg-type]
         ("2026-10-12", 7.5, True, "Diwali"),

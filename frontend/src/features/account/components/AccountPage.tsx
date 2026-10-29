@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { applyFieldErrors } from "@/lib/forms";
+import type { JSX } from "react";
 
 const schema = z
   .object({
@@ -29,7 +30,7 @@ const schema = z
   });
 type Values = z.infer<typeof schema>;
 
-export function AccountPage() {
+export function AccountPage(): JSX.Element {
   const user = useUser();
   const form = useForm<Values>({
     resolver: zodResolver(schema),

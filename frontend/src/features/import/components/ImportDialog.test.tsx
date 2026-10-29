@@ -2,8 +2,9 @@
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import type { ImportOptions, ImportReport } from "../types/import";
+import type { UserEvent } from "@testing-library/user-event";
 
 const api = vi.hoisted(() => ({
   importFile: vi.fn(),
@@ -35,7 +36,10 @@ const report = (over: Partial<ImportReport>): ImportReport => ({
   ...over,
 });
 
-function renderDialog(resource: "employees" | "users" = "employees") {
+function renderDialog(resource: "employees" | "users" = "employees"): {
+  onImported: Mock;
+  user: UserEvent;
+} {
   const onImported = vi.fn();
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
   render(
@@ -51,7 +55,7 @@ function renderDialog(resource: "employees" | "users" = "employees") {
   return { onImported, user: userEvent.setup() };
 }
 
-const csv = () =>
+const csv = (): File =>
   new File(["employee_code,full_name\nE1,Ann\n"], "staff.csv", { type: "text/csv" });
 
 beforeEach(() => {

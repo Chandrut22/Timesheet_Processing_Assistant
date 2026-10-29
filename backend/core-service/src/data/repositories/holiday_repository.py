@@ -2,53 +2,70 @@ import uuid
 from collections.abc import Sequence
 from datetime import date
 
-from sqlalchemy import ColumnElement, extract, or_, select
+from sqlalchemy import extract, select
 
 from src.data.models import Holiday
 from src.data.repositories.base import BaseRepository
 
 
 class HolidayRepository(BaseRepository[Holiday]):
+    """Every holiday belongs to one company."""
+
     model = Holiday
 
-    async def find(self, company_id: uuid.UUID | None, holiday_date: date) -> Holiday | None:
-        """The holiday on this date for this company (None = the one for all companies)."""
-        query = select(Holiday).where(Holiday.holiday_date == holiday_date)
-        query = query.where(
-            Holiday.company_id.is_(None) if company_id is None else Holiday.company_id == company_id
+    async def find(self, company_id: uuid.UUID, holiday_date: date) -> Holiday | None:
+        """The company's holiday on this date."""
+        found: Holiday | None = await self.session.scalar(
+            select(Holiday).where(
+                Holiday.company_id == company_id, Holiday.holiday_date == holiday_date
+            )
         )
-        return (await self.session.scalars(query.limit(1))).first()
+        return found
 
-    async def exists(self, company_id: uuid.UUID | None, holiday_date: date) -> bool:
-        company_filter = (
-            Holiday.company_id.is_(None) if company_id is None else Holiday.company_id == company_id
-        )
-        found = await self.session.scalar(
-            select(Holiday.id).where(company_filter, Holiday.holiday_date == holiday_date)
-        )
-        return found is not None
+    async def exists(self, company_id: uuid.UUID, holiday_date: date) -> bool:
+        return await self.find(company_id, holiday_date) is not None
 
     async def list(
-        self, *, company_id: uuid.UUID | None, year: int | None, is_active: bool | None = None
+        self,
+        *,
+        company_id: uuid.UUID | None,
+        year: int | None,
+        is_active: bool | None = None,
     ) -> Sequence[Holiday]:
-        """With company_id: global holidays + that company's. Without: all holidays."""
+        """One company's holidays, or (company_id None) every company's."""
         query = select(Holiday)
         if is_active is not None:
             query = query.where(Holiday.is_active.is_(is_active))
         if company_id is not None:
-            query = query.where(or_(Holiday.company_id.is_(None), Holiday.company_id == company_id))
+            query = query.where(Holiday.company_id == company_id)
         if year is not None:
             query = query.where(extract("year", Holiday.holiday_date) == year)
-        rows = await self.session.scalars(query.order_by(Holiday.holiday_date, Holiday.name))
+        rows = await self.session.scalars(
+            query.order_by(Holiday.holiday_date, Holiday.name, Holiday.company_id)
+        )
         return rows.all()
 
-    async def dates_for(self, company_id: uuid.UUID | None) -> set[date]:
-        """Active holiday dates that apply to a company: global ones + its own.
-        Without a company: global holidays only. Inactive holidays never count."""
-        condition: ColumnElement[bool] = Holiday.company_id.is_(None)
-        if company_id is not None:
-            condition = or_(condition, Holiday.company_id == company_id)
-        rows = await self.session.scalars(
-            select(Holiday.holiday_date).where(condition, Holiday.is_active.is_(True))
+    async def dates_for(self, company_id: uuid.UUID | None) -> dict[date, str]:
+        """The company's active holidays: date -> name. No company: none (its pay can't
+        be worked out anyway). Inactive holidays never count."""
+        if company_id is None:
+            return {}
+        rows = await self.session.execute(
+            select(Holiday.holiday_date, Holiday.name).where(
+                Holiday.company_id == company_id, Holiday.is_active.is_(True)
+            )
         )
-        return set(rows.all())
+        return {row[0]: row[1] for row in rows.all()}
+
+    async def dates_taken(
+        self, company_ids: Sequence[uuid.UUID], days: Sequence[date]
+    ) -> dict[tuple[uuid.UUID, date], str]:
+        """(company, date) -> name of the holidays that already exist, for bulk adds."""
+        if not company_ids or not days:
+            return {}
+        rows = await self.session.execute(
+            select(Holiday.company_id, Holiday.holiday_date, Holiday.name).where(
+                Holiday.company_id.in_(company_ids), Holiday.holiday_date.in_(days)
+            )
+        )
+        return {(cid, day): name for cid, day, name in rows.all()}

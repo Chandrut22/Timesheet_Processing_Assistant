@@ -8,19 +8,16 @@ from src.data.models.postgres.base import SCHEMA, AuditMixin, Base, UUIDPrimaryK
 
 
 class Holiday(UUIDPrimaryKeyMixin, AuditMixin, Base):
-    """company_id NULL = a holiday for every company."""
+    """A holiday of ONE company: hours worked on it are paid at that company's holiday
+    rate. A holiday for several companies is one row per company (bulk create /
+    copy)."""
 
     __tablename__ = "holidays"
     __table_args__ = (
-        UniqueConstraint(
-            "company_id",
-            "holiday_date",
-            name="uq_holidays_company_date",
-            postgresql_nulls_not_distinct=True,
-        ),
+        UniqueConstraint("company_id", "holiday_date", name="uq_holidays_company_date"),
     )
 
-    company_id: Mapped[uuid.UUID | None] = mapped_column(
+    company_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey(f"{SCHEMA}.companies.id", ondelete="CASCADE"), index=True
     )
     holiday_date: Mapped[date] = mapped_column(Date, index=True)

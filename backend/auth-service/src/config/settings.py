@@ -20,8 +20,9 @@ class Settings(BaseSettings):
     # API docs (/docs, /redoc, /openapi.json). Off by default so a deployed service does
     # not publish its full API map; DOCS_ENABLED=true in .env for local development.
     docs_enabled: bool = False
-    # Paths anyone may call without a token (the auth middleware denies everything else).
-    # The API docs are added automatically when DOCS_ENABLED=true; OPTIONS always passes.
+    # Paths anyone may call without a token (the auth middleware denies everything
+    # else). The API docs are added automatically when DOCS_ENABLED=true; OPTIONS always
+    # passes.
     auth_public_paths: list[str] = [
         "/health",
         "/health/db",
@@ -34,8 +35,8 @@ class Settings(BaseSettings):
 
     # --- rate limiting (src/api/middleware/rate_limit.py) ---
     # One limit for every endpoint: RATE_LIMIT requests ("requests/window_seconds") per
-    # client IP, shared with core-service (same Redis counter). The IP is the X-Real-IP header
-    # nginx sets (else the socket address). Health checks are never counted.
+    # client IP, shared with core-service (same Redis counter). The IP is the X-Real-IP
+    # header nginx sets (else the socket address). Health checks are never counted.
     rate_limit_enabled: bool = True
     rate_limit_fail_open: bool = True  # Redis down: let requests through (False: 503)
     rate_limit: str = Field(default="100/60", pattern=r"^\d+/\d+$")
@@ -82,9 +83,10 @@ class Settings(BaseSettings):
     refresh_cookie_secure: bool = True
 
     # --- Logs and traces (OpenTelemetry, src/observability) ----------------------
-    # Logs always go through OpenTelemetry (observability/logging/setup.py). OTEL_ENABLED turns on
-    # traces, so log lines written inside a request carry its trace id. Nothing leaves
-    # the process unless OTEL_EXPORTER_OTLP_ENDPOINT is set (an OpenTelemetry Collector).
+    # Logs always go through OpenTelemetry (observability/logging/setup.py).
+    # OTEL_ENABLED turns on traces, so log lines written inside a request carry its
+    # trace id. Nothing leaves the process unless OTEL_EXPORTER_OTLP_ENDPOINT is set (an
+    # OpenTelemetry Collector).
     log_level: str = "INFO"
     otel_enabled: bool = False
     otel_service_name: str = "auth-service"

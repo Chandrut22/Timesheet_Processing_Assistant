@@ -1,7 +1,7 @@
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { CircleCheck, Search, CircleX } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useState, type ReactNode, type JSX } from "react";
 import { isApiError } from "@/services/apiErrors";
 import type { TimesheetRead } from "../types/timesheet";
 import { TimesheetStatusBadge } from "./TimesheetBadges";
@@ -35,7 +35,7 @@ const routeApi = getRouteApi("/_app/timesheets/$timesheetId");
 
 const READ_ONLY = new Set(["exported"]);
 
-export function TimesheetPage() {
+export function TimesheetPage(): JSX.Element {
   const { timesheetId } = routeApi.useParams();
   const q = useQuery({
     queryKey: timesheetKeys.detail(timesheetId),
@@ -73,7 +73,7 @@ export function TimesheetPage() {
   return <TimesheetDetail t={q.data} back={back} />;
 }
 
-function TimesheetDetail({ t, back }: { t: TimesheetRead; back: ReactNode }) {
+function TimesheetDetail({ t, back }: { t: TimesheetRead; back: ReactNode }): JSX.Element {
   const [dialog, setDialog] = useState<"approve" | "reject" | "match" | null>(null);
   const companies = useCompanyMap();
   const employees = useEmployeeMap([t.company_id]);
@@ -181,7 +181,7 @@ function TimesheetDetail({ t, back }: { t: TimesheetRead; back: ReactNode }) {
   );
 }
 
-function StatusBanner({ t }: { t: TimesheetRead }) {
+function StatusBanner({ t }: { t: TimesheetRead }): JSX.Element | null {
   if (t.status === "exported") {
     return (
       <Banner tone="info" className="mb-4">
@@ -202,7 +202,7 @@ function StatusBanner({ t }: { t: TimesheetRead }) {
   return null;
 }
 
-function ComparePanel({ t }: { t: TimesheetRead }) {
+function ComparePanel({ t }: { t: TimesheetRead }): JSX.Element {
   const items = [
     { label: "Stated in the email", value: t.email_stated_total },
     { label: "Stated on the sheet", value: t.stated_total },
@@ -229,7 +229,13 @@ function ComparePanel({ t }: { t: TimesheetRead }) {
   );
 }
 
-function DetailsPanel({ t, employeeCode }: { t: TimesheetRead; employeeCode: string | null }) {
+function DetailsPanel({
+  t,
+  employeeCode,
+}: {
+  t: TimesheetRead;
+  employeeCode: string | null;
+}): JSX.Element {
   const rows: [string, ReactNode][] = [
     ["Employee code", employeeCode ?? "—"],
     ["Name on the sheet", t.extracted_name ?? "—"],
@@ -261,7 +267,7 @@ function DetailsPanel({ t, employeeCode }: { t: TimesheetRead; employeeCode: str
   );
 }
 
-function SourcePanel({ t }: { t: TimesheetRead }) {
+function SourcePanel({ t }: { t: TimesheetRead }): JSX.Element {
   const q = useQuery({
     queryKey: submissionKeys.detail(t.submission_id),
     queryFn: () => submissionService.getSubmission(t.submission_id),

@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type UseQueryResult, type DefaultError } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { CompanyRead } from "../types/company";
 import { LOOKUP_STALE } from "@/config/constants";
@@ -6,7 +6,7 @@ import { companyService } from "../services/companyService";
 import { companyKeys } from "../queries/companyQueries";
 
 /** All companies (first 100, active and inactive), for selects and name lookups. */
-export function useCompanies() {
+export function useCompanies(): UseQueryResult<CompanyRead[], DefaultError> {
   return useQuery({
     queryKey: companyKeys.lookup,
     queryFn: () => companyService.listCompanies({ size: 100, page: 1 }),

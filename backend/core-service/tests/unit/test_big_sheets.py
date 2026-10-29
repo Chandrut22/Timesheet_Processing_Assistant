@@ -14,7 +14,9 @@ from src.core.services.document_tables import (
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"]
 
 
-def grid(n: int, *, title: str = "# ABC Staffing - week of 2026-06-01", total: bool = True) -> str:
+def grid(
+    n: int, *, title: str = "# ABC Staffing - week of 2026-06-01", total: bool = True
+) -> str:
     """A weekly grid with n people, the way Docling writes an Excel sheet."""
     lines = [title, "", "| Emp ID | Employee Name | " + " | ".join(DAYS) + " | Total |"]
     lines.append("|" + "---|" * (len(DAYS) + 3))
@@ -62,7 +64,9 @@ def test_a_table_without_a_person_column_means_unknown() -> None:
 
 
 def test_other_name_columns_are_not_people() -> None:
-    text = "| Company Name | Project Code | Hours |\n| --- | --- | --- |\n| ABC | P1 | 8 |"
+    text = (
+        "| Company Name | Project Code | Hours |\n| --- | --- | --- |\n| ABC | P1 | 8 |"
+    )
     assert count_people(text) is None
 
 
@@ -139,8 +143,8 @@ def test_a_label_value_block_is_not_a_people_table() -> None:
 
 def test_label_rows_inside_a_people_table_are_skipped() -> None:
     text = (
-        "| Employee Name | Mon | Tue |\n| --- | --- | --- |\n"
-        "| Week ending: | 2026-10-11 | |\n| Grace Okoye | 8 | 8 |\n| Notes | leave 12 Oct | |"
+        "| Employee Name | Mon | Tue |\n| --- | --- | --- |\n| Week ending: | "
+        "2026-10-11 | |\n| Grace Okoye | 8 | 8 |\n| Notes | leave 12 Oct | |"
     )
     count = count_people(text)
     assert count is not None and [p.name for p in count.people] == ["Grace Okoye"]
@@ -149,7 +153,9 @@ def test_label_rows_inside_a_people_table_are_skipped() -> None:
 def test_a_csv_with_date_and_hours_columns_is_one_person() -> None:
     text = (
         "| Employee ID | Employee Name | Date | Hours |\n| --- | --- | --- | --- |\n"
-        + "\n".join(f"| SYN-EMP-016 | Hannah Weiss | 2026-10-0{d} | 7.5 |" for d in range(5, 10))
+        + "\n".join(
+            f"| SYN-EMP-016 | Hannah Weiss | 2026-10-0{d} | 7.5 |" for d in range(5, 10)
+        )
     )
     count = count_people(text)
     assert count is not None and count.total == 1
@@ -157,9 +163,9 @@ def test_a_csv_with_date_and_hours_columns_is_one_person() -> None:
 
 def test_a_crew_sheet_with_dated_day_columns_still_counts() -> None:
     text = (
-        "| Emp ID | Employee Name | Mon 12-Oct | Tue 13-Oct | Total |\n"
-        "| --- | --- | --- | --- | --- |\n"
-        "| SYN-EMP-007 | Ravi Kumar | 8 | 8 | 16 |\n| SYN-EMP-008 | Aisha Rahman | 8 | 8 | 16 |"
+        "| Emp ID | Employee Name | Mon 12-Oct | Tue 13-Oct | Total |\n| --- | --- | "
+        "--- | --- | --- |\n| SYN-EMP-007 | Ravi Kumar | 8 | 8 | 16 |\n| SYN-EMP-008 | "
+        "Aisha Rahman | 8 | 8 | 16 |"
     )
     count = count_people(text)
     assert count is not None and count.total == 2

@@ -4,6 +4,7 @@ import { UserRoundSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { TimesheetRead } from "../types/timesheet";
 import { canMatch } from "../utils/match";
+import type { JSX } from "react";
 
 export function MatchAction({
   t,
@@ -16,7 +17,7 @@ export function MatchAction({
   onMatch: () => void;
   /** e.g. while the submission is still being processed. */
   disabled?: boolean;
-}) {
+}): JSX.Element | null {
   if (!canMatch(t) || disabled) return null;
   if (t.employee_id !== null && t.match_method === "fuzzy") {
     // Matched by a close spelling: only a suggestion until a reviewer confirms it.

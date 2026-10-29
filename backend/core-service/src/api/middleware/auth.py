@@ -69,7 +69,9 @@ class AuthMiddleware:
         except InvalidTokenError:
             await self.reject(scope, receive, send)
             return
-        scope.setdefault("state", {})["principal"] = principal  # -> request.state.principal
+        scope.setdefault("state", {})["principal"] = (
+            principal  # -> request.state.principal
+        )
         await self.app(scope, receive, send)
 
     @staticmethod

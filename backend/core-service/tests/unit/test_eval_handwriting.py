@@ -91,7 +91,9 @@ def folder(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     model = FakeModel()
     monkeypatch.setattr(vision_reader, "_default_model", lambda: model)
     for name in ("vision_enabled", "vision_model", "vision_base_url"):
-        monkeypatch.setattr(settings, name, getattr(settings, name))  # restored afterwards
+        monkeypatch.setattr(
+            settings, name, getattr(settings, name)
+        )  # restored afterwards
     return data
 
 
@@ -125,7 +127,9 @@ def test_the_script_runs_against_a_mocked_model_and_writes_a_report(
     assert "gpu:11434" in report
     assert "| Date exact match | 66.7 % |" in report  # 2 of the 3 days found
     assert "| Hours exact match (per day) | 33.3 % |" in report  # only Monday right
-    assert "| Days marked [UNCLEAR] | 33.3 % |" in report  # Tuesday: unreadable, not guessed
+    assert (
+        "| Days marked [UNCLEAR] | 33.3 % |" in report
+    )  # Tuesday: unreadable, not guessed
     assert "| Failures | 1 |" in report  # broken.png
     assert "2026-10-14: expected 7.5 h, got 7 h" in report
     assert "2026-10-13: marked unreadable [UNCLEAR]" in report

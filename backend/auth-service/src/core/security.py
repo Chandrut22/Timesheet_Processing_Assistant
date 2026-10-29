@@ -48,7 +48,8 @@ def _read_key(path: Path, what: str) -> str:
         return path.read_text()
     except FileNotFoundError:
         raise KeyNotFoundError(
-            f"JWT {what} key not found at {path}. Run `uv run python -m scripts.generate_keys`."
+            f"JWT {what} key not found at {path}. Run `uv run python -m "
+            "scripts.generate_keys`."
         ) from None
 
 

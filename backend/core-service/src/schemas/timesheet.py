@@ -14,7 +14,9 @@ class TimesheetEntryRead(BaseModel):
     work_date: date
     hours: HoursOut
     is_holiday: bool  # holiday in the end (sheet / reviewer, or holiday calendar)
-    sheet_holiday: bool  # marked by the sheet or a reviewer (send this back when editing)
+    sheet_holiday: (
+        bool  # marked by the sheet or a reviewer (send this back when editing)
+    )
     double_time_marked: bool
     note: str | None
 
@@ -43,7 +45,9 @@ class TimesheetRead(BaseModel):
     extracted_company_name: str | None  # company as written on the sheet
     week_start: date | None
     status: str  # needs_review | approved | rejected | exported
-    version: int  # 1 when extracted; a new number per reprocess or "Create as new version";
+    version: (
+        int  # 1 when extracted; a new number per reprocess or "Create as new version";
+    )
     # a restore goes back to that version's number
     reprocess_run_id: uuid.UUID | None  # the last reprocess that changed it
     regular_hours: HoursOut
@@ -52,7 +56,9 @@ class TimesheetRead(BaseModel):
     holiday_hours: HoursOut
     total_hours: HoursOut
     stated_total: HoursOut | None  # total written on the attachment
-    email_stated_total: HoursOut | None  # total the email body gives (conflicting_hours check)
+    email_stated_total: (
+        HoursOut | None
+    )  # total the email body gives (conflicting_hours check)
     # Gross pay (no taxes or deductions); rates are the ones used for this timesheet.
     # All None = not priced yet (no company, or a rate is missing: see the flags).
     currency: str | None
@@ -68,7 +74,9 @@ class TimesheetRead(BaseModel):
     read_confidence: HoursOut | None  # how well the sheet was read (0-1)
     confidence: HoursOut | None  # overall: lower of reading and match confidence
     match_method: str | None
-    match_reason: str | None  # e.g. "Matched Rahul Kumar (SYN-EMP-001) by initial + surname"
+    match_reason: (
+        str | None
+    )  # e.g. "Matched Rahul Kumar (SYN-EMP-001) by initial + surname"
     flags: list[FlagRead]
     severity: str | None  # worst flag severity, None = no flags
     notes: str | None

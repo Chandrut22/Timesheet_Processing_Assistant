@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The search box: every keystroke shows at once, the search runs once typing pauses.
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
+import { useState, type JSX } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DebouncedInput } from "./DebouncedInput";
 
@@ -12,7 +12,13 @@ afterEach(() => {
 });
 
 /** A page that keeps the committed search like the real ones (in state / the URL). */
-function Page({ onCommit, initial = "" }: { onCommit: (v: string) => void; initial?: string }) {
+function Page({
+  onCommit,
+  initial = "",
+}: {
+  onCommit: (v: string) => void;
+  initial?: string;
+}): JSX.Element {
   const [q, setQ] = useState(initial);
   return (
     <>
@@ -32,8 +38,9 @@ function Page({ onCommit, initial = "" }: { onCommit: (v: string) => void; initi
   );
 }
 
-const box = () => screen.getByRole("textbox", { name: "Search" }) as HTMLInputElement;
-const type = (text: string) => fireEvent.change(box(), { target: { value: text } });
+const box = (): HTMLInputElement =>
+  screen.getByRole("textbox", { name: "Search" }) as HTMLInputElement;
+const type = (text: string): boolean => fireEvent.change(box(), { target: { value: text } });
 
 describe("DebouncedInput", () => {
   it("shows each keystroke at once but searches once, for the final text", () => {

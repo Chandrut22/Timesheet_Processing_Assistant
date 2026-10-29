@@ -52,8 +52,10 @@ const str = (v: unknown, max = 255): string | undefined =>
       : undefined;
 const oneOf = <T extends string>(v: unknown, values: readonly T[]): T | undefined =>
   typeof v === "string" && (values as readonly string[]).includes(v) ? (v as T) : undefined;
-const date = (v: unknown) => (typeof v === "string" && ISO_DATE.test(v) ? v : undefined);
-const uuid = (v: unknown) => (typeof v === "string" && UUID.test(v) ? v : undefined);
+const date = (v: unknown): string | undefined =>
+  typeof v === "string" && ISO_DATE.test(v) ? v : undefined;
+const uuid = (v: unknown): string | undefined =>
+  typeof v === "string" && UUID.test(v) ? v : undefined;
 const int = (v: unknown, min: number, max: number): number | undefined => {
   const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
   return Number.isInteger(n) && n >= min && n <= max ? n : undefined;

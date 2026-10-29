@@ -50,6 +50,9 @@ function submission(over: Partial<SubmissionRead>): SubmissionRead {
         status: "parsed",
         error: null,
         read_limit: null,
+        unclear_marks: 0,
+        has_handwritten_hours: false,
+        skipped_by_classifier: false,
         created_at: new Date().toISOString(),
       },
       {
@@ -61,15 +64,25 @@ function submission(over: Partial<SubmissionRead>): SubmissionRead {
         status: "parsed",
         error: null,
         read_limit: null,
+        unclear_marks: 0,
+        has_handwritten_hours: false,
+        skipped_by_classifier: false,
         created_at: new Date().toISOString(),
       },
     ],
     ...over,
   };
 }
-const page = (items: SubmissionRead[]) => ({ items, total: items.length, page: 1, size: 5 });
+const page = (
+  items: SubmissionRead[],
+): { items: SubmissionRead[]; total: number; page: number; size: number } => ({
+  items,
+  total: items.length,
+  page: 1,
+  size: 5,
+});
 
-function renderCard() {
+function renderCard(): void {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>

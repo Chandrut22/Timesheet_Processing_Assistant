@@ -22,4 +22,6 @@ class WhitelistSender(UUIDPrimaryKeyMixin, AuditMixin, Base):
         Uuid, ForeignKey(f"{SCHEMA}.companies.id", ondelete="CASCADE"), index=True
     )
     kind: Mapped[str] = mapped_column(String(10))  # "email" | "domain"
-    value: Mapped[str] = mapped_column(String(255), unique=True)  # "payroll@acme.com" | "acme.com"
+    value: Mapped[str] = mapped_column(
+        String(255), unique=True
+    )  # "payroll@acme.com" | "acme.com"

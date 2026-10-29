@@ -11,8 +11,9 @@ transcription:
      "reason": "Printed table, hours in pen", "transcription": "| Day | Hours | ..."}
 
     needs_vision(ext, data)   which files go this way
-    page_images(ext, data)    upright, RGB, shrunk JPEG pages (EXIF, TIFF frames, PDF pages)
-    read_with_vision(...)     every page, in order -> VisionResult (text + one class)
+    page_images(ext, data)    upright, RGB, shrunk JPEG pages (EXIF, TIFF frames, PDF
+    pages) read_with_vision(...)     every page, in order -> VisionResult (text + one
+    class)
 
 The model writes [UNCLEAR] for anything it cannot read; the marks are counted here,
 not by the model. A page whose answer is not valid JSON is asked once more, then
@@ -48,12 +49,16 @@ logger = logging.getLogger(__name__)
 
 PDF_RENDER_DPI = 200
 JPEG_QUALITY = 90
-MAX_IMAGE_PIXELS = 2_500_000  # Gemma 4's largest (OCR) visual-token budget covers about this
+MAX_IMAGE_PIXELS = (
+    2_500_000  # Gemma 4's largest (OCR) visual-token budget covers about this
+)
 MAX_PAGE_CHARS = 30_000  # a longer transcription is a runaway answer, not a timesheet
 MAX_REASON_CHARS = 300
 MULTI_FRAME = frozenset({".tif", ".tiff"})
 
-WritingClass = Literal["printed_only", "handwritten_only", "mixed", "no_text", "uncertain"]
+WritingClass = Literal[
+    "printed_only", "handwritten_only", "mixed", "no_text", "uncertain"
+]
 
 VISION_SYSTEM_PROMPT = """You read ONE photographed or scanned page of a timesheet. You \
 classify how its content is written, and you transcribe it.
@@ -88,9 +93,11 @@ Answer with ONE JSON object and nothing else (no Markdown fences, no comments):
 {"classification": "...", "confidence": 0.0, "has_handwriting": false,
  "has_handwritten_hours": false, "has_printed_text": false,
  "reason": "brief, from visible evidence only", "transcription": "..."}
-confidence (0.0-1.0) is how sure you are of the classification. Never invent evidence."""
+confidence (0.0-1.0) is how sure you are of the classification. Never invent evidence."""  # noqa: E501 (prompt text kept as the model reads it)
 
-PAGE_REQUEST = "Classify and transcribe this timesheet page. Answer with the JSON object only."
+PAGE_REQUEST = (
+    "Classify and transcribe this timesheet page. Answer with the JSON object only."
+)
 RETRY_REQUEST = (
     "Your answer was not the JSON object asked for. Answer again with ONLY the JSON "
     "object, with the keys classification, confidence, has_handwriting, "
@@ -180,7 +187,8 @@ class VisionResult:
     pages: list[PageReading] = field(default_factory=list, repr=False)  # never logged
 
 
-# --- routing ----------------------------------------------------------------------------
+# --- routing
+# ----------------------------------------------------------------------------
 
 
 def needs_vision(extension: str, data: bytes) -> bool:
@@ -193,13 +201,16 @@ def needs_vision(extension: str, data: bytes) -> bool:
     return False
 
 
-# --- preprocessing ----------------------------------------------------------------------
+# --- preprocessing
+# ----------------------------------------------------------------------
 
 
 def _fit(image: Any, max_side: int, max_pixels: int) -> Any:
     """Shrink (never enlarge) to at most max_side on the long edge and max_pixels."""
     width, height = image.size
-    scale = min(1.0, max_side / max(width, height), math.sqrt(max_pixels / (width * height)))
+    scale = min(
+        1.0, max_side / max(width, height), math.sqrt(max_pixels / (width * height))
+    )
     if scale >= 1.0:
         return image
     from PIL import Image
@@ -211,13 +222,17 @@ def _fit(image: Any, max_side: int, max_pixels: int) -> Any:
 def _encode(number: int, image: Any, max_side: int, max_pixels: int) -> PageImage:
     from PIL import ImageOps
 
-    image = ImageOps.exif_transpose(image)  # phone photos: stored sideways + a rotate tag
+    image = ImageOps.exif_transpose(
+        image
+    )  # phone photos: stored sideways + a rotate tag
     if image.mode != "RGB":
         image = image.convert("RGB")
     image = _fit(image, max_side, max_pixels)
     out = io.BytesIO()
     image.save(out, format="JPEG", quality=JPEG_QUALITY, optimize=True)
-    return PageImage(number=number, data=out.getvalue(), width=image.width, height=image.height)
+    return PageImage(
+        number=number, data=out.getvalue(), width=image.width, height=image.height
+    )
 
 
 def page_images(
@@ -240,8 +255,8 @@ def page_images(
             document = pypdfium2.PdfDocument(data)
         except Exception as exc:  # normally caught earlier (file_problems)
             raise VisionReadError(
-                "The PDF could not be opened (damaged or password-protected). "
-                "Ask the sender to resend it."
+                "The PDF could not be opened (damaged or password-protected). Ask the "
+                "sender to resend it."
             ) from exc
         try:
             total = len(document)
@@ -264,14 +279,15 @@ def page_images(
                     pages.append(_encode(index + 1, frame.copy(), max_side, max_pixels))
         except (UnidentifiedImageError, OSError) as exc:
             raise VisionReadError(
-                "The image could not be opened (damaged or not really an image). "
-                "Ask the sender to resend it."
+                "The image could not be opened (damaged or not really an image). Ask "
+                "the sender to resend it."
             ) from exc
 
     return pages, ReadLimit(pages_total=total, pages_read=len(pages))
 
 
-# --- the model call ---------------------------------------------------------------------
+# --- the model call
+# ---------------------------------------------------------------------
 
 
 def _content_text(content: Any) -> str:
@@ -324,7 +340,8 @@ def _ask(model: Any, messages: list[dict[str, Any]], page: PageImage) -> str:
     except Exception as exc:
         if _is_temporary(exc):
             raise VisionUnavailableError(
-                f"The vision model did not answer for page {page.number}: {type(exc).__name__}"
+                f"The vision model did not answer for page {page.number}: "
+                f"{type(exc).__name__}"
             ) from exc
         raise  # a setup error (wrong key / model name): reported as such, not retried
     return _content_text(getattr(response, "content", response))
@@ -369,7 +386,10 @@ def read_page(model: Any, page: PageImage) -> PageReading:
         text = f"{UNCLEAR_MARK} (page {page.number}: the answer was far too long)"
         answer.classification = "uncertain"
     classification: WritingClass = answer.classification
-    if classification != "no_text" and answer.confidence < settings.vision_min_confidence:
+    if (
+        classification != "no_text"
+        and answer.confidence < settings.vision_min_confidence
+    ):
         classification = "uncertain"  # decided here, not trusted from the model
     return PageReading(
         number=page.number,
@@ -388,7 +408,9 @@ def combine(pages: list[PageReading]) -> tuple[WritingClass, float, bool, bool]:
     make a printed document mixed. Returns (class, lowest confidence, has_handwriting,
     has_handwritten_hours)."""
     worst: WritingClass = max(
-        (p.classification for p in pages), key=lambda c: CLASS_RANK[c], default="uncertain"
+        (p.classification for p in pages),
+        key=lambda c: CLASS_RANK[c],
+        default="uncertain",
     )
     hours_by_hand = any(p.has_handwritten_hours for p in pages)
     if hours_by_hand and worst in ("printed_only", "no_text"):
@@ -398,7 +420,9 @@ def combine(pages: list[PageReading]) -> tuple[WritingClass, float, bool, bool]:
 
 
 def _default_model() -> Any:
-    from src.handlers.http_clients.llm import get_vision_model  # LangChain: only when used
+    from src.handlers.http_clients.llm import (
+        get_vision_model,
+    )  # LangChain: only when used
 
     return get_vision_model()
 
@@ -423,7 +447,8 @@ def read_with_vision(
         reading = read_page(model, page)
         readings.append(reading)
         logger.info(
-            "Vision read %s page %d/%d: %dx%d px, %s (%.2f), %d characters, %d unclear, %.1f s",
+            "Vision read %s page %d/%d: %dx%d px, %s (%.2f), %d characters, %d "
+            "unclear, %.1f s",
             filename,
             page.number,
             limit.pages_total or len(pages),
@@ -439,7 +464,8 @@ def read_with_vision(
     several = len(readings) > 1
     return VisionResult(
         markdown="\n\n".join(
-            f"--- page {r.number} ---\n{r.text}" if several else r.text for r in readings
+            f"--- page {r.number} ---\n{r.text}" if several else r.text
+            for r in readings
         ),
         pages_read=len(readings),
         unclear_marks=sum(r.unclear_marks for r in readings),

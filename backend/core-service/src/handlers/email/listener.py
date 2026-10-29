@@ -32,7 +32,9 @@ from src.handlers.email.parser import ParsedEmail, parse_message
 logger = logging.getLogger(__name__)
 
 CURSOR_KEY = redis_key("imap", "cursor")  # hash: uidvalidity, last_uid
-FAILURES_KEY = redis_key("imap", "failures")  # hash: "<uidvalidity>:<uid>" -> failed tries
+FAILURES_KEY = redis_key(
+    "imap", "failures"
+)  # hash: "<uidvalidity>:<uid>" -> failed tries
 FAILURES_TTL = 7 * 24 * 3600
 
 
@@ -110,8 +112,8 @@ async def _handle(
             logger.warning("UID %s could not be saved (try %d): %s", uid, tries, exc)
             raise
         reason = (
-            f"This email could not be saved after {tries} tries and was skipped "
-            f"so the rest of the inbox can be read. Details: {technical_details(exc, 500)}"
+            f"This email could not be saved after {tries} tries and was skipped so the "
+            f"rest of the inbox can be read. Details: {technical_details(exc, 500)}"
         )
         logger.error("UID %s skipped: %s", uid, reason)
         if give_up is not None:
@@ -151,16 +153,23 @@ async def process_new_mail(
             await cursor.set(validity, uidnext - 1)
             logger.info("First run: watching for mail from UID %s on", uidnext)
             return 0
-        logger.info("First run: reading the last %s day(s) of mail", settings.email_backfill_days)
+        logger.info(
+            "First run: reading the last %s day(s) of mail",
+            settings.email_backfill_days,
+        )
         since = today - timedelta(days=settings.email_backfill_days)
         messages = await asyncio.to_thread(source.fetch_since, since)
         resync = True
     elif saved_validity != validity:
         # The server renumbered the folder, so the old UIDs mean nothing now.
         logger.warning(
-            "UIDVALIDITY changed (%s -> %s); re-reading 2 days", saved_validity, validity
+            "UIDVALIDITY changed (%s -> %s); re-reading 2 days",
+            saved_validity,
+            validity,
         )
-        messages = await asyncio.to_thread(source.fetch_since, today - timedelta(days=2))
+        messages = await asyncio.to_thread(
+            source.fetch_since, today - timedelta(days=2)
+        )
         resync = True
     else:
         if uidnext - 1 <= last_uid:

@@ -13,7 +13,8 @@ class ReadMethod(StrEnum):
 
 
 class WritingClass(StrEnum):
-    """How a photo / scan is written, as the vision model saw it (documents.writing_class)."""
+    """How a photo / scan is written, as the vision model saw it
+    (documents.writing_class)."""
 
     PRINTED_ONLY = "printed_only"  # printed or typed (a signature alone stays here)
     HANDWRITTEN_ONLY = "handwritten_only"

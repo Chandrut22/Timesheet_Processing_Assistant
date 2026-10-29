@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatRelative } from "@/utils/format";
 import { useCompanyMap } from "@/features/companies";
 import { cn } from "@/lib/utils";
+import type { JSX } from "react";
 
 const RECENT_UPLOADS: SubmissionListParams = { source: "upload", page: 1, size: 5 };
 const POLL_MS = 5000;
@@ -28,7 +29,7 @@ function fileSummary(s: SubmissionRead): { label: string; title: string } {
   return { label: `${names[0]}${more}`, title: names.join("\n") };
 }
 
-export function RecentUploads({ className }: { className?: string }) {
+export function RecentUploads({ className }: { className?: string }): JSX.Element {
   const companies = useCompanyMap();
   const recent = useQuery({
     queryKey: submissionKeys.recentUploads(RECENT_UPLOADS),

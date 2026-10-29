@@ -42,7 +42,11 @@ def _build(objects: list[bytes], trailer_extra: bytes) -> bytes:
     out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objects) + 1)
     for offset in offsets:
         out += b"%010d 00000 n \n" % offset
-    out += b"trailer\n<< /Size %d /Root 1 0 R " % (len(objects) + 1) + trailer_extra + b" >>\n"
+    out += (
+        b"trailer\n<< /Size %d /Root 1 0 R " % (len(objects) + 1)
+        + trailer_extra
+        + b" >>\n"
+    )
     out += b"startxref\n%d\n%%%%EOF\n" % xref
     return bytes(out)
 
@@ -72,6 +76,9 @@ def encrypted_pdf(user: str = "secret", owner: str = "owner") -> bytes:
         user_value.hex().encode(),
         _PERMISSIONS,
     )
-    trailer = b"/Encrypt 4 0 R /ID [<%s> <%s>]" % (file_id.hex().encode(), file_id.hex().encode())
+    trailer = b"/Encrypt 4 0 R /ID [<%s> <%s>]" % (
+        file_id.hex().encode(),
+        file_id.hex().encode(),
+    )
     # The page objects hold no strings or streams, so nothing else needs encrypting.
     return _build([*_PAGE_OBJECTS, encrypt], trailer)

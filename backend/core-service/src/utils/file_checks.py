@@ -47,13 +47,14 @@ def _kind(extension: str) -> str:
 
 def _mismatch(filename: str, extension: str) -> str:
     return (
-        f"'{filename}' is not a real {_kind(extension)} file: its content does not match "
-        f"the {extension} extension."
+        f"'{filename}' is not a real {_kind(extension)} file: its content does not "
+        f"match the {extension} extension."
     )
 
 
 def is_text(data: bytes) -> bool:
-    """No NUL bytes, and readable as UTF-8 or Windows-1252 (what Excel saves on Windows)."""
+    """No NUL bytes, and readable as UTF-8 or Windows-1252 (what Excel saves on
+    Windows)."""
     if b"\x00" in data:
         return False
     for encoding in ("utf-8-sig", "cp1252"):
@@ -92,8 +93,9 @@ def zip_bomb_reason(
         )
     if unpacked > RATIO_CHECK_ABOVE_BYTES and unpacked > max_ratio * max(packed, 1):
         return (
-            f"'{filename}' was refused: it is compressed {unpacked // max(packed, 1):,} to 1, "
-            f"which is how zip bombs look (the limit is {max_ratio} to 1)."
+            f"'{filename}' was refused: it is compressed "
+            f"{unpacked // max(packed, 1):,} to 1, which is how zip bombs look (the "
+            f"limit is {max_ratio} to 1)."
         )
     return None
 
@@ -123,7 +125,11 @@ def check_file(
             required_part=_OFFICE_PART[extension],
         )
     if extension in _IMAGE_MAGIC:
-        return None if data.startswith(_IMAGE_MAGIC[extension]) else _mismatch(filename, extension)
+        return (
+            None
+            if data.startswith(_IMAGE_MAGIC[extension])
+            else _mismatch(filename, extension)
+        )
     if extension == ".webp":
         ok = data[:4] == b"RIFF" and data[8:12] == b"WEBP"
         return None if ok else _mismatch(filename, extension)

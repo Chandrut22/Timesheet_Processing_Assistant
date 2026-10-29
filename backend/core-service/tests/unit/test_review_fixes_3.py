@@ -25,20 +25,25 @@ def confident_timesheet(flag: dict[str, str] | None) -> Timesheet:
     )
 
 
-# --- #20 ---------------------------------------------------------------------------------
+# --- #20
+# ---------------------------------------------------------------------------------
 
 
 def test_exact_name_or_alias_still_allows_automatic_approval() -> None:
     for written in ("ABC Staffing Solutions", "ABC Staff."):
         decision = decide_company(written, None, COMPANIES)
         assert decision.company_id == ABC.id
-        assert decision.flag is not None and decision.flag["code"] == "company_from_sheet"
+        assert (
+            decision.flag is not None and decision.flag["code"] == "company_from_sheet"
+        )
         assert can_auto_approve(confident_timesheet(decision.flag))
 
 
 def test_a_close_spelling_is_a_guess_and_needs_a_reviewer() -> None:
     decision = decide_company("ABC Stafing Solutions", None, COMPANIES)
-    assert decision.company_id == ABC.id  # still used, so the right employees and rates apply
+    assert (
+        decision.company_id == ABC.id
+    )  # still used, so the right employees and rates apply
     assert decision.flag is not None and decision.flag["code"] == "company_guessed"
     assert "close spelling" in decision.flag["message"]
     assert not can_auto_approve(confident_timesheet(decision.flag))
@@ -62,12 +67,15 @@ def test_guessed_company_is_medium_severity() -> None:
     assert timesheet.severity == "medium"
 
 
-# --- #18 ---------------------------------------------------------------------------------
+# --- #18
+# ---------------------------------------------------------------------------------
 
 
 def test_reprocess_does_not_clear_approvals_unless_asked() -> None:
     assert ReprocessRequest(reason="rates fixed").confirm_approved is False
-    assert ReprocessRequest(reason="rates fixed", confirm_approved=True).confirm_approved
+    assert ReprocessRequest(
+        reason="rates fixed", confirm_approved=True
+    ).confirm_approved
 
 
 def test_confirmation_error_is_a_409_with_its_own_code() -> None:
@@ -85,4 +93,6 @@ def test_classifier_switch_needs_a_real_key() -> None:
     for empty in ("", "   "):
         with pytest.raises(ValueError, match="needs JEV_API_KEY"):
             Settings(_env_file=None, classifier_enabled=True, jev_api_key=empty)
-    assert Settings(_env_file=None, classifier_enabled=True, jev_api_key="k").classifier_enabled
+    assert Settings(
+        _env_file=None, classifier_enabled=True, jev_api_key="k"
+    ).classifier_enabled

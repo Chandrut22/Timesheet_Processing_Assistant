@@ -1,7 +1,7 @@
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { RotateCcw, Upload } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, type JSX } from "react";
 import {
   type SubmissionListParams,
   SUBMISSION_STATES,
@@ -44,7 +44,7 @@ type SubmissionsSearch = {
 
 const PAGE_SIZE = 25;
 
-export function SubmissionsPage() {
+export function SubmissionsPage(): JSX.Element {
   const search = routeApi.useSearch();
   const navigate = routeApi.useNavigate();
   const params: SubmissionListParams = useMemo(
@@ -63,7 +63,7 @@ export function SubmissionsPage() {
         : false,
   });
 
-  const update = (patch: Partial<SubmissionsSearch>) =>
+  const update = (patch: Partial<SubmissionsSearch>): void =>
     void navigate({
       search: (prev) => {
         const next: SubmissionsSearch = { ...prev, ...patch };

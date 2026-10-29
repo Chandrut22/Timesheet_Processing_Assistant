@@ -23,7 +23,9 @@ from src.data.models import AuditEvent, Company, Employee, Holiday
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 PUBLIC = (
     KEY.public_key()
-    .public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
+    .public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
+    )
     .decode()
 )
 ABC = "ABC Staffing Solutions Pvt Ltd"
@@ -84,10 +86,13 @@ async def count(model: Any) -> int:
         return len((await s.scalars(select(model))).all())
 
 
-EMP_HEADER = "company,employee_code,full_name,email,aliases,assignment_start,assignment_end"
+EMP_HEADER = (
+    "company,employee_code,full_name,email,aliases,assignment_start,assignment_end"
+)
 
 
-# --- templates ---------------------------------------------------------------------------
+# --- templates
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("resource", ["employees", "companies", "holidays"])
@@ -102,7 +107,9 @@ async def test_template(client: httpx.AsyncClient, resource: str) -> None:
 # --- valid files, dry run -------------------------------------------------------------
 
 
-async def test_employees_dry_run_writes_nothing_then_commit(client: httpx.AsyncClient) -> None:
+async def test_employees_dry_run_writes_nothing_then_commit(
+    client: httpx.AsyncClient,
+) -> None:
     body = csv_file(
         EMP_HEADER,
         f"{ABC},E100,Anita Desai,anita@example.com,Anu; A. Desai,2026-09-01,",
@@ -111,17 +118,28 @@ async def test_employees_dry_run_writes_nothing_then_commit(client: httpx.AsyncC
     r = await client.post("/employees/import", files=body)
     report = r.json()
     assert r.status_code == 200, r.text
-    assert (report["dry_run"], report["committed"], report["created"]) == (True, False, 2)
+    assert (report["dry_run"], report["committed"], report["created"]) == (
+        True,
+        False,
+        2,
+    )
     assert await count(Employee) == 0  # dry run: nothing written
 
     r = await client.post("/employees/import?dry_run=false", files=body)
     assert r.json()["committed"] is True and r.json()["created"] == 2
     async with SessionLocal() as s:
-        anita = (await s.scalars(select(Employee).where(Employee.employee_code == "E100"))).one()
-    assert anita.aliases == ["Anu", "A. Desai"] and str(anita.assignment_start) == "2026-09-01"
+        anita = (
+            await s.scalars(select(Employee).where(Employee.employee_code == "E100"))
+        ).one()
+    assert (
+        anita.aliases == ["Anu", "A. Desai"]
+        and str(anita.assignment_start) == "2026-09-01"
+    )
 
 
-async def test_employees_from_xlsx_with_date_and_number_cells(client: httpx.AsyncClient) -> None:
+async def test_employees_from_xlsx_with_date_and_number_cells(
+    client: httpx.AsyncClient,
+) -> None:
     rows: list[list[Any]] = [
         EMP_HEADER.split(","),
         [ABC, 1001, "Number Code", None, None, datetime(2026, 9, 1), None],
@@ -146,21 +164,41 @@ async def test_companies_and_holidays_import(client: httpx.AsyncClient) -> None:
         "/holidays/import?dry_run=false",
         files=csv_file(
             "holiday_date,name,company",
-            "2026-12-25,Christmas Day,",
+            "2026-12-25,Christmas Day,Lakeside Logistics",
             f"2026-10-20,Company Day,{ABC}",
         ),
     )
     assert r.json()["created"] == 2, r.text
     async with SessionLocal() as s:
-        lake = (await s.scalars(select(Company).where(Company.name == "Lakeside Logistics"))).one()
-        global_holiday = (
-            await s.scalars(select(Holiday).where(Holiday.company_id.is_(None)))
+        lake = (
+            await s.scalars(select(Company).where(Company.name == "Lakeside Logistics"))
+        ).one()
+        lake_holiday = (
+            await s.scalars(select(Holiday).where(Holiday.company_id == lake.id))
         ).one()
     assert lake.week_start == 6 and lake.aliases == ["Lakeside", "LLP"]
-    assert global_holiday.name == "Christmas Day"
+    assert lake_holiday.name == "Christmas Day"
 
 
-# --- errors, abort vs skip --------------------------------------------------------------
+async def test_a_holiday_row_without_a_company_fails(client: httpx.AsyncClient) -> None:
+    r = await client.post(
+        "/holidays/import?dry_run=false",
+        files=csv_file("holiday_date,name,company", "2026-12-25,Christmas Day,"),
+    )
+    (row,) = r.json()["rows"]
+    assert row["status"] == "failed"
+    assert row["errors"] == [{"column": "company", "message": "Enter the company."}]
+    r = await client.post(
+        "/holidays/import",
+        files=csv_file("holiday_date,name", "2026-12-25,Christmas Day"),
+    )
+    assert (
+        r.status_code == 422 and "company" in r.json()["detail"]
+    )  # the column is required
+
+
+# --- errors, abort vs skip
+# --------------------------------------------------------------
 
 
 MIXED = (
@@ -172,20 +210,30 @@ MIXED = (
 )
 
 
-async def test_abort_writes_nothing_when_any_row_fails(client: httpx.AsyncClient) -> None:
-    r = await client.post("/employees/import?dry_run=false&on_error=abort", files=csv_file(*MIXED))
+async def test_abort_writes_nothing_when_any_row_fails(
+    client: httpx.AsyncClient,
+) -> None:
+    r = await client.post(
+        "/employees/import?dry_run=false&on_error=abort", files=csv_file(*MIXED)
+    )
     report = r.json()
     assert (report["committed"], report["created"], report["failed"]) == (False, 1, 3)
     assert await count(Employee) == 0
-    failed = {row["row"]: row["errors"] for row in report["rows"] if row["status"] == "failed"}
+    failed = {
+        row["row"]: row["errors"] for row in report["rows"] if row["status"] == "failed"
+    }
     assert failed[3][0]["column"] == "email"
     assert "assignment_end cannot be before assignment_start" in failed[4][0]["message"]
-    assert failed[5] == [{"column": "company", "message": "No company named 'No Such Co'."}]
+    assert failed[5] == [
+        {"column": "company", "message": "No company named 'No Such Co'."}
+    ]
     assert [row["row"] for row in report["rows"]][:3] == [3, 4, 5]  # failed rows first
 
 
 async def test_skip_writes_the_valid_rows(client: httpx.AsyncClient) -> None:
-    r = await client.post("/employees/import?dry_run=false&on_error=skip", files=csv_file(*MIXED))
+    r = await client.post(
+        "/employees/import?dry_run=false&on_error=skip", files=csv_file(*MIXED)
+    )
     report = r.json()
     assert (report["committed"], report["created"], report["failed"]) == (True, 1, 3)
     assert await count(Employee) == 1
@@ -198,10 +246,14 @@ async def test_duplicate_inside_the_file(client: httpx.AsyncClient) -> None:
     )
     rows = {row["row"]: row for row in r.json()["rows"]}
     assert rows[3]["status"] == "failed"
-    assert "Same employee code in the same company as row 2" in rows[3]["errors"][0]["message"]
+    assert (
+        "Same employee code in the same company as row 2"
+        in rows[3]["errors"][0]["message"]
+    )
 
 
-# --- duplicates against the database ---------------------------------------------------
+# --- duplicates against the database
+# ---------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -216,7 +268,8 @@ async def test_employee_duplicate_modes(
     client: httpx.AsyncClient, mode: str, status: str, name_after: str
 ) -> None:
     await client.post(
-        "/employees/import?dry_run=false", files=csv_file(EMP_HEADER, f"{ABC},E400,Old Name,,,,")
+        "/employees/import?dry_run=false",
+        files=csv_file(EMP_HEADER, f"{ABC},E400,Old Name,,,,"),
     )
     r = await client.post(
         f"/employees/import?dry_run=false&on_error=skip&on_duplicate={mode}",
@@ -231,7 +284,9 @@ async def test_employee_duplicate_modes(
 async def test_company_and_holiday_update_modes(client: httpx.AsyncClient) -> None:
     r = await client.post(
         "/companies/import?dry_run=false&on_duplicate=update",
-        files=csv_file("name,hourly_rate,overtime_rate,holiday_rate", f"{ABC.upper()},460,690,920"),
+        files=csv_file(
+            "name,hourly_rate,overtime_rate,holiday_rate", f"{ABC.upper()},460,690,920"
+        ),
     )
     assert r.json()["updated"] == 1, r.text
     async with SessionLocal() as s:
@@ -239,41 +294,58 @@ async def test_company_and_holiday_update_modes(client: httpx.AsyncClient) -> No
     assert float(abc.hourly_rate) == 460 and abc.name == ABC  # matched ignoring case
 
     await client.post(
-        "/holidays/import?dry_run=false", files=csv_file("holiday_date,name", "2026-12-25,Xmas")
+        "/holidays/import?dry_run=false",
+        files=csv_file("holiday_date,name,company", f"2026-12-25,Xmas,{ABC}"),
     )
     r = await client.post(
         "/holidays/import?dry_run=false&on_duplicate=update",
-        files=csv_file("holiday_date,name", "2026-12-25,Christmas Day"),
+        files=csv_file("holiday_date,name,company", f"2026-12-25,Christmas Day,{ABC}"),
     )
     assert r.json()["updated"] == 1
     async with SessionLocal() as s:
         assert (await s.scalars(select(Holiday))).one().name == "Christmas Day"
 
 
-# --- the file itself ---------------------------------------------------------------------
+# --- the file itself
+# ---------------------------------------------------------------------
 
 
 async def test_missing_required_header(client: httpx.AsyncClient) -> None:
-    r = await client.post("/employees/import", files=csv_file("company,full_name", f"{ABC},X"))
+    r = await client.post(
+        "/employees/import", files=csv_file("company,full_name", f"{ABC},X")
+    )
     assert r.status_code == 422 and "employee_code" in r.json()["detail"]
 
 
 async def test_unknown_columns_are_warnings(client: httpx.AsyncClient) -> None:
     r = await client.post(
-        "/holidays/import", files=csv_file("Holiday_Date,NAME,notes", "2026-12-25,Xmas,ignored")
+        "/holidays/import",
+        files=csv_file(
+            "Holiday_Date,NAME,Company,notes", f"2026-12-25,Xmas,{ABC},ignored"
+        ),
     )
-    assert r.status_code == 200 and r.json()["created"] == 1  # headers match ignoring case
-    assert r.json()["warnings"] == ["Column 'notes' is not used by the holidays import."]
+    assert (
+        r.status_code == 200 and r.json()["created"] == 1
+    )  # headers match ignoring case
+    assert r.json()["warnings"] == [
+        "Column 'notes' is not used by the holidays import."
+    ]
 
 
-async def test_oversize_file(client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_oversize_file(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setattr(settings, "max_import_mb", 1)
     big = "holiday_date,name\r\n" + "2026-12-25,X\r\n" * 100_000
-    r = await client.post("/holidays/import", files={"file": ("big.csv", big.encode(), "text/csv")})
+    r = await client.post(
+        "/holidays/import", files={"file": ("big.csv", big.encode(), "text/csv")}
+    )
     assert r.status_code == 422 and "larger than 1 MB" in r.json()["detail"]
 
 
-async def test_too_many_rows(client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_too_many_rows(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setattr(settings, "max_import_rows", 3)
     lines = ["holiday_date,name"] + [f"2026-12-{d:02d},Day {d}" for d in range(1, 6)]
     r = await client.post("/holidays/import", files=csv_file(*lines))
@@ -288,23 +360,31 @@ async def test_too_many_rows(client: httpx.AsyncClient, monkeypatch: pytest.Monk
         ("employees.xlsx", b"just text"),
     ],
 )
-async def test_wrong_file_type(client: httpx.AsyncClient, name: str, data: bytes) -> None:
+async def test_wrong_file_type(
+    client: httpx.AsyncClient, name: str, data: bytes
+) -> None:
     r = await client.post(
         "/employees/import", files={"file": (name, data, "application/octet-stream")}
     )
     assert r.status_code == 422
 
 
-async def test_formula_like_cells_are_stored_as_plain_text(client: httpx.AsyncClient) -> None:
+async def test_formula_like_cells_are_stored_as_plain_text(
+    client: httpx.AsyncClient,
+) -> None:
     formula = '=HYPERLINK("http://evil.example","x")'
-    rows: list[list[Any]] = [EMP_HEADER.split(","), [ABC, "E500", formula, None, None, None, None]]
+    rows: list[list[Any]] = [
+        EMP_HEADER.split(","),
+        [ABC, "E500", formula, None, None, None, None],
+    ]
     r = await client.post("/employees/import?dry_run=false", files=xlsx_file(rows))
     assert r.json()["created"] == 1, r.text
     async with SessionLocal() as s:
         assert (await s.scalars(select(Employee))).one().full_name == formula
 
 
-# --- who may import, audit, rate limit ----------------------------------------------------
+# --- who may import, audit, rate limit
+# ----------------------------------------------------
 
 
 async def test_reviewers_get_403_and_anonymous_401(client: httpx.AsyncClient) -> None:
@@ -315,16 +395,22 @@ async def test_reviewers_get_403_and_anonymous_401(client: httpx.AsyncClient) ->
     assert r.status_code == 401
 
 
-async def test_a_committed_import_writes_one_audit_event(client: httpx.AsyncClient) -> None:
+async def test_a_committed_import_writes_one_audit_event(
+    client: httpx.AsyncClient,
+) -> None:
     await client.post(
-        "/holidays/import?dry_run=false", files=csv_file("holiday_date,name", "2026-12-25,Xmas")
+        "/holidays/import?dry_run=false",
+        files=csv_file("holiday_date,name,company", f"2026-12-25,Xmas,{ABC}"),
     )
     await client.post(
-        "/holidays/import", files=csv_file("holiday_date,name", "2026-12-26,Boxing")
+        "/holidays/import",
+        files=csv_file("holiday_date,name,company", f"2026-12-26,Boxing,{ABC}"),
     )  # dry
     async with SessionLocal() as s:
         (event,) = (
-            await s.scalars(select(AuditEvent).where(AuditEvent.entity_type == "import"))
+            await s.scalars(
+                select(AuditEvent).where(AuditEvent.entity_type == "import")
+            )
         ).all()
     assert event.action == "holidays_imported" and event.actor_name == "Ada Admin"
     assert event.details["created"] == 1 and len(event.details["sha256"]) == 64

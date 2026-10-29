@@ -34,7 +34,9 @@ def locked_pdf() -> bytes:
 
 
 @pytest.fixture
-async def world(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> AsyncIterator[list[str]]:
+async def world(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> AsyncIterator[list[str]]:
     monkeypatch.setattr(settings, "upload_dir", str(tmp_path / "uploads"))
     # Vision on, as on the machine where the crash was seen: a damaged PDF has no text
     # layer, so it used to be sent to the vision reader, which crashed in PDFium.
@@ -51,7 +53,8 @@ async def world(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> AsyncIterator
                     employee_name="Grace Hopper",
                     week_start=WEEK,
                     days=[
-                        ExtractedDay(work_date=WEEK + timedelta(days=i), hours=8) for i in range(2)
+                        ExtractedDay(work_date=WEEK + timedelta(days=i), hours=8)
+                        for i in range(2)
                     ],
                     confidence=0.95,
                 )
@@ -71,7 +74,11 @@ async def world(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> AsyncIterator
         )
         s.add(company)
         await s.flush()
-        s.add(Employee(company_id=company.id, employee_code="E001", full_name="Grace Hopper"))
+        s.add(
+            Employee(
+                company_id=company.id, employee_code="E001", full_name="Grace Hopper"
+            )
+        )
         await s.commit()
     yield extracted
     await engine.dispose()
@@ -111,7 +118,9 @@ async def run(submission_id: uuid.UUID) -> None:
         await ProcessingService(s).process(submission_id)  # never raises for a bad file
 
 
-async def test_a_corrupted_attachment_in_the_middle_of_a_batch(world: list[str]) -> None:
+async def test_a_corrupted_attachment_in_the_middle_of_a_batch(
+    world: list[str],
+) -> None:
     batch = [
         await email([("grace.csv", GOOD_CSV)]),
         await email([("broken.pdf", BROKEN_PDF)]),  # only a damaged file
@@ -124,16 +133,21 @@ async def test_a_corrupted_attachment_in_the_middle_of_a_batch(world: list[str])
     async with SessionLocal() as s:
         states = [(await s.get(Submission, i)).state for i in batch]  # type: ignore[union-attr]
         assert states[1] == "failed"
-        # before and after: processed normally (the later ones are flagged as duplicates)
+        # before and after: processed normally (the later ones are flagged as
+        # duplicates)
         assert "failed" not in (states[0], states[3])
         assert states[2] != "failed"  # its good attachment made a timesheet
 
-        broken = await s.scalar(select(Document).where(Document.submission_id == batch[1]))
+        broken = await s.scalar(
+            select(Document).where(Document.submission_id == batch[1])
+        )
         assert broken is not None and broken.status == "failed"
         assert broken.error == (
             "'broken.pdf' is damaged or not a valid file. Ask the sender to resend it."
         )
-        locked = await s.scalar(select(Document).where(Document.filename == "locked.pdf"))
+        locked = await s.scalar(
+            select(Document).where(Document.filename == "locked.pdf")
+        )
         assert locked is not None and locked.status == "failed"
         assert "password-protected" in (locked.error or "")
 
@@ -155,4 +169,6 @@ async def test_a_corrupted_attachment_in_the_middle_of_a_batch(world: list[str])
 
         sheets = (await s.scalars(select(Timesheet.submission_id))).all()
         assert sorted(sheets) == sorted([batch[0], batch[2], batch[3]])
-    assert len(world) == 3  # the good files were extracted; the bad ones never reached it
+    assert (
+        len(world) == 3
+    )  # the good files were extracted; the bad ones never reached it

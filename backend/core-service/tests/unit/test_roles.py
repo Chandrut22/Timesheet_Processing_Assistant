@@ -82,14 +82,14 @@ def test_reviewer_is_refused_on_admin_routes(
     assert response.status_code == 403, response.text
 
 
-class _NoDatabase(Exception):
+class _NoDatabaseError(Exception):
     """Raised when the route touches the database: reaching it means the role check
     passed (the session itself is resolved before the role, so it can't raise yet)."""
 
 
 class _UnusableSession:
     def __getattr__(self, name: str) -> object:
-        raise _NoDatabase(name)
+        raise _NoDatabaseError(name)
 
 
 @pytest.mark.parametrize(("method", "path", "body"), REVIEWER_EXPORT)
@@ -102,12 +102,16 @@ def test_reviewer_may_use_the_payroll_export(
         return _UnusableSession()
 
     client.app.dependency_overrides[get_session] = unusable_session  # type: ignore[attr-defined]
-    with pytest.raises(_NoDatabase):  # past the role check, stopped at the first query
+    with pytest.raises(
+        _NoDatabaseError
+    ):  # past the role check, stopped at the first query
         client.request(method, path, json=body)
 
 
 def test_unknown_download_format_is_refused() -> None:
-    response = client_as(RoleName.REVIEWER).get(f"/exports/{SOME_ID}/download?format=pdf")
+    response = client_as(RoleName.REVIEWER).get(
+        f"/exports/{SOME_ID}/download?format=pdf"
+    )
     assert response.status_code == 422
 
 

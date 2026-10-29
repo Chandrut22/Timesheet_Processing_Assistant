@@ -1,7 +1,14 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 
 def _clean_aliases(values: list[str]) -> list[str]:
@@ -27,8 +34,12 @@ class EmployeeCreate(BaseModel):
     full_name: str = Field(min_length=1, max_length=200)
     email: EmailStr | None = None
     aliases: list[str] = Field(default_factory=list, max_length=20)
-    assignment_start: date | None = Field(default=None, description="First day at the client")
-    assignment_end: date | None = Field(default=None, description="Last day; null = ongoing")
+    assignment_start: date | None = Field(
+        default=None, description="First day at the client"
+    )
+    assignment_end: date | None = Field(
+        default=None, description="Last day; null = ongoing"
+    )
 
     @model_validator(mode="after")
     def check_dates(self) -> "EmployeeCreate":

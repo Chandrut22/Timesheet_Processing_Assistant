@@ -36,8 +36,8 @@ class ExportBatch(UUIDPrimaryKeyMixin, AuditMixin, Base):
         CheckConstraint("week_end >= week_start", name="week_range"),
         CheckConstraint("row_count >= 0", name="row_count_non_negative"),
         CheckConstraint(
-            "regular_hours >= 0 AND overtime_hours >= 0 AND double_time_hours >= 0 "
-            "AND holiday_hours >= 0",
+            "regular_hours >= 0 AND overtime_hours >= 0 AND double_time_hours >= 0 AND "
+            "holiday_hours >= 0",
             name="hours_non_negative",
         ),
         CheckConstraint(
@@ -57,18 +57,26 @@ class ExportBatch(UUIDPrimaryKeyMixin, AuditMixin, Base):
     row_count: Mapped[int] = mapped_column(Integer)
     regular_hours: Mapped[Decimal] = mapped_column(Numeric(8, 2), server_default=ZERO)
     overtime_hours: Mapped[Decimal] = mapped_column(Numeric(8, 2), server_default=ZERO)
-    double_time_hours: Mapped[Decimal] = mapped_column(Numeric(8, 2), server_default=ZERO)
+    double_time_hours: Mapped[Decimal] = mapped_column(
+        Numeric(8, 2), server_default=ZERO
+    )
     holiday_hours: Mapped[Decimal] = mapped_column(Numeric(8, 2), server_default=ZERO)
 
     # Gross pay totals of the sheet (no taxes or deductions)
     currency: Mapped[str] = mapped_column(CHAR(3), default="INR", server_default="INR")
     regular_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), server_default=ZERO)
-    overtime_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), server_default=ZERO)
-    double_time_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), server_default=ZERO)
+    overtime_amount: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), server_default=ZERO
+    )
+    double_time_amount: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), server_default=ZERO
+    )
     holiday_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), server_default=ZERO)
     gross_amount: Mapped[Decimal] = mapped_column(
         Numeric(14, 2),
-        Computed("regular_amount + overtime_amount + double_time_amount + holiday_amount"),
+        Computed(
+            "regular_amount + overtime_amount + double_time_amount + holiday_amount"
+        ),
     )
 
     filename: Mapped[str] = mapped_column(String(255))
@@ -78,4 +86,6 @@ class ExportBatch(UUIDPrimaryKeyMixin, AuditMixin, Base):
     created_by_name: Mapped[str | None] = mapped_column(String(150))
 
     def __repr__(self) -> str:
-        return f"<ExportBatch {self.company_name} {self.week_start} rows={self.row_count}>"
+        return (
+            f"<ExportBatch {self.company_name} {self.week_start} rows={self.row_count}>"
+        )

@@ -40,7 +40,7 @@ export function onDuplicateOptions(
   return options;
 }
 
-const count = (n: number, one: string, many: string) =>
+const count = (n: number, one: string, many: string): string =>
   `${n.toLocaleString()} ${n === 1 ? one : many}`;
 
 /** One sentence for the result: "Would create 3 employees, skip 1. 2 rows have problems." */

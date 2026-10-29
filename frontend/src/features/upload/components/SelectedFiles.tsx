@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { formatBytes } from "@/utils/format";
 import { fileKind, totalBytes, type FileKind } from "../utils/uploadLimits";
+import type { JSX } from "react";
 
 const ICONS: Record<FileKind, LucideIcon> = {
   pdf: FileType,
@@ -33,7 +34,7 @@ export function SelectedFiles({
   disabled?: boolean;
   onRemove: (index: number) => void;
   onClear: () => void;
-}) {
+}): JSX.Element {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
       <div className="flex shrink-0 items-center justify-between gap-3 border-b bg-muted/40 px-3 py-2 text-sm">

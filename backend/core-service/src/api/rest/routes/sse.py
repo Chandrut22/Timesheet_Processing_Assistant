@@ -32,7 +32,8 @@ def _sse(event: str, data: str) -> str:
 
 
 def _expires_at(credentials: HTTPAuthorizationCredentials) -> float:
-    # The Reviewer dependency already fully verified this token; here we only read its expiry.
+    # The Reviewer dependency already fully verified this token; here we only read its
+    # expiry.
     claims = jwt.decode(credentials.credentials, options={"verify_signature": False})
     return float(claims["exp"])
 
@@ -48,7 +49,9 @@ async def stream_dashboard(
     browser then reconnects with a fresh one)."""
     assert credentials is not None  # Reviewer already rejected anonymous callers
     if _open_streams[principal.id] >= settings.dashboard_max_streams_per_user:
-        raise HTTPException(status_code=429, detail="Too many open dashboards. Close another tab.")
+        raise HTTPException(
+            status_code=429, detail="Too many open dashboards. Close another tab."
+        )
 
     hub: DashboardHub = request.app.state.dashboard_hub
     expires_at = _expires_at(credentials)
@@ -71,7 +74,8 @@ async def stream_dashboard(
                     return
                 try:
                     payload = await asyncio.wait_for(
-                        queue.get(), timeout=min(settings.dashboard_heartbeat_seconds, remaining)
+                        queue.get(),
+                        timeout=min(settings.dashboard_heartbeat_seconds, remaining),
                     )
                 except TimeoutError:
                     yield ": ping\n\n"

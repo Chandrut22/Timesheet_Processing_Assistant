@@ -24,10 +24,14 @@ NEW = "'collect', 'read', 'classify', 'extract', 'match', 'rules', 'decide', 'pi
 
 def upgrade() -> None:
     op.drop_constraint(op.f(NAME), "processing_steps", type_="check", schema=SCHEMA)
-    op.create_check_constraint(op.f(NAME), "processing_steps", f"step IN ({NEW})", schema=SCHEMA)
+    op.create_check_constraint(
+        op.f(NAME), "processing_steps", f"step IN ({NEW})", schema=SCHEMA
+    )
 
 
 def downgrade() -> None:
     op.execute(f"DELETE FROM {SCHEMA}.processing_steps WHERE step = 'classify'")
     op.drop_constraint(op.f(NAME), "processing_steps", type_="check", schema=SCHEMA)
-    op.create_check_constraint(op.f(NAME), "processing_steps", f"step IN ({OLD})", schema=SCHEMA)
+    op.create_check_constraint(
+        op.f(NAME), "processing_steps", f"step IN ({OLD})", schema=SCHEMA
+    )

@@ -5,6 +5,7 @@ import { Banner } from "@/components/common/States";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatHours, formatMoney } from "@/utils/format";
+import type { JSX } from "react";
 
 export function PayBreakdown({
   t,
@@ -16,7 +17,7 @@ export function PayBreakdown({
   onRecalculate: () => void;
   recalculating: boolean;
   readOnly: boolean;
-}) {
+}): JSX.Element {
   const rows = [
     { label: "Regular", hours: t.regular_hours, rate: t.hourly_rate, amount: t.regular_amount },
     {

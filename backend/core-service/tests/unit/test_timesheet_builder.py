@@ -22,7 +22,10 @@ def test_weekday_only_days_fall_back_to_previous_week_when_in_future() -> None:
     # Friday of the receipt week (16th) is in the future -> previous week (5th-9th)
     sheet = ExtractedTimesheet(
         employee_name="Bob",
-        days=[ExtractedDay(weekday="Mon", hours=8), ExtractedDay(weekday="Fri", hours=8)],
+        days=[
+            ExtractedDay(weekday="Mon", hours=8),
+            ExtractedDay(weekday="Fri", hours=8),
+        ],
         confidence=0.9,
     )
     ts = build_timesheet(sheet, CTX)

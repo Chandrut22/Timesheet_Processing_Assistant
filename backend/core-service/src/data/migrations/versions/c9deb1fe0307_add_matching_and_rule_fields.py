@@ -34,10 +34,16 @@ def upgrade() -> None:
 
     # --- timesheets -----------------------------------------------------------------
     op.add_column(
-        "timesheets", sa.Column("extracted_company_name", sa.String(length=200)), schema=SCHEMA
+        "timesheets",
+        sa.Column("extracted_company_name", sa.String(length=200)),
+        schema=SCHEMA,
     )
-    op.add_column("timesheets", sa.Column("email_stated_total", sa.Numeric(6, 2)), schema=SCHEMA)
-    op.add_column("timesheets", sa.Column("read_confidence", sa.Numeric(3, 2)), schema=SCHEMA)
+    op.add_column(
+        "timesheets", sa.Column("email_stated_total", sa.Numeric(6, 2)), schema=SCHEMA
+    )
+    op.add_column(
+        "timesheets", sa.Column("read_confidence", sa.Numeric(3, 2)), schema=SCHEMA
+    )
     op.add_column("timesheets", sa.Column("match_reason", sa.Text()), schema=SCHEMA)
     op.create_check_constraint(
         op.f("ck_timesheets_email_stated_total_non_negative"),
@@ -66,9 +72,13 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_constraint(op.f("ck_timesheets_read_confidence_range"), "timesheets", schema=SCHEMA)
     op.drop_constraint(
-        op.f("ck_timesheets_email_stated_total_non_negative"), "timesheets", schema=SCHEMA
+        op.f("ck_timesheets_read_confidence_range"), "timesheets", schema=SCHEMA
+    )
+    op.drop_constraint(
+        op.f("ck_timesheets_email_stated_total_non_negative"),
+        "timesheets",
+        schema=SCHEMA,
     )
     for column in (
         "match_reason",
@@ -77,6 +87,8 @@ def downgrade() -> None:
         "extracted_company_name",
     ):
         op.drop_column("timesheets", column, schema=SCHEMA)
-    op.drop_constraint(op.f("ck_employees_assignment_dates"), "employees", schema=SCHEMA)
+    op.drop_constraint(
+        op.f("ck_employees_assignment_dates"), "employees", schema=SCHEMA
+    )
     op.drop_column("employees", "assignment_end", schema=SCHEMA)
     op.drop_column("employees", "assignment_start", schema=SCHEMA)

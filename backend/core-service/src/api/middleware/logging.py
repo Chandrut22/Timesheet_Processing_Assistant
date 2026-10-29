@@ -44,5 +44,9 @@ class RequestLoggingMiddleware:
             await self.app(scope, receive, send_and_watch)
         finally:
             ms = (time.perf_counter() - started) * 1000
-            level = logging.WARNING if status >= 500 or ms > self.slow_ms else logging.INFO
-            logger.log(level, "%s %s %d %.0f ms", scope.get("method", "-"), path, status, ms)
+            level = (
+                logging.WARNING if status >= 500 or ms > self.slow_ms else logging.INFO
+            )
+            logger.log(
+                level, "%s %s %d %.0f ms", scope.get("method", "-"), path, status, ms
+            )

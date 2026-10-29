@@ -1,6 +1,7 @@
 import type * as React from "react";
 import { NativeSelect } from "@/components/ui/input";
 import { useCompanies } from "../hooks/useCompanies";
+import type { JSX } from "react";
 
 /** A company <select> fed by the cached company list. */
 export function CompanySelect({
@@ -16,7 +17,7 @@ export function CompanySelect({
   allLabel?: string;
   includeAll?: boolean;
   activeOnly?: boolean;
-}) {
+}): JSX.Element {
   const { data, isLoading } = useCompanies();
   const companies = (data ?? []).filter((c) => !activeOnly || c.is_active);
   return (

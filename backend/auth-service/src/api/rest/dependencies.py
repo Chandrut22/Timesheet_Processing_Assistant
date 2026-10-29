@@ -1,4 +1,5 @@
-"""Things routes ask for with Depends(...): a DB session, the current user, a role check."""
+"""Things routes ask for with Depends(...): a DB session, the current user, a role
+check."""
 
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Any

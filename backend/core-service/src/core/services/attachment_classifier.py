@@ -1,8 +1,10 @@
-"""Optional attachment classifier: "is this document a timesheet?", asked after the
-file is read and before the (slower, costlier) AI extraction.
+"""Optional attachment classifier: "is this attachment a timesheet?", asked from the
+email's metadata (file name, subject, body) BEFORE the file is read, so an invoice or a
+payslip costs neither a Docling read nor an AI extraction.
 
-This module is pure (no network, no database): the result type, the skip rule, and the
-decision the worker takes. The Jev client is in handlers/http_clients/jev_client.py.
+This module is pure (no network, no database): the result type, the text sent, the skip
+rule, and the decision the worker takes. The Jev client is in
+handlers/http_clients/jev_client.py.
 
 Safety rules (a wrongly skipped timesheet means hours that never get paid):
   - skip ONLY when the label is not "timesheet" AND P(timesheet) < CLASSIFIER_SKIP_BELOW
@@ -11,12 +13,14 @@ Safety rules (a wrongly skipped timesheet means hours that never get paid):
   - a manual reprocess never uses the classifier (a person asked for a full run)
   - shadow mode records what it WOULD do, and always continues"""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 
 LABELS: dict[str, str] = {
-    "timesheet": "Hours worked by one or more people, per day or per week (a timesheet, "
-    "time card, attendance or hours sheet), in any layout, even partly filled or handwritten.",
+    "timesheet": "Hours worked by one or more people, per day or per week (a "
+    "timesheet, time card, attendance or hours sheet), in any layout, even partly "
+    "filled or handwritten.",
     "invoice": "A bill or invoice asking for payment for goods or services.",
     "payslip": "A pay slip or salary statement already calculated for an employee.",
     "other": "Any other document: letters, contracts, reports, images, signatures.",
@@ -28,7 +32,9 @@ TIMESHEET = "timesheet"
 @dataclass(frozen=True, slots=True)
 class ClassifierResult:
     label: str  # one of LABELS
-    p_timesheet: float | None  # None = the answer had no usable probability for timesheet
+    p_timesheet: (
+        float | None
+    )  # None = the answer had no usable probability for timesheet
     model: str
     duration_ms: int
 
@@ -79,6 +85,34 @@ def decide(
 
 
 def describe(result: ClassifierResult) -> str:
-    """'invoice, 4% timesheet' / 'timesheet, 97% timesheet' / 'other, timesheet % unknown'."""
+    """'invoice, 4% timesheet' / 'timesheet, 97% timesheet' / 'other, timesheet %
+    unknown'."""
     share = "unknown" if result.p_timesheet is None else f"{result.p_timesheet:.0%}"
     return f"{result.label}, {share} timesheet"
+
+
+def metadata_text(
+    filename: str | None,
+    subject: str | None,
+    body: str | None,
+    others: Sequence[str] = (),
+    *,
+    body_max: int,
+) -> str:
+    """Pure: what the classifier is shown for one attachment. filename=None means the
+    email body itself is the candidate timesheet. The sender address is never sent."""
+    count = len(others) + 1
+    if filename is None:
+        first = "File: none (the email body itself)"
+    else:
+        first = f"File: {filename}"
+        if others:
+            first += f" (1 of {count} attachments; others: {', '.join(others)})"
+    clean_body = " ".join((body or "").split())[:body_max].rstrip()
+    return "\n".join(
+        [
+            first,
+            f"Subject: {(subject or '').strip() or '(none)'}",
+            f"Body: {clean_body or '(empty)'}",
+        ]
+    )

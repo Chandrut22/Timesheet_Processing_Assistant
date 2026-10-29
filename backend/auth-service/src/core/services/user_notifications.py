@@ -16,13 +16,10 @@ async def send_welcome_email(to: str, name: str, password: str, role: str) -> No
     role_label = role.replace("_", " ").title()  # "super_admin" -> "Super Admin"
 
     text = (
-        f"Hi {name},\n\n"
-        f"An account has been created for you on {product} with the role {role_label}.\n\n"
-        f"Sign in at: {settings.login_url}\n"
-        f"Email:      {to}\n"
-        f"Password:   {password}\n\n"
-        "Please change this password after your first sign-in.\n"
-        "If you were not expecting this email, contact your administrator."
+        f"Hi {name},\n\nAn account has been created for you on {product} with the role "
+        f"{role_label}.\n\nSign in at: {settings.login_url}\nEmail:      "
+        f"{to}\nPassword:   {password}\n\nPlease change this password after your first "
+        "sign-in.\nIf you were not expecting this email, contact your administrator."
     )
 
     # Escape everything user-supplied: a name or password may contain < > & "
@@ -33,7 +30,8 @@ async def send_welcome_email(to: str, name: str, password: str, role: str) -> No
   <p>Hi {e(name)},</p>
   <p>An account has been created for you with the role <b>{e(role_label)}</b>.</p>
   <table style="border-collapse:collapse;margin:16px 0">
-    <tr><td style="padding:4px 12px 4px 0;color:#666">Email</td><td><b>{e(to)}</b></td></tr>
+    <tr><td style="padding:4px 12px 4px 0;color:#666">Email</td>
+        <td><b>{e(to)}</b></td></tr>
     <tr><td style="padding:4px 12px 4px 0;color:#666">Password</td>
         <td><code style="font-size:15px">{e(password)}</code></td></tr>
   </table>

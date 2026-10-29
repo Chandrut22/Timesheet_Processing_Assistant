@@ -34,17 +34,17 @@ function createDebouncer<A extends unknown[]>(
   let delay = initialDelay;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let pending: A | null = null;
-  const cancel = () => {
+  const cancel = (): void => {
     clearTimeout(timer);
     timer = undefined;
     pending = null;
   };
-  const flush = () => {
+  const flush = (): void => {
     const args = pending;
     cancel();
     if (args) target(...args);
   };
-  const call = (...args: A) => {
+  const call = (...args: A): void => {
     clearTimeout(timer);
     pending = args;
     timer = setTimeout(flush, delay);

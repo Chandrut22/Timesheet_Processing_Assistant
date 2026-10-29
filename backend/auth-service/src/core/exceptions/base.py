@@ -1,4 +1,5 @@
-"""App errors. Services raise these; one handler (api/middleware/error_handler.py) turns them into JSON.
+"""App errors. Services raise these; one handler (api/middleware/error_handler.py) turns
+them into JSON.
 
 Each error knows its HTTP status, so services never import FastAPI.
 """

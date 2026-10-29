@@ -4,9 +4,10 @@ Redis keys (all per email address, all expire on their own). Redis is shared
 with core-service, so every auth key starts with "auth:":
 
     auth:pwreset:otp:<email>       hash of the current code         (OTP_TTL_MINUTES)
-    auth:pwreset:attempts:<email>  wrong guesses for that code      (same TTL as the code)
-    auth:pwreset:lock:<email>      present = locked out             (OTP_LOCKOUT_MINUTES)
-    auth:pwreset:cooldown:<email>  present = a code was just sent   (OTP_RESEND_COOLDOWN_SECONDS)
+    auth:pwreset:attempts:<email>  wrong guesses for that code      (same TTL as the
+    code) auth:pwreset:lock:<email>      present = locked out
+    (OTP_LOCKOUT_MINUTES) auth:pwreset:cooldown:<email>  present = a code was just sent
+    (OTP_RESEND_COOLDOWN_SECONDS)
 
 The code itself is never stored: only an HMAC of it, so someone who can read
 Redis still cannot use the codes.
@@ -91,7 +92,8 @@ class PasswordResetService:
         ):
             ttl = await self.redis.ttl(keys["cooldown"])
             raise TooManyRequestsError(
-                f"A code was just sent. Wait {max(ttl, 1)} seconds before asking again.",
+                f"A code was just sent. Wait {max(ttl, 1)} seconds before asking "
+                "again.",
                 retry_after=max(ttl, 1),
             )
 
@@ -99,7 +101,8 @@ class PasswordResetService:
         if user is None or not user.is_active:
             return None
 
-        code = f"{secrets.randbelow(1_000_000):06d}"  # 000000-999999, cryptographically random
+        # 000000-999999, cryptographically random
+        code = f"{secrets.randbelow(1_000_000):06d}"
         ttl = settings.otp_ttl_minutes * 60
         async with self.redis.pipeline(transaction=True) as pipe:
             pipe.set(keys["otp"], _hash_code(email, code), ex=ttl)
@@ -136,7 +139,8 @@ class PasswordResetService:
                     pipe.delete(keys["otp"], keys["attempts"])  # the code is burnt
                     await pipe.execute()
                 raise TooManyRequestsError(
-                    f"Too many wrong codes. Try again in {settings.otp_lockout_minutes} minutes.",
+                    "Too many wrong codes. Try again in "
+                    f"{settings.otp_lockout_minutes} minutes.",
                     retry_after=lock_s,
                 )
             raise ValidationFailedError(f"Invalid code. {left} attempt(s) left.")
@@ -161,9 +165,8 @@ class PasswordResetService:
 async def send_code_email(to: str, code: str) -> None:
     minutes = settings.otp_ttl_minutes
     text = (
-        f"Your password reset code is {code}\n\n"
-        f"It expires in {minutes} minutes. If you did not ask for it, ignore this email; "
-        "your password has not changed."
+        f"Your password reset code is {code}\n\nIt expires in {minutes} minutes. If "
+        "you did not ask for it, ignore this email; your password has not changed."
     )
     html = f"""\
 <div style="font-family:Arial,sans-serif;max-width:480px">
@@ -183,8 +186,8 @@ async def send_code_email(to: str, code: str) -> None:
 
 async def send_password_changed_email(to: str) -> None:
     text = (
-        "Your password was just changed.\n\n"
-        "If this was not you, contact your administrator immediately."
+        "Your password was just changed.\n\nIf this was not you, contact your "
+        "administrator immediately."
     )
     try:
         await send_email(to, "Your password was changed", text)

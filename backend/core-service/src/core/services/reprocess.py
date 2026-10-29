@@ -21,7 +21,11 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.constants.timesheet_status import ReprocessStatus, TimesheetChange, TimesheetStatus
+from src.constants.timesheet_status import (
+    ReprocessStatus,
+    TimesheetChange,
+    TimesheetStatus,
+)
 from src.core.services.audit import record_event
 from src.core.services.version_history import save_version, take_snapshot
 from src.data.models import ReprocessRun, Submission, Timesheet
@@ -84,9 +88,13 @@ def summarize(timesheet: Timesheet) -> dict[str, Any]:
         "code": timesheet.extracted_code,
         "employee_id": str(timesheet.employee_id) if timesheet.employee_id else None,
         "match_method": timesheet.match_method,
-        "confidence": float(timesheet.confidence) if timesheet.confidence is not None else None,
+        "confidence": float(timesheet.confidence)
+        if timesheet.confidence is not None
+        else None,
         "status": timesheet.status,
-        "week_start": timesheet.week_start.isoformat() if timesheet.week_start else None,
+        "week_start": timesheet.week_start.isoformat()
+        if timesheet.week_start
+        else None,
         "total_hours": float(sum((h or Decimal("0") for h in hours), Decimal("0"))),
         "gross_amount": _money(
             timesheet.regular_amount,
@@ -97,9 +105,13 @@ def summarize(timesheet: Timesheet) -> dict[str, Any]:
         "severity": timesheet.severity,
         "flags": [f.get("code") for f in timesheet.flags or []],
         # So an approval cleared by the reprocess can be given back if the run fails.
-        "reviewed_by_id": str(timesheet.reviewed_by_id) if timesheet.reviewed_by_id else None,
+        "reviewed_by_id": str(timesheet.reviewed_by_id)
+        if timesheet.reviewed_by_id
+        else None,
         "reviewed_by_name": timesheet.reviewed_by_name,
-        "reviewed_at": timesheet.reviewed_at.isoformat() if timesheet.reviewed_at else None,
+        "reviewed_at": timesheet.reviewed_at.isoformat()
+        if timesheet.reviewed_at
+        else None,
     }
 
 
@@ -110,7 +122,9 @@ def snapshot(state: str, timesheets: Sequence[Timesheet]) -> dict[str, Any]:
         "timesheets": items,
         "count": len(items),
         "unmatched": sum(1 for t in items if t["employee_id"] is None),
-        "needs_review": sum(1 for t in items if t["status"] == TimesheetStatus.NEEDS_REVIEW),
+        "needs_review": sum(
+            1 for t in items if t["status"] == TimesheetStatus.NEEDS_REVIEW
+        ),
         "approved": sum(1 for t in items if t["status"] == TimesheetStatus.APPROVED),
     }
 
@@ -126,8 +140,18 @@ def pick_predecessor(
     same_doc = [o for o in olds if o.document_id == new.document_id]
     name, code = _norm(new.extracted_name), _norm(new.extracted_code)
     tests = (
-        (bool(name), lambda o: _norm(o.extracted_name) == name and o.week_start == new.week_start),
-        (bool(code), lambda o: _norm(o.extracted_code) == code and o.week_start == new.week_start),
+        (
+            bool(name),
+            lambda o: (
+                _norm(o.extracted_name) == name and o.week_start == new.week_start
+            ),
+        ),
+        (
+            bool(code),
+            lambda o: (
+                _norm(o.extracted_code) == code and o.week_start == new.week_start
+            ),
+        ),
         (bool(name), lambda o: _norm(o.extracted_name) == name),
         (bool(code), lambda o: _norm(o.extracted_code) == code),
     )
@@ -218,7 +242,9 @@ def _removed(timesheet: Timesheet) -> bool:
     return any(f.get("code") == REMOVED_FLAG for f in timesheet.flags or [])
 
 
-async def finish_run(session: AsyncSession, run_id: uuid.UUID, *, error: str | None = None) -> None:
+async def finish_run(
+    session: AsyncSession, run_id: uuid.UUID, *, error: str | None = None
+) -> None:
     """Worker side: store the AFTER summary and close the run. Does not commit (the
     caller commits with the rest of the work)."""
     run = await session.get(ReprocessRun, run_id, populate_existing=True)

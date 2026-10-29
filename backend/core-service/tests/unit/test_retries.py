@@ -17,11 +17,15 @@ from src.core.services.failures import (
 )
 
 
-def from_library(module: str, name: str, wrap: str | None = "ExtractionError") -> Exception:
+def from_library(
+    module: str, name: str, wrap: str | None = "ExtractionError"
+) -> Exception:
     """An error as a library would raise it (e.g. openai.RateLimitError), optionally
     wrapped the way extraction_agent wraps it."""
     error_class = type(name, (Exception,), {"__module__": module})
-    wrapper = type(wrap or "Wrapper", (Exception,), {"__module__": "src.control.agents.x"})
+    wrapper = type(
+        wrap or "Wrapper", (Exception,), {"__module__": "src.control.agents.x"}
+    )
     try:
         try:
             raise error_class("provider message")
@@ -38,14 +42,21 @@ def from_library(module: str, name: str, wrap: str | None = "ExtractionError") -
 
 
 def test_ai_provider_hiccups_are_temporary() -> None:
-    for name in ("RateLimitError", "APITimeoutError", "APIConnectionError", "InternalServerError"):
+    for name in (
+        "RateLimitError",
+        "APITimeoutError",
+        "APIConnectionError",
+        "InternalServerError",
+    ):
         failure = explain(from_library("openai", name))
         assert failure.temporary, name
         assert failure.message.startswith("The AI model did not answer")
 
 
 def test_unusable_ai_answer_is_temporary() -> None:
-    assert explain(from_library("src.control.agents", "StructuredOutputError", wrap=None)).temporary
+    assert explain(
+        from_library("src.control.agents", "StructuredOutputError", wrap=None)
+    ).temporary
 
 
 def test_wrong_api_key_or_model_is_not_retried() -> None:
@@ -82,7 +93,8 @@ def test_technical_details_list_the_whole_chain() -> None:
     assert "caused by openai.RateLimitError: provider message" in details
 
 
-# --- when to try again ------------------------------------------------------------------
+# --- when to try again
+# ------------------------------------------------------------------
 
 
 def test_delay_grows_four_times_and_is_capped_at_an_hour() -> None:
@@ -95,16 +107,22 @@ def test_retry_only_temporary_failures_while_runs_are_left() -> None:
     plan = plan_retry(temporary, 1, max_attempts=3, base_delay=60, now=now)
     assert plan.retry and plan.delay_seconds == 60
     assert plan.retry_at == now + timedelta(seconds=60)
-    assert plan_retry(temporary, 2, max_attempts=3, base_delay=60, now=now).delay_seconds == 240
+    assert (
+        plan_retry(temporary, 2, max_attempts=3, base_delay=60, now=now).delay_seconds
+        == 240
+    )
     assert not plan_retry(temporary, 3, max_attempts=3, base_delay=60).retry  # last run
     permanent = Failure("x", temporary=False, advice="y")
     assert not plan_retry(permanent, 1, max_attempts=3, base_delay=60).retry
 
 
-# --- the Celery task --------------------------------------------------------------------
+# --- the Celery task
+# --------------------------------------------------------------------
 
 
-def test_task_requeues_itself_with_the_token_and_delay(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_task_requeues_itself_with_the_token_and_delay(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from src.control.workers import tasks
     from src.core.services.processing_service import RetryLater
 
@@ -129,4 +147,7 @@ def test_task_requeues_itself_with_the_token_and_delay(monkeypatch: pytest.Monke
         tasks.process_submission(submission_id, None, None)
 
     assert seen["retry_token"] is None  # the first run has no token
-    assert seen["retry"] == {"args": (submission_id, None, str(token)), "countdown": 240}
+    assert seen["retry"] == {
+        "args": (submission_id, None, str(token)),
+        "countdown": 240,
+    }

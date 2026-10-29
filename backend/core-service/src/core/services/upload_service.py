@@ -29,7 +29,9 @@ from src.utils.text import db_safe
 
 
 def _safe_filename(raw: str | None) -> str:
-    name = PurePath(db_safe(raw or "file").replace("\\", "/")).name  # drop any path sent
+    name = PurePath(
+        db_safe(raw or "file").replace("\\", "/")
+    ).name  # drop any path sent
     return name[:255] or "file"
 
 
@@ -38,7 +40,10 @@ class UploadService:
         self.session = session
 
     async def create(
-        self, files: Sequence[UploadFile], company_id: uuid.UUID | None, principal: Principal
+        self,
+        files: Sequence[UploadFile],
+        company_id: uuid.UUID | None,
+        principal: Principal,
     ) -> Submission:
         if not files:
             raise ValidationFailedError("Attach at least one file.")
@@ -97,8 +102,16 @@ class UploadService:
 
         self.session.add(submission)
         await self.session.flush()  # ids are known now
-        set_state(self.session, submission, SubmissionState.RECEIVED, actor=principal, first=True)
-        skipped = [d for d in submission.documents if d.status == DocumentStatus.UNSUPPORTED]
+        set_state(
+            self.session,
+            submission,
+            SubmissionState.RECEIVED,
+            actor=principal,
+            first=True,
+        )
+        skipped = [
+            d for d in submission.documents if d.status == DocumentStatus.UNSUPPORTED
+        ]
         record_step(
             self.session,
             submission_id=submission.id,
@@ -106,7 +119,10 @@ class UploadService:
             result=StepResult.WARNING if skipped else StepResult.SUCCESS,
             message=f"Uploaded {len(submission.documents)} file(s) by {principal.name}"
             + (f"; {len(skipped)} will not be read" if skipped else ""),
-            input={"files": len(files), "company_id": str(company_id) if company_id else None},
+            input={
+                "files": len(files),
+                "company_id": str(company_id) if company_id else None,
+            },
             output={
                 "documents": [
                     {"file": d.filename, "status": d.status, "reason": d.error}
@@ -114,9 +130,16 @@ class UploadService:
                 ]
             },
         )
-        for document, data in to_buffer:  # bytes go to the upload store BEFORE the commit...
+        for (
+            document,
+            data,
+        ) in to_buffer:  # bytes go to the upload store BEFORE the commit...
             await upload_buffer.put_file(document.id, data)
-        await self.session.commit()  # ...so the worker never sees a row without its file
+        await (
+            self.session.commit()
+        )  # ...so the worker never sees a row without its file
         set_attributes(submission_id=submission.id, documents=len(submission.documents))
-        await enqueue_or_leave_for_sweeper(submission.id)  # queue down: the sweeper queues it
+        await enqueue_or_leave_for_sweeper(
+            submission.id
+        )  # queue down: the sweeper queues it
         return submission

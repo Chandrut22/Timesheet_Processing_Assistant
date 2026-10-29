@@ -17,6 +17,7 @@ import {
 import { Textarea } from "@/components/ui/input";
 import { useTimesheetMutation } from "../hooks/useTimesheetMutation";
 import { timesheetService } from "../services/timesheetService";
+import type { JSX } from "react";
 
 const approveSchema = z.object({ notes: z.string().max(1000, "At most 1000 characters") });
 const rejectSchema = z.object({
@@ -35,7 +36,7 @@ export function ApproveDialog({
   t: TimesheetRead;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}) {
+}): JSX.Element {
   const form = useForm<z.infer<typeof approveSchema>>({
     resolver: zodResolver(approveSchema),
     defaultValues: { notes: "" },
@@ -106,7 +107,7 @@ export function RejectDialog({
   t: TimesheetRead;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}) {
+}): JSX.Element {
   const form = useForm<z.infer<typeof rejectSchema>>({
     resolver: zodResolver(rejectSchema),
     defaultValues: { reason: "" },

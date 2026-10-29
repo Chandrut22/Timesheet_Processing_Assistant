@@ -26,9 +26,13 @@ def friendly_read_error(filename: str, exc: Exception) -> str:
     """A message a reviewer can act on; the technical text goes to error_details."""
     text = str(exc).lower()
     if "password" in text or "encrypt" in text:
-        return f"'{filename}' is password-protected. Ask the sender for an unlocked copy."
+        return (
+            f"'{filename}' is password-protected. Ask the sender for an unlocked copy."
+        )
     if "could not load document" in text or "conversion failed" in text:
-        return f"'{filename}' is damaged or not a valid file. Ask the sender to resend it."
+        return (
+            f"'{filename}' is damaged or not a valid file. Ask the sender to resend it."
+        )
     return f"Could not read '{filename}'. Ask the sender to resend it."
 
 
@@ -66,8 +70,11 @@ async def read_document(session: AsyncSession, document: Document) -> None:
     except (DocumentReadError, DocumentTooLargeError) as exc:
         document.status = DocumentStatus.FAILED
         document.error = (
-            str(exc)  # "has 120 pages; the limit is 50. Split it ..." / damaged / vision
-            if isinstance(exc, (DocumentTooLargeError, UnreadableFileError)) or _from_vision(exc)
+            str(
+                exc
+            )  # "has 120 pages; the limit is 50. Split it ..." / damaged / vision
+            if isinstance(exc, (DocumentTooLargeError, UnreadableFileError))
+            or _from_vision(exc)
             else friendly_read_error(document.filename, exc)
         )
         record_step(

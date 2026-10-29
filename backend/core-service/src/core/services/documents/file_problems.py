@@ -17,7 +17,10 @@ PDFIUM_PASSWORD_ERROR = 4  # FPDF_ERR_PASSWORD
 
 
 def password_message(filename: str) -> str:
-    return f"'{filename}' is password-protected. Ask the sender for a copy without a password."
+    return (
+        f"'{filename}' is password-protected. Ask the sender for a copy without a "
+        "password."
+    )
 
 
 def damaged_message(filename: str) -> str:
@@ -60,7 +63,8 @@ def _image_problem(filename: str, data: bytes) -> str | None:
 
     try:
         with Image.open(io.BytesIO(data)) as image:
-            image.verify()  # reads the whole file: a cut-off or garbled image fails here
+            # reads the whole file: a cut-off or garbled image fails here
+            image.verify()
     except Exception:
         return damaged_message(filename)
     return None

@@ -146,7 +146,9 @@ def upgrade() -> None:
     # --- 2. the version history -----------------------------------------------------------
     op.create_table(
         "timesheet_versions",
-        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column(
+            "id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False
+        ),
         sa.Column("timesheet_id", sa.Uuid(), nullable=False),
         sa.Column("version", sa.SmallInteger(), nullable=False),
         sa.Column("change", sa.String(length=30), nullable=False),
@@ -156,9 +158,14 @@ def upgrade() -> None:
         sa.Column("reason", sa.Text(), nullable=True),
         sa.Column("snapshot", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
         ),
-        sa.CheckConstraint("version >= 1", name=op.f("ck_timesheet_versions_version_positive")),
+        sa.CheckConstraint(
+            "version >= 1", name=op.f("ck_timesheet_versions_version_positive")
+        ),
         sa.CheckConstraint(
             "jsonb_typeof(snapshot) = 'object'",
             name=op.f("ck_timesheet_versions_snapshot_is_object"),
@@ -179,7 +186,9 @@ def upgrade() -> None:
             ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_timesheet_versions")),
-        sa.UniqueConstraint("timesheet_id", "version", name="uq_timesheet_versions_version"),
+        sa.UniqueConstraint(
+            "timesheet_id", "version", name="uq_timesheet_versions_version"
+        ),
         schema=SCHEMA,
     )
     op.create_index(
@@ -204,9 +213,13 @@ def upgrade() -> None:
         op.f("fk_timesheets_superseded_by_id_timesheets"), "timesheets", schema=SCHEMA
     )
     op.drop_index(
-        op.f("ix_core_timesheets_superseded_by_id"), table_name="timesheets", schema=SCHEMA
+        op.f("ix_core_timesheets_superseded_by_id"),
+        table_name="timesheets",
+        schema=SCHEMA,
     )
-    op.drop_constraint(op.f("ck_timesheets_not_superseded_by_self"), "timesheets", schema=SCHEMA)
+    op.drop_constraint(
+        op.f("ck_timesheets_not_superseded_by_self"), "timesheets", schema=SCHEMA
+    )
     op.drop_column("timesheets", "superseded_by_id", schema=SCHEMA)
     op.drop_constraint(op.f("ck_timesheets_status_valid"), "timesheets", schema=SCHEMA)
     op.create_check_constraint(
@@ -282,23 +295,36 @@ def _move_superseded_into_history(conn: sa.engine.Connection) -> None:
         moved.append(row.id)
     if moved:
         conn.execute(
-            sa.text(f"DELETE FROM {SCHEMA}.timesheets WHERE id = ANY(:ids)"), {"ids": moved}
+            sa.text(f"DELETE FROM {SCHEMA}.timesheets WHERE id = ANY(:ids)"),
+            {"ids": moved},
         )
 
 
 def downgrade() -> None:
     op.create_table(
         "timesheet_entries",
-        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column(
+            "id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False
+        ),
         sa.Column("timesheet_id", sa.Uuid(), nullable=False),
         sa.Column("work_date", sa.Date(), nullable=False),
         sa.Column("hours", sa.Numeric(precision=5, scale=2), nullable=False),
-        sa.Column("is_holiday", sa.Boolean(), server_default=sa.text("false"), nullable=False),
         sa.Column(
-            "double_time_marked", sa.Boolean(), server_default=sa.text("false"), nullable=False
+            "is_holiday", sa.Boolean(), server_default=sa.text("false"), nullable=False
+        ),
+        sa.Column(
+            "double_time_marked",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
         ),
         sa.Column("note", sa.String(length=255), nullable=True),
-        sa.Column("sheet_holiday", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column(
+            "sheet_holiday",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
         sa.CheckConstraint(
             "hours >= 0 AND hours <= 24", name=op.f("ck_timesheet_entries_hours_range")
         ),
@@ -309,7 +335,9 @@ def downgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_timesheet_entries")),
-        sa.UniqueConstraint("timesheet_id", "work_date", name="uq_timesheet_entries_day"),
+        sa.UniqueConstraint(
+            "timesheet_id", "work_date", name="uq_timesheet_entries_day"
+        ),
         schema=SCHEMA,
     )
     op.create_index(
@@ -376,5 +404,7 @@ def downgrade() -> None:
         schema=SCHEMA,
     )
     op.drop_table("timesheet_versions", schema=SCHEMA)
-    op.drop_constraint(op.f("ck_timesheets_entries_is_array"), "timesheets", schema=SCHEMA)
+    op.drop_constraint(
+        op.f("ck_timesheets_entries_is_array"), "timesheets", schema=SCHEMA
+    )
     op.drop_column("timesheets", "entries", schema=SCHEMA)

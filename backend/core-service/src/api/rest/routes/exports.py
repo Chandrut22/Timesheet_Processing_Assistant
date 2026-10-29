@@ -55,7 +55,9 @@ async def list_exports(
 
 
 @router.get("/{batch_id}")
-async def get_export(batch_id: uuid.UUID, session: SessionDep, _: Reviewer) -> ExportBatchRead:
+async def get_export(
+    batch_id: uuid.UUID, session: SessionDep, _: Reviewer
+) -> ExportBatchRead:
     return ExportBatchRead.model_validate(await ExportService(session).get(batch_id))
 
 
@@ -89,7 +91,8 @@ async def download_export(
             ),
             media_type=XLSX_MEDIA_TYPE,
             headers={
-                "Content-Disposition": f'attachment; filename="{xlsx_filename(batch.filename)}"'
+                "Content-Disposition": "attachment; "
+                f'filename="{xlsx_filename(batch.filename)}"'
             },
         )
     # The BOM makes Excel open the file as UTF-8 (names with accents stay correct).

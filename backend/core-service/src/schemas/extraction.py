@@ -6,59 +6,76 @@ from pydantic import BaseModel, Field
 class ExtractedDay(BaseModel):
     work_date: date | None = Field(
         default=None,
-        description="Date of this day (YYYY-MM-DD) if written on the sheet; otherwise null",
+        description="Date of this day (YYYY-MM-DD) if written on the sheet; otherwise "
+        "null",
     )
-    weekday: str | None = Field(default=None, description="Day name as written, e.g. 'Mon'")
+    weekday: str | None = Field(
+        default=None, description="Day name as written, e.g. 'Mon'"
+    )
     hours: float = Field(ge=0, le=24, description="Hours worked that day (7:30 -> 7.5)")
     double_time_marked: bool = Field(
         default=False,
-        description="True only if the sheet explicitly marks these hours as double time",
+        description="True only if the sheet explicitly marks these hours as double "
+        "time",
     )
-    note: str | None = Field(default=None, description="Short note for the day, e.g. 'holiday'")
+    note: str | None = Field(
+        default=None, description="Short note for the day, e.g. 'holiday'"
+    )
     is_public_holiday: bool = Field(
-        default=False, description="True only if the sheet marks this day as a public holiday"
+        default=False,
+        description="True only if the sheet marks this day as a public holiday",
     )
 
 
 class ExtractedTimesheet(BaseModel):
-    employee_name: str | None = Field(default=None, description="Employee name exactly as written")
-    employee_code: str | None = Field(default=None, description="Employee ID or code, if present")
+    employee_name: str | None = Field(
+        default=None, description="Employee name exactly as written"
+    )
+    employee_code: str | None = Field(
+        default=None, description="Employee ID or code, if present"
+    )
     company_name: str | None = Field(
         default=None,
-        description="Client / company name written on the timesheet itself, exactly as written",
+        description="Client / company name written on the timesheet itself, exactly as "
+        "written",
     )
     week_start: date | None = Field(
-        default=None, description="First day of the period (YYYY-MM-DD) if written; otherwise null"
+        default=None,
+        description="First day of the period (YYYY-MM-DD) if written; otherwise null",
     )
     days: list[ExtractedDay] = Field(
         default_factory=list,
-        description="One item per day that has hours. Empty when the sheet gives only a "
-        "total for the period (never split a total into days)",
+        description="One item per day that has hours. Empty when the sheet gives only "
+        "a total for the period (never split a total into days)",
     )
     stated_total: float | None = Field(
         default=None,
-        description="Total hours written on the sheet for this person, if any (also when "
-        "it is the only number given)",
+        description="Total hours written on the sheet for this person, if any (also "
+        "when it is the only number given)",
     )
     unreadable_days: list[str] = Field(
         default_factory=list,
-        description="Days whose hours are unreadable (marked [UNCLEAR] in the text): the date "
-        "(YYYY-MM-DD) if known, else the weekday as written. Never put a guessed number "
-        "(or 0) in days for them",
+        description="Days whose hours are unreadable (marked [UNCLEAR] in the text): "
+        "the date (YYYY-MM-DD) if known, else the weekday as written. Never put a "
+        "guessed number (or 0) in days for them",
     )
     email_stated_total: float | None = Field(
         default=None,
-        description="Total hours for THIS person stated in the email body text (not the "
-        "attachment), if the email gives one; otherwise null",
+        description="Total hours for THIS person stated in the email body text (not "
+        "the attachment), if the email gives one; otherwise null",
     )
-    confidence: float = Field(ge=0, le=1, description="How sure you are the reading is correct")
+    confidence: float = Field(
+        ge=0, le=1, description="How sure you are the reading is correct"
+    )
     issues: list[str] = Field(
-        default_factory=list, description="Anything unclear: illegible numbers, missing dates, ..."
+        default_factory=list,
+        description="Anything unclear: illegible numbers, missing dates, ...",
     )
 
 
 class ExtractionResult(BaseModel):
     timesheets: list[ExtractedTimesheet] = Field(
         default_factory=list,
-        description="One item per person per week; empty if the document is not a timesheet",
+        description="One item per person per week; empty if the document is not a "
+        "timesheet",
     )

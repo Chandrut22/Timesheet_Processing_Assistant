@@ -22,7 +22,11 @@ def test_unknown_code_defaults_to_medium() -> None:
 
 def test_with_severity_keeps_extra_keys_and_explicit_severity() -> None:
     flags: list[dict[str, Any]] = [
-        {"code": "employee_unmatched", "message": "x", "candidates": [{"name": "Rahul Kumar"}]},
+        {
+            "code": "employee_unmatched",
+            "message": "x",
+            "candidates": [{"name": "Rahul Kumar"}],
+        },
         {"code": "holiday_worked", "message": "y", "severity": "low"},
     ]
     result = with_severity(flags)
@@ -34,8 +38,13 @@ def test_with_severity_keeps_extra_keys_and_explicit_severity() -> None:
 
 def test_highest_severity() -> None:
     assert highest_severity([]) is None
-    assert highest_severity([{"code": "dates_assumed"}, {"code": "holiday_worked"}]) == "medium"
-    assert highest_severity([{"code": "holiday_worked"}, {"code": "long_day"}]) == "high"
+    assert (
+        highest_severity([{"code": "dates_assumed"}, {"code": "holiday_worked"}])
+        == "medium"
+    )
+    assert (
+        highest_severity([{"code": "holiday_worked"}, {"code": "long_day"}]) == "high"
+    )
 
 
 def test_timesheet_fills_severity_whenever_flags_are_set() -> None:
@@ -52,6 +61,11 @@ def test_timesheet_fills_severity_whenever_flags_are_set() -> None:
 
 def test_flag_read_passes_extra_keys_through() -> None:
     flag = FlagRead.model_validate(
-        {"code": "duplicate_week", "message": "m", "severity": "high", "other_timesheet_id": "abc"}
+        {
+            "code": "duplicate_week",
+            "message": "m",
+            "severity": "high",
+            "other_timesheet_id": "abc",
+        }
     )
     assert flag.model_dump()["other_timesheet_id"] == "abc"

@@ -14,13 +14,17 @@ CLAIMABLE = (SubmissionStatus.RECEIVED, SubmissionStatus.FAILED)
 
 
 def claimable(now: datetime) -> ColumnElement[bool]:
-    """Waiting or failed, or "processing" with no progress for worker_stale_after_seconds
-    (its worker died). A job that is really running is never taken over: a second copy
-    of the same job (queued twice, or handed out again by Redis) finds nothing to do."""
+    """Waiting or failed, or "processing" with no progress for
+    worker_stale_after_seconds (its worker died). A job that is really running is never
+    taken over: a second copy of the same job (queued twice, or handed out again by
+    Redis) finds nothing to do."""
     stale = now - timedelta(seconds=settings.worker_stale_after_seconds)
     return or_(
         Submission.status.in_(CLAIMABLE),
-        and_(Submission.status == SubmissionStatus.PROCESSING, Submission.updated_at < stale),
+        and_(
+            Submission.status == SubmissionStatus.PROCESSING,
+            Submission.updated_at < stale,
+        ),
     )
 
 
@@ -30,7 +34,9 @@ async def claim(
     """Take the submission for this run; returns the run number (1, 2, ...) or None.
     A scheduled retry only claims it while its token is still the current one, so a
     retry made stale by a reprocess does nothing."""
-    query = update(Submission).where(Submission.id == submission_id, claimable(datetime.now(UTC)))
+    query = update(Submission).where(
+        Submission.id == submission_id, claimable(datetime.now(UTC))
+    )
     if retry_token is not None:
         query = query.where(Submission.retry_token == retry_token)
     attempt = await session.scalar(

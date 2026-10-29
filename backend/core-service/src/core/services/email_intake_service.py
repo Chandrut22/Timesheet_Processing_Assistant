@@ -1,13 +1,17 @@
 """One incoming email -> one submission, processed exactly like an upload.
 
-  1. Same Message-ID seen before                          -> skipped (no double processing)
-  2. Unknown sender (not on any company's whitelist)      -> saved as Ignored, never read
-  3. Sender not verified by our mail server (SPF/DKIM)    -> saved as Ignored, never read
+  1. Same Message-ID seen before                          -> skipped (no double
+  processing)
+  2. Unknown sender (not on any company's whitelist)      -> saved as Ignored, never
+  read
+  3. Sender not verified by our mail server (SPF/DKIM)    -> saved as Ignored, never
+  read
   4. Attachments -> documents; their bytes go to the upload store (disk)
      (logos, invoices-as-images and unsupported files are recorded but never read).
      A photo pasted into the email body (inline, as phones and webmail often do) is
      read like an attachment; only small inline images (logos, signatures) are skipped.
-  5. No readable attachment but text in the body          -> the body becomes the document
+  5. No readable attachment but text in the body          -> the body becomes the
+  document
   6. Commit, then queue the submission for the worker (if the queue is down, the
      sweeper queues it later: the email is never lost or stuck)
 
@@ -52,7 +56,8 @@ logger = logging.getLogger(__name__)
 
 BODY_FILENAME = "email-body.txt"
 MIN_BODY_CHARS = 20  # "Thanks" or a signature alone is not a timesheet
-# An ignored email's attachments are recorded with this error (a reprocess fetches them).
+# An ignored email's attachments are recorded with this error (a reprocess fetches
+# them).
 IGNORED_NOT_READ = "Not read: the email was ignored."
 MIN_INLINE_IMAGE_SIDE = 300  # px: logos, icons and signature banners are smaller
 
@@ -80,7 +85,10 @@ def _inline_image_reason(data: bytes) -> str | None:
     except (OSError, ValueError, Image.DecompressionBombError):
         return None
     if min(width, height) < MIN_INLINE_IMAGE_SIDE:
-        return f"Inline image skipped ({width}x{height} px: looks like a logo or email signature)."
+        return (
+            f"Inline image skipped ({width}x{height} px: looks like a logo or email "
+            "signature)."
+        )
     return None
 
 
@@ -156,7 +164,9 @@ class EmailIntakeService:
             return IntakeOutcome.DUPLICATE
 
         company_id = (
-            await WhitelistRepository(self.session).find_company_id_for_sender(email.from_email)
+            await WhitelistRepository(self.session).find_company_id_for_sender(
+                email.from_email
+            )
             if email.from_email
             else None
         )
@@ -169,11 +179,15 @@ class EmailIntakeService:
             ignore_reason = "The sender is not on any company's whitelist."
         elif settings.email_require_sender_auth and not email.sender_auth_passed:
             outcome = IntakeOutcome.UNVERIFIED_SENDER
-            ignore_reason = "The sender could not be verified (SPF/DKIM/DMARC did not pass)."
+            ignore_reason = (
+                "The sender could not be verified (SPF/DKIM/DMARC did not pass)."
+            )
 
         submission = Submission(
             source=SubmissionSource.EMAIL,
-            status=(SubmissionStatus.IGNORED if ignore_reason else SubmissionStatus.RECEIVED),
+            status=(
+                SubmissionStatus.IGNORED if ignore_reason else SubmissionStatus.RECEIVED
+            ),
             company_id=company_id,
             sender_email=(email.from_email or "")[:255] or None,
             subject=email.subject or None,
@@ -207,7 +221,9 @@ class EmailIntakeService:
                 documents.append(body_doc)
             else:
                 outcome = IntakeOutcome.EMPTY
-                ignore_reason = "No timesheet attachment and no timesheet text in the email."
+                ignore_reason = (
+                    "No timesheet attachment and no timesheet text in the email."
+                )
                 submission.status = SubmissionStatus.IGNORED
 
         self.session.add(submission)
@@ -243,7 +259,9 @@ class EmailIntakeService:
             submission_id=submission_id,
             step=StepName.COLLECT,
             result=(StepResult.WARNING if ignore_reason else StepResult.SUCCESS),
-            message=(ignore_reason or f"Email received with {document_count} document(s)"),
+            message=(
+                ignore_reason or f"Email received with {document_count} document(s)"
+            ),
             input={
                 "sender": email.from_email,
                 "subject": email.subject,
@@ -281,8 +299,8 @@ class EmailIntakeService:
             )
             return outcome
 
-        # Saved already: if the queue is down the sweeper queues it later, and this email
-        # still counts as handled (the listener moves on).
+        # Saved already: if the queue is down the sweeper queues it later, and this
+        # email still counts as handled (the listener moves on).
         await enqueue_or_leave_for_sweeper(submission_id)
 
         logger.info(
@@ -307,8 +325,8 @@ async def record_failed_email(email: ParsedEmail | None, ref: str, reason: str) 
             subject=((email.subject if email else "") or "")[:998] or None,
             message_id=email.message_id if email else f"<uid-{ref}@imap.local>",
             received_at=email.received_at if email else datetime.now(UTC),
-            error="This email could not be saved and was skipped. Ask the sender to send "
-            "it again; if that fails too, check the processing log.",
+            error="This email could not be saved and was skipped. Ask the sender to "
+            "send it again; if that fails too, check the processing log.",
         )
         session.add(submission)
         await session.flush()
@@ -327,7 +345,8 @@ async def record_failed_email(email: ParsedEmail | None, ref: str, reason: str) 
 
 
 async def accept_email(email: ParsedEmail) -> str:
-    """One session per email: a failure never leaves the next email in a broken session."""
+    """One session per email: a failure never leaves the next email in a broken
+    session."""
     with pipeline_span("email.intake", attachments=len(email.attachments)) as span:
         async with SessionLocal() as session:
             outcome = await EmailIntakeService(session).accept(email)

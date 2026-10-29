@@ -25,7 +25,7 @@ const { DownloadButtons } = await import("./DownloadButtons");
 const batch = { id: "b1", filename: "payroll_lakeside_2026-09-07_ab12cd34.csv" };
 let requests: InternalAxiosRequestConfig[] = [];
 
-function serve(status: number, headers: Record<string, string> = {}) {
+function serve(status: number, headers: Record<string, string> = {}): void {
   http.defaults.adapter = async (config) => {
     requests.push(config);
     const format = (config.params as { format: string }).format;

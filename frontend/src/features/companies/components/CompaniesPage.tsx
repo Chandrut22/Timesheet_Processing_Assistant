@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type JSX } from "react";
 import { toast } from "sonner";
 import { errorMessage } from "@/services/apiErrors";
 import { useIsAdmin } from "@/features/auth";
@@ -39,7 +39,7 @@ import { companyService } from "../services/companyService";
 import { companyKeys } from "../queries/companyQueries";
 import { employeeKeys } from "@/features/employees";
 
-export function CompaniesPage() {
+export function CompaniesPage(): JSX.Element {
   const isAdmin = useIsAdmin();
   const navigate = useNavigate();
   const queryClient = useQueryClient();

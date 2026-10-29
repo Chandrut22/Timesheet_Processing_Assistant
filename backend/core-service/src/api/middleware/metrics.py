@@ -1,7 +1,8 @@
 """HTTP metrics for every request: how many, how long, how many at once.
 
-OpenTelemetry metrics (observability/metrics/): sent to the collector with the traces and
-logs when OTEL_ENABLED and OTEL_EXPORTER_OTLP_ENDPOINT are set; free no-ops otherwise.
+OpenTelemetry metrics (observability/metrics/): sent to the collector with the traces
+and logs when OTEL_ENABLED and OTEL_EXPORTER_OTLP_ENDPOINT are set; free no-ops
+otherwise.
 
   http.server.requests          counter    method, route, status
   http.server.duration          histogram  method, route, status  (milliseconds)
@@ -19,18 +20,25 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from src.observability.metrics.instruments import http_instruments
 
-_UUID = re.compile(r"/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+_UUID = re.compile(
+    r"/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+)
 _NUMBER = re.compile(r"/\d+(?=/|$)")
 
 
 def route_of(path: str) -> str:
-    """'/api/timesheets/3f2a...-.../versions/2' -> '/api/timesheets/{id}/versions/{n}'"""
+    """'/api/timesheets/3f2a...-.../versions/2' ->
+    '/api/timesheets/{id}/versions/{n}'"""
     return _NUMBER.sub("/{n}", _UUID.sub("/{id}", path)) or "/"
 
 
 class MetricsMiddleware:
     def __init__(
-        self, app: ASGIApp, *, skip_paths: Iterable[str] = (), meter: Meter | None = None
+        self,
+        app: ASGIApp,
+        *,
+        skip_paths: Iterable[str] = (),
+        meter: Meter | None = None,
     ) -> None:
         self.app = app
         self.skip = frozenset(p.rstrip("/") or "/" for p in skip_paths)

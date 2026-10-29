@@ -57,7 +57,9 @@ def upgrade() -> None:
             schema=SCHEMA,
         )
         op.alter_column("companies", column, server_default=None, schema=SCHEMA)
-    op.add_column("companies", _money("double_time_rate", 10, nullable=True), schema=SCHEMA)
+    op.add_column(
+        "companies", _money("double_time_rate", 10, nullable=True), schema=SCHEMA
+    )
     op.execute(
         f"UPDATE {SCHEMA}.companies SET double_time_rate = {START_DOUBLE_TIME} "
         "WHERE double_time_after IS NOT NULL"
@@ -69,7 +71,10 @@ def upgrade() -> None:
     )
 
     op.create_check_constraint(
-        op.f("ck_companies_name_not_blank"), "companies", "length(btrim(name)) > 0", schema=SCHEMA
+        op.f("ck_companies_name_not_blank"),
+        "companies",
+        "length(btrim(name)) > 0",
+        schema=SCHEMA,
     )
     op.create_check_constraint(
         op.f("ck_companies_rates_positive"),
@@ -85,10 +90,15 @@ def upgrade() -> None:
         schema=SCHEMA,
     )
     op.create_check_constraint(
-        op.f("ck_companies_currency_format"), "companies", "currency ~ '^[A-Z]{3}$'", schema=SCHEMA
+        op.f("ck_companies_currency_format"),
+        "companies",
+        "currency ~ '^[A-Z]{3}$'",
+        schema=SCHEMA,
     )
     # Name unique ignoring case ("ABC Staffing" = "abc staffing").
-    op.execute(f"ALTER TABLE {SCHEMA}.companies DROP CONSTRAINT IF EXISTS uq_companies_name")
+    op.execute(
+        f"ALTER TABLE {SCHEMA}.companies DROP CONSTRAINT IF EXISTS uq_companies_name"
+    )
     op.create_index(
         "uq_companies_name_lower",
         "companies",
@@ -111,12 +121,20 @@ def upgrade() -> None:
     op.add_column("timesheets", sa.Column("currency", sa.CHAR(length=3)), schema=SCHEMA)
     for column in ("hourly_rate", "overtime_rate", "double_time_rate", "holiday_rate"):
         op.add_column("timesheets", _money(column, 10, nullable=True), schema=SCHEMA)
-    for column in ("regular_amount", "overtime_amount", "double_time_amount", "holiday_amount"):
+    for column in (
+        "regular_amount",
+        "overtime_amount",
+        "double_time_amount",
+        "holiday_amount",
+    ):
         op.add_column("timesheets", _money(column, 12, nullable=True), schema=SCHEMA)
     op.add_column(
         "timesheets",
         sa.Column(
-            "gross_amount", sa.Numeric(12, 2), sa.Computed(GROSS, persisted=True), nullable=True
+            "gross_amount",
+            sa.Numeric(12, 2),
+            sa.Computed(GROSS, persisted=True),
+            nullable=True,
         ),
         schema=SCHEMA,
     )
@@ -163,7 +181,12 @@ def upgrade() -> None:
         sa.Column("currency", sa.CHAR(length=3), server_default="INR", nullable=False),
         schema=SCHEMA,
     )
-    for column in ("regular_amount", "overtime_amount", "double_time_amount", "holiday_amount"):
+    for column in (
+        "regular_amount",
+        "overtime_amount",
+        "double_time_amount",
+        "holiday_amount",
+    ):
         op.add_column(
             "export_batches",
             _money(column, 14, nullable=False, server_default=sa.text("0")),
@@ -172,7 +195,10 @@ def upgrade() -> None:
     op.add_column(
         "export_batches",
         sa.Column(
-            "gross_amount", sa.Numeric(14, 2), sa.Computed(GROSS, persisted=True), nullable=True
+            "gross_amount",
+            sa.Numeric(14, 2),
+            sa.Computed(GROSS, persisted=True),
+            nullable=True,
         ),
         schema=SCHEMA,
     )
@@ -211,8 +237,12 @@ def downgrade() -> None:
     ):
         op.drop_column("export_batches", column, schema=SCHEMA)
 
-    op.drop_constraint(op.f("ck_timesheets_currency_format"), "timesheets", schema=SCHEMA)
-    op.drop_constraint(op.f("ck_timesheets_amounts_non_negative"), "timesheets", schema=SCHEMA)
+    op.drop_constraint(
+        op.f("ck_timesheets_currency_format"), "timesheets", schema=SCHEMA
+    )
+    op.drop_constraint(
+        op.f("ck_timesheets_amounts_non_negative"), "timesheets", schema=SCHEMA
+    )
     for column in (
         "gross_amount",
         "holiday_amount",
@@ -229,7 +259,9 @@ def downgrade() -> None:
         op.drop_column("timesheets", column, schema=SCHEMA)
 
     op.drop_index("uq_companies_name_lower", table_name="companies", schema=SCHEMA)
-    op.create_unique_constraint(op.f("uq_companies_name"), "companies", ["name"], schema=SCHEMA)
+    op.create_unique_constraint(
+        op.f("uq_companies_name"), "companies", ["name"], schema=SCHEMA
+    )
     for name in (
         "ck_companies_currency_format",
         "ck_companies_double_time_rate_required",

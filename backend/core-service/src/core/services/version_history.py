@@ -7,7 +7,8 @@ Restoring a version makes no new version: the timesheet goes back to that versio
 
     before = take_snapshot(timesheet)
     ... change the days / employee / week / pay ...
-    await save_version(session, timesheet, before, TimesheetChange.ENTRIES_EDITED, actor=actor)
+    await save_version(session, timesheet, before, TimesheetChange.ENTRIES_EDITED,
+    actor=actor)
 
 save_version keeps `before` under the current number N in timesheet_versions and gives
 the timesheet the next free number (the highest so far + 1: after going back to an
@@ -79,7 +80,8 @@ DECISION_FIELDS = frozenset(
 
 
 def take_snapshot(timesheet: Timesheet) -> dict[str, Any]:
-    """The timesheet's data as plain JSON (decimals as strings, so nothing is rounded)."""
+    """The timesheet's data as plain JSON (decimals as strings, so nothing is
+    rounded)."""
     snap: dict[str, Any] = {}
     for name in UUID_FIELDS:
         value = getattr(timesheet, name)
@@ -241,9 +243,15 @@ def summary(snap: dict[str, Any]) -> dict[str, Any]:
         return Decimal(value) if value is not None else None
 
     hours = [number(n) or Decimal("0") for n in DECIMAL_FIELDS[:4]]
-    amounts = [number(n) for n in ("regular_amount", "overtime_amount", "double_time_amount")]
+    amounts = [
+        number(n) for n in ("regular_amount", "overtime_amount", "double_time_amount")
+    ]
     amounts.append(number("holiday_amount"))
-    gross = None if any(a is None for a in amounts) else sum(a for a in amounts if a is not None)
+    gross = (
+        None
+        if any(a is None for a in amounts)
+        else sum(a for a in amounts if a is not None)
+    )
     return {
         "employee_id": snap.get("employee_id"),
         "extracted_name": snap.get("extracted_name"),

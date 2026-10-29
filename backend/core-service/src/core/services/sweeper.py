@@ -5,12 +5,14 @@ Work gets lost when:
   - a submission was committed but queuing it failed (Redis down for a moment):
     it stays "received" and no job exists                          -> queue it again
   - the worker died mid-job and its job is gone: the submission stays "processing"
-    with no progress for worker_stale_after_seconds                 -> back to "received", queue it
+    with no progress for worker_stale_after_seconds                 -> back to
+    "received", queue it
   - a scheduled retry was lost (Redis restarted): retry_at passed long ago
-                                                                    -> queue the retry again
+                                                                    -> queue the retry
+                                                                    again
 
-Each change is one atomic UPDATE ... WHERE <still stuck> RETURNING, so two sweepers (or a
-sweeper and a worker) never pick the same row. Queuing a submission twice is harmless:
+Each change is one atomic UPDATE ... WHERE <still stuck> RETURNING, so two sweepers (or
+a sweeper and a worker) never pick the same row. Queuing a submission twice is harmless:
 the worker's claim lets only one job take it."""
 
 import logging
@@ -59,7 +61,9 @@ def is_stuck(submission: Submission, now: datetime) -> bool:
     return False
 
 
-async def _running_reprocess(session: AsyncSession, submission_id: uuid.UUID) -> uuid.UUID | None:
+async def _running_reprocess(
+    session: AsyncSession, submission_id: uuid.UUID
+) -> uuid.UUID | None:
     run_id: uuid.UUID | None = await session.scalar(
         select(ReprocessRun.id)
         .where(
@@ -85,11 +89,16 @@ async def find_and_mark(session: AsyncSession, now: datetime) -> list[Requeue]:
     rows = await session.scalars(
         update(Submission)
         .where(Submission.id.in_(waiting.limit(BATCH).scalar_subquery()))
-        .where(Submission.status == SubmissionStatus.RECEIVED, Submission.updated_at < grace)
+        .where(
+            Submission.status == SubmissionStatus.RECEIVED,
+            Submission.updated_at < grace,
+        )
         .values(updated_at=func.now())
         .returning(Submission.id)
     )
-    found += [Requeue(i, "It was waiting in the queue too long; queued again.") for i in rows]
+    found += [
+        Requeue(i, "It was waiting in the queue too long; queued again.") for i in rows
+    ]
 
     # 2. The worker died mid-job.
     abandoned = select(Submission.id).where(
@@ -98,13 +107,18 @@ async def find_and_mark(session: AsyncSession, now: datetime) -> list[Requeue]:
     rows = await session.scalars(
         update(Submission)
         .where(Submission.id.in_(abandoned.limit(BATCH).scalar_subquery()))
-        .where(Submission.status == SubmissionStatus.PROCESSING, Submission.updated_at < stale)
+        .where(
+            Submission.status == SubmissionStatus.PROCESSING,
+            Submission.updated_at < stale,
+        )
         .values(status=SubmissionStatus.RECEIVED, updated_at=func.now())
         .returning(Submission.id)
     )
     found += [
         Requeue(
-            i, "Processing stopped with no progress (the worker probably restarted); queued again."
+            i,
+            "Processing stopped with no progress (the worker probably restarted); "
+            "queued again.",
         )
         for i in rows
     ]
@@ -118,7 +132,9 @@ async def find_and_mark(session: AsyncSession, now: datetime) -> list[Requeue]:
     result = await session.execute(
         update(Submission)
         .where(Submission.id.in_(overdue.limit(BATCH).scalar_subquery()))
-        .where(Submission.status == SubmissionStatus.FAILED, Submission.retry_at < grace)
+        .where(
+            Submission.status == SubmissionStatus.FAILED, Submission.retry_at < grace
+        )
         .values(retry_at=func.now())  # the token stays: only this retry may claim it
         .returning(Submission.id, Submission.retry_token)
     )
@@ -144,7 +160,10 @@ async def _sweep(session: AsyncSession) -> int:
     found = await find_and_mark(session, datetime.now(UTC))
     if not found:
         return 0
-    runs = {r.submission_id: await _running_reprocess(session, r.submission_id) for r in found}
+    runs = {
+        r.submission_id: await _running_reprocess(session, r.submission_id)
+        for r in found
+    }
     for item in found:
         record_step(
             session,
@@ -166,6 +185,8 @@ async def _sweep(session: AsyncSession) -> int:
             )
             queued += 1
         except Exception:
-            logger.exception("Sweeper could not queue %s; will try next time", item.submission_id)
+            logger.exception(
+                "Sweeper could not queue %s; will try next time", item.submission_id
+            )
     logger.warning("Sweeper queued %d lost submission(s) again", queued)
     return queued

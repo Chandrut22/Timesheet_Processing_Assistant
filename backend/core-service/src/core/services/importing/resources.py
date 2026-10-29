@@ -29,7 +29,15 @@ from src.schemas.employee import EmployeeCreate, EmployeeUpdate
 from src.schemas.holiday import HolidayCreate
 from src.schemas.importing import CellError
 
-WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+WEEKDAYS = (
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+)
 
 
 def _given(row: dict[str, str], *names: str) -> dict[str, str]:
@@ -44,7 +52,9 @@ def _aliases(text: str) -> list[str]:
 async def _company_id(companies: CompanyRepository, name: str) -> uuid.UUID:
     company = await companies.get_by_name(name.strip())
     if company is None:
-        raise RowError([CellError(column="company", message=f"No company named '{name}'.")])
+        raise RowError(
+            [CellError(column="company", message=f"No company named '{name}'.")]
+        )
     return company.id
 
 
@@ -60,11 +70,15 @@ def _week_start(text: str) -> int | str:
 # --- employees ------------------------------------------------------------------------
 
 EMPLOYEE_COLUMNS = (
-    Column("company", True, "ABC Staffing Solutions Pvt Ltd", "Company name, as in the app"),
+    Column(
+        "company", True, "ABC Staffing Solutions Pvt Ltd", "Company name, as in the app"
+    ),
     Column("employee_code", True, "SYN-EMP-021", "Unique within the company"),
     Column("full_name", True, "Anita Desai"),
     Column("email", False, "anita.desai@example.com"),
-    Column("aliases", False, "Anu; A. Desai", "Other names on timesheets, separated by ;"),
+    Column(
+        "aliases", False, "Anu; A. Desai", "Other names on timesheets, separated by ;"
+    ),
     Column("assignment_start", False, "2026-09-01", "YYYY-MM-DD"),
     Column("assignment_end", False, "", "YYYY-MM-DD, blank = ongoing"),
 )
@@ -121,12 +135,18 @@ COMPANY_COLUMNS = (
     Column("double_time_rate", False, ""),
     Column("currency", False, "INR", "3 letters, default INR"),
     Column("daily_ot_after", False, "8", "Hours per day before overtime, default 8"),
-    Column("weekly_ot_after", False, "40", "Hours per week before overtime, default 40"),
+    Column(
+        "weekly_ot_after", False, "40", "Hours per week before overtime, default 40"
+    ),
     Column("double_time_after", False, "", "Hours per day before double time"),
     Column("week_start", False, "Monday", "Monday ... Sunday (or 0-6), default Monday"),
-    Column("aliases", False, "Lakeside; LLP", "Other names on timesheets, separated by ;"),
+    Column(
+        "aliases", False, "Lakeside; LLP", "Other names on timesheets, separated by ;"
+    ),
 )
-COMPANY_FIELDS = tuple(c.name for c in COMPANY_COLUMNS if c.name not in ("name", "aliases"))
+COMPANY_FIELDS = tuple(
+    c.name for c in COMPANY_COLUMNS if c.name not in ("name", "aliases")
+)
 
 
 def companies(session: AsyncSession) -> Resource:
@@ -174,7 +194,12 @@ def companies(session: AsyncSession) -> Resource:
 HOLIDAY_COLUMNS = (
     Column("holiday_date", True, "2026-12-25", "YYYY-MM-DD"),
     Column("name", True, "Christmas Day"),
-    Column("company", False, "", "Company name; blank = all companies"),
+    Column(
+        "company",
+        True,
+        "ABC Staffing",
+        "Company name (each holiday belongs to one company)",
+    ),
 )
 
 
@@ -185,7 +210,9 @@ def holidays(session: AsyncSession) -> Resource:
 
     async def parse(row: dict[str, str]) -> tuple[Any, Hashable]:
         company = row.get("company", "").strip()
-        company_id = await _company_id(companies_repo, company) if company else None
+        if not company:
+            raise RowError([CellError(column="company", message="Enter the company.")])
+        company_id = await _company_id(companies_repo, company)
         data = HolidayCreate(
             company_id=company_id,
             holiday_date=row.get("holiday_date", ""),
@@ -215,4 +242,8 @@ def holidays(session: AsyncSession) -> Resource:
 
 
 RESOURCES = {"employees": employees, "companies": companies, "holidays": holidays}
-COLUMNS = {"employees": EMPLOYEE_COLUMNS, "companies": COMPANY_COLUMNS, "holidays": HOLIDAY_COLUMNS}
+COLUMNS = {
+    "employees": EMPLOYEE_COLUMNS,
+    "companies": COMPANY_COLUMNS,
+    "holidays": HOLIDAY_COLUMNS,
+}

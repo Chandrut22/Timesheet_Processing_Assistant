@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, type JSX } from "react";
 import { env } from "@/config/env";
 
 // Devtools are code-split and only rendered in development, so production
@@ -10,7 +10,7 @@ const RouterDevtoolsLazy = lazy(() =>
   import("@tanstack/react-router-devtools").then((m) => ({ default: m.TanStackRouterDevtools })),
 );
 
-export function Devtools() {
+export function Devtools(): JSX.Element | null {
   if (!env.isDev) return null;
   return (
     <Suspense fallback={null}>
@@ -19,7 +19,7 @@ export function Devtools() {
   );
 }
 
-export function RouterDevtools() {
+export function RouterDevtools(): JSX.Element | null {
   if (!env.isDev) return null;
   return (
     <Suspense fallback={null}>

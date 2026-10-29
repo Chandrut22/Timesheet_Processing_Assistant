@@ -23,7 +23,9 @@ from src.data.models import Company, Employee
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 PUBLIC = (
     KEY.public_key()
-    .public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
+    .public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
+    )
     .decode()
 )
 ADA = uuid.uuid4()
@@ -50,11 +52,15 @@ def bearer(user_id: uuid.UUID, name: str) -> dict[str, str]:
 async def client(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[httpx.AsyncClient]:
     monkeypatch.setattr(tokens, "public_key", lambda: PUBLIC)
     async with SessionLocal() as s:
-        await s.execute(text("TRUNCATE core.companies, core.holidays, core.audit_events CASCADE"))
+        await s.execute(
+            text("TRUNCATE core.companies, core.holidays, core.audit_events CASCADE")
+        )
         await s.commit()
     from src.main import app
 
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://t"
+    ) as c:
         yield c
     await engine.dispose()
 
@@ -68,7 +74,9 @@ COMPANY = {
 
 
 async def test_create_and_change_record_who_and_when(client: httpx.AsyncClient) -> None:
-    created = await client.post("/companies", json=COMPANY, headers=bearer(ADA, "Ada Admin"))
+    created = await client.post(
+        "/companies", json=COMPANY, headers=bearer(ADA, "Ada Admin")
+    )
     assert created.status_code == 201, created.text
     body = created.json()
     assert body["created_by"] == body["updated_by"] == str(ADA)
@@ -88,9 +96,16 @@ async def test_create_and_change_record_who_and_when(client: httpx.AsyncClient) 
 
 
 async def test_holidays_and_senders_have_all_four(client: httpx.AsyncClient) -> None:
+    company = (
+        await client.post("/companies", json=COMPANY, headers=bearer(ADA, "Ada"))
+    ).json()
     holiday = await client.post(
         "/holidays",
-        json={"holiday_date": "2026-12-25", "name": "Christmas"},
+        json={
+            "company_id": company["id"],
+            "holiday_date": "2026-12-25",
+            "name": "Christmas",
+        },
         headers=bearer(ADA, "Ada Admin"),
     )
     assert holiday.status_code == 201, holiday.text
@@ -98,7 +113,6 @@ async def test_holidays_and_senders_have_all_four(client: httpx.AsyncClient) -> 
     assert h["created_by"] == h["updated_by"] == str(ADA)
     assert h["updated_at"] == h["created_at"]
 
-    company = (await client.post("/companies", json=COMPANY, headers=bearer(ADA, "Ada"))).json()
     sender = await client.post(
         f"/companies/{company['id']}/whitelist",
         json={"value": "lakeside.com"},
@@ -120,7 +134,11 @@ async def test_a_cascade_records_the_admin_on_every_row_it_changes(
         )
         s.add(company)
         await s.flush()
-        s.add(Employee(company_id=company.id, employee_code="E1", full_name="Grace Hopper"))
+        s.add(
+            Employee(
+                company_id=company.id, employee_code="E1", full_name="Grace Hopper"
+            )
+        )
         await s.commit()
         assert company.created_by is None and company.updated_by is None
 
@@ -151,11 +169,15 @@ async def test_work_outside_a_request_is_the_system() -> None:
             s.add(company)
             await s.commit()
         assert current_actor.get() is None  # acting_as puts it back
-        await s.execute(update(Company).where(Company.id == company.id).values(week_start=3))
+        await s.execute(
+            update(Company).where(Company.id == company.id).values(week_start=3)
+        )
         await s.commit()
         row = (
             await s.execute(
-                select(Company.created_by, Company.updated_by).where(Company.id == company.id)
+                select(Company.created_by, Company.updated_by).where(
+                    Company.id == company.id
+                )
             )
         ).one()
         assert row == (ADA, None)  # e.g. a Celery job or the sweeper changed it

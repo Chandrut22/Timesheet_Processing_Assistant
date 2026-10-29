@@ -20,7 +20,7 @@ const timesheet = {
   document_id: submission.documents[0].id,
 };
 
-function withDocument(extra: Record<string, unknown>) {
+function withDocument(extra: Record<string, unknown>): ReturnType<typeof renderWithClient> {
   getSubmission.mockResolvedValue({
     ...submission,
     documents: [{ ...submission.documents[0], ...extra }],

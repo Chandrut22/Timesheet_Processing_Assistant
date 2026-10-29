@@ -23,11 +23,25 @@ SHEET_TITLE = "Payroll"
 MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 HOUR_COLUMNS = frozenset(
-    {"regular_hours", "overtime_hours", "double_time_hours", "holiday_hours", "total_hours"}
+    {
+        "regular_hours",
+        "overtime_hours",
+        "double_time_hours",
+        "holiday_hours",
+        "total_hours",
+    }
 )
-RATE_COLUMNS = frozenset({"hourly_rate", "overtime_rate", "double_time_rate", "holiday_rate"})
+RATE_COLUMNS = frozenset(
+    {"hourly_rate", "overtime_rate", "double_time_rate", "holiday_rate"}
+)
 AMOUNT_COLUMNS = frozenset(
-    {"regular_amount", "overtime_amount", "double_time_amount", "holiday_amount", "gross_amount"}
+    {
+        "regular_amount",
+        "overtime_amount",
+        "double_time_amount",
+        "holiday_amount",
+        "gross_amount",
+    }
 )
 DATE_COLUMNS = frozenset({"week_start", "week_end"})
 DATETIME_COLUMNS = frozenset({"approved_at"})

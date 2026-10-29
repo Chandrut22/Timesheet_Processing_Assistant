@@ -15,7 +15,10 @@ import warnings
 from collections.abc import Iterator
 
 import pytest
-from opentelemetry.sdk._logs.export import InMemoryLogRecordExporter, SimpleLogRecordProcessor
+from opentelemetry.sdk._logs.export import (
+    InMemoryLogRecordExporter,
+    SimpleLogRecordProcessor,
+)
 
 from src.config.settings import settings
 from src.observability.logging import setup as otel_logging
@@ -73,7 +76,8 @@ def test_every_record_becomes_a_normal_text_line_on_stdout(
     assert "code.file.path" not in out  # where the call was made is left out
     assert "{" not in first  # not JSON
     assert re.search(
-        r" ERROR \[src\.core\.services\.processing_service\] Extraction failed$", lines[1]
+        r" ERROR \[src\.core\.services\.processing_service\] Extraction failed$",
+        lines[1],
     )
     # the traceback follows on its own lines, as Python's logging prints it
     assert lines[2] == "Traceback (most recent call last):"
@@ -119,7 +123,9 @@ def test_one_otel_handler_on_the_root_and_libraries_go_through_it() -> None:
     exporter, processors = memory()
 
     otel_logging.setup_logging("core-service", processors=processors)
-    otel_logging.setup_logging("core-service", processors=processors)  # twice: no change
+    otel_logging.setup_logging(
+        "core-service", processors=processors
+    )  # twice: no change
 
     assert plain not in root.handlers
     assert [type(h) for h in root.handlers].count(LoggingHandler) == 1
@@ -140,7 +146,9 @@ def test_chatty_libraries_only_send_warnings() -> None:
     assert [r.log_record.body for r in exporter.get_finished_logs()] == ["retrying"]
 
 
-def test_an_unreachable_collector_never_slows_logging(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_an_unreachable_collector_never_slows_logging(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(settings, "otel_logs_console", False)
     monkeypatch.setattr(settings, "otel_enabled", True)
     monkeypatch.setattr(settings, "otel_exporter_otlp_endpoint", "http://127.0.0.1:9")
@@ -155,12 +163,16 @@ def test_an_unreachable_collector_never_slows_logging(monkeypatch: pytest.Monkey
     assert time.monotonic() - started < 4.0
 
 
-def test_the_collector_is_used_only_when_enabled_and_set(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_the_collector_is_used_only_when_enabled_and_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(settings, "otel_logs_console", True)
     monkeypatch.setattr(settings, "otel_enabled", True)
     monkeypatch.setattr(settings, "otel_exporter_otlp_endpoint", None)
     assert len(otel_logging._processors()) == 1  # stdout only
-    monkeypatch.setattr(settings, "otel_exporter_otlp_endpoint", "http://collector:4318")
+    monkeypatch.setattr(
+        settings, "otel_exporter_otlp_endpoint", "http://collector:4318"
+    )
     assert len(otel_logging._processors()) == 2
     monkeypatch.setattr(settings, "otel_enabled", False)
     assert len(otel_logging._processors()) == 1
@@ -171,7 +183,9 @@ def test_a_forked_worker_gets_its_own_provider(monkeypatch: pytest.MonkeyPatch) 
     parent = otel_logging.setup_logging("core-worker", processors=processors)
     assert otel_logging.setup_logging("core-worker") is parent  # same process
     monkeypatch.setattr(os, "getpid", lambda: -1)  # as after a fork
-    assert otel_logging.setup_logging("core-worker", processors=processors) is not parent
+    assert (
+        otel_logging.setup_logging("core-worker", processors=processors) is not parent
+    )
 
 
 def test_the_logging_package_is_the_opentelemetry_setup() -> None:

@@ -1,5 +1,6 @@
-"""The worker's side: claim a submission, read each file, extract timesheets, then
-match the employee, apply the pay rules, check for duplicates and decide.
+"""The worker's side: claim a submission, classify its attachments from the email
+(optional), read each file, extract timesheets, then match the employee, apply the pay
+rules, check for duplicates and decide.
 
 Every step is written to the step-by-step log (input, output, time, result) and the
 submission's state moves Reading -> Matching -> Rule checks -> Awaiting review /
@@ -34,7 +35,10 @@ from src.constants.timesheet_status import (
 from src.core.services.activity_log import current_reprocess_run, set_state
 from src.core.services.failures import JobTooSlowError, TooManyRunsError
 from src.core.services.pipeline.claiming import CLAIMABLE, claim, claimable
-from src.core.services.pipeline.classifying import classified_as_not_timesheet
+from src.core.services.pipeline.classifying import (
+    classify_by_metadata,
+    skipped_by_classifier,
+)
 from src.core.services.pipeline.deciding import check_and_decide
 from src.core.services.pipeline.extracting import extract_document
 from src.core.services.pipeline.failing import RetryLater, record_failure
@@ -97,18 +101,21 @@ class ProcessingService:
             if retry_token is not None:
                 logger.info("Retry for %s is no longer current; skipped", submission_id)
                 return
-            logger.info("Submission %s already processed or missing; skipped", submission_id)
+            logger.info(
+                "Submission %s already processed or missing; skipped", submission_id
+            )
             current = await self.session.scalar(
                 select(Submission.status).where(Submission.id == submission_id)
             )
             if current == SubmissionStatus.PROCESSING:
-                return  # a second copy of a job another worker is running: leave it alone
+                # a second copy of a job another worker is running: leave it alone
+                return
             if reprocess_run_id is not None:
                 await finish_run(
                     self.session,
                     reprocess_run_id,
-                    error="The reprocess could not start: the email was not waiting "
-                    "to be processed.",
+                    error="The reprocess could not start: the email was not waiting to "
+                    "be processed.",
                 )
                 await self.session.commit()
             return
@@ -120,7 +127,9 @@ class ProcessingService:
         only_document = run.document_id if run is not None else None
         refetch = RefetchMode(run.refetch) if run is not None and run.refetch else None
 
-        submission = await self.session.get(Submission, submission_id, populate_existing=True)
+        submission = await self.session.get(
+            Submission, submission_id, populate_existing=True
+        )
         if submission is None:
             return
         company = (
@@ -130,13 +139,17 @@ class ProcessingService:
         )
 
         try:
-            if attempt > settings.worker_max_attempts:  # the worker kept dying on this job
+            if (
+                attempt > settings.worker_max_attempts
+            ):  # the worker kept dying on this job
                 raise TooManyRunsError(attempt)
             limit = settings.worker_job_timeout_seconds
             deadline = asyncio.timeout(limit)
             try:
                 async with deadline:
-                    await self._steps(submission, company, only_document, reprocess_run_id, refetch)
+                    await self._steps(
+                        submission, company, only_document, reprocess_run_id, refetch
+                    )
             except TimeoutError as exc:
                 if deadline.expired():  # our limit, not a timeout inside a library
                     raise JobTooSlowError(limit) from exc
@@ -144,7 +157,9 @@ class ProcessingService:
         except Exception as exc:
             try:
                 await self.session.rollback()
-            except Exception:  # the timeout cut a database call short: drop the connection
+            except (
+                Exception
+            ):  # the timeout cut a database call short: drop the connection
                 await self.session.invalidate()
             retry = await record_failure(
                 self.session, submission_id, reprocess_run_id, attempt, exc
@@ -161,17 +176,33 @@ class ProcessingService:
         reprocess_run_id: uuid.UUID | None,
         refetch: RefetchMode | None = None,
     ) -> None:
-        """(Fetch from the mailbox,) read, extract, match, rules, decide; then the final state."""
+        """(Fetch from the mailbox,) classify from the email, read, extract, match,
+        rules, decide; then the final state."""
         # 0. A reprocess that needs the original email fetches it again first
         set_state(self.session, submission, SubmissionState.READING)
         if refetch is not None:
             with pipeline_span("submission.refetch", mode=refetch.value):
-                await refetch_from_mailbox(self.session, submission, refetch, only_document)
+                await refetch_from_mailbox(
+                    self.session, submission, refetch, only_document
+                )
         await self.session.commit()
 
-        # 1. Read every file that is waiting
+        # 1. The optional classifier, from the file names and the email only: an
+        #    attachment it is sure is not a timesheet is left unread (file kept)
+        await classify_by_metadata(self.session, submission, only_document)
+        await self.session.commit()
+
+        # 2. Read every file that is waiting (a reprocess also reads the ones the
+        #    classifier skipped: a person asked for a full run)
+        is_reprocess = current_reprocess_run.get() is not None
         for document in submission.documents:
-            if document.status == DocumentStatus.PENDING:
+            if document.status == DocumentStatus.PENDING and (
+                not skipped_by_classifier(document)
+                or (
+                    is_reprocess
+                    and (only_document is None or document.id == only_document)
+                )
+            ):
                 with pipeline_span(
                     "document.read",
                     document_id=document.id,
@@ -182,18 +213,24 @@ class ProcessingService:
                     span.set_attribute("status", document.status)
                     span.set_attribute("characters", len(document.extracted_text or ""))
                     span.set_attribute("read_method", document.read_method or "")
-                    if document.writing_class:  # photos / scans read by the vision model
+                    if (
+                        document.writing_class
+                    ):  # photos / scans read by the vision model
                         span.set_attribute("writing_class", document.writing_class)
                         span.set_attribute("unclear_marks", document.unclear_marks)
                 self._progress(submission)
                 await self.session.commit()
                 if document.status != DocumentStatus.PENDING:
-                    await upload_buffer.delete_file(document.id)  # text saved: drop the bytes
+                    await upload_buffer.delete_file(
+                        document.id
+                    )  # text saved: drop the bytes
 
-        # 2. Extract, match, rules, decide - document by document
+        # 3. Extract, match, rules, decide - document by document
         for document in submission.documents:
             if only_document is not None and document.id != only_document:
                 continue  # reprocess of one attachment: leave the others alone
+            if skipped_by_classifier(document) and not is_reprocess:
+                continue  # the email body the classifier is sure is not a timesheet
             if document.status == DocumentStatus.PARSED and not await already_extracted(
                 self.session, document.id, reprocess_run_id
             ):
@@ -202,7 +239,7 @@ class ProcessingService:
                 self._progress(submission)
                 await self.session.commit()
 
-        # 3. Final state (and close the reprocess run, in the same commit)
+        # 4. Final state (and close the reprocess run, in the same commit)
         await finish(self.session, submission)
         if reprocess_run_id is not None:
             await self.session.flush()
@@ -218,10 +255,8 @@ class ProcessingService:
     async def _extract(
         self, submission: Submission, document: Document, company: Company | None
     ) -> None:
-        """One document: classifier (optional), AI extraction, matching, rules, decision."""
+        """One read document: AI extraction, matching, rules, decision."""
         set_state(self.session, submission, SubmissionState.MATCHING)
-        if await classified_as_not_timesheet(self.session, submission, document):
-            return  # the optional classifier is sure this is not a timesheet: no AI call
         extraction = await extract_document(self.session, submission, document)
         if extraction is None:
             return  # no timesheet in it (already in the step log)
@@ -249,4 +284,6 @@ async def process_submission_by_id(
     retry_token: uuid.UUID | None = None,
 ) -> None:
     async with SessionLocal() as session:
-        await ProcessingService(session).process(submission_id, reprocess_run_id, retry_token)
+        await ProcessingService(session).process(
+            submission_id, reprocess_run_id, retry_token
+        )

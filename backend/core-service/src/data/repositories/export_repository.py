@@ -26,13 +26,16 @@ class ExportRepository(BaseRepository[ExportBatch]):
         if week_start is not None:
             query = query.where(ExportBatch.week_start == week_start)
         return await self.paginate(
-            query.order_by(ExportBatch.created_at.desc(), ExportBatch.id), page=page, size=size
+            query.order_by(ExportBatch.created_at.desc(), ExportBatch.id),
+            page=page,
+            size=size,
         )
 
     async def ready_to_export(
         self, company_id: uuid.UUID, week_start: date, *, lock: bool = False
     ) -> list[tuple[Timesheet, Employee]]:
-        """Approved, not yet exported timesheets of one company and week, with their employee.
+        """Approved, not yet exported timesheets of one company and week, with their
+        employee.
 
         lock=True takes a row lock (SELECT ... FOR UPDATE OF timesheets): if two people
         export the same week at once, the second waits, then finds nothing left
@@ -68,11 +71,15 @@ class ExportRepository(BaseRepository[ExportBatch]):
         )
         return {e for e in rows.all() if e is not None}
 
-    async def count_by_status(self, company_id: uuid.UUID, week_start: date) -> dict[str, int]:
+    async def count_by_status(
+        self, company_id: uuid.UUID, week_start: date
+    ) -> dict[str, int]:
         """{"needs_review": 2, "approved": 5, ...} for one company and week."""
         result = await self.session.execute(
             select(Timesheet.status, func.count())
-            .where(Timesheet.company_id == company_id, Timesheet.week_start == week_start)
+            .where(
+                Timesheet.company_id == company_id, Timesheet.week_start == week_start
+            )
             .group_by(Timesheet.status)
         )
-        return {status: count for status, count in result.all()}
+        return {row[0]: row[1] for row in result.all()}

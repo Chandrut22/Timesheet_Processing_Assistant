@@ -1,4 +1,5 @@
-"""The pay-correctness and workflow fixes from the backend review (bug.md #1-#6, #13)."""
+"""The pay-correctness and workflow fixes from the backend review (bug.md #1-#6,
+#13)."""
 
 import uuid
 from datetime import UTC, date, datetime, timedelta
@@ -16,7 +17,11 @@ from src.core.services.pay_rules import (
     recalculate,
 )
 from src.core.services.sweeper import is_stuck
-from src.core.services.timesheet_builder import BuildContext, build_timesheets, truncation_flag
+from src.core.services.timesheet_builder import (
+    BuildContext,
+    build_timesheets,
+    truncation_flag,
+)
 from src.core.services.timesheet_validation import _week_lock_key, can_auto_approve
 from src.data.models import Employee, Submission, Timesheet, TimesheetEntry
 from src.schemas.extraction import ExtractedDay, ExtractedTimesheet
@@ -74,7 +79,9 @@ def test_a_two_week_sheet_becomes_one_timesheet_per_week() -> None:
 
 def test_a_one_week_sheet_is_not_split() -> None:
     sheet = ExtractedTimesheet(
-        days=[ExtractedDay(work_date=MON + timedelta(days=i), hours=8) for i in range(5)],
+        days=[
+            ExtractedDay(work_date=MON + timedelta(days=i), hours=8) for i in range(5)
+        ],
         confidence=0.95,
     )
     parts = build_timesheets(sheet, CTX)
@@ -109,13 +116,15 @@ def test_a_holiday_marked_on_the_sheet_stays_a_holiday() -> None:
 
 def test_the_builder_records_what_the_sheet_marked() -> None:
     sheet = ExtractedTimesheet(
-        days=[ExtractedDay(work_date=MON, hours=8, is_public_holiday=True)], confidence=0.9
+        days=[ExtractedDay(work_date=MON, hours=8, is_public_holiday=True)],
+        confidence=0.9,
     )
     (timesheet,) = build_timesheets(sheet, CTX)
     assert timesheet.entries[0].sheet_holiday is True
 
 
-# --- #6 long documents ------------------------------------------------------------------
+# --- #6 long documents
+# ------------------------------------------------------------------
 
 
 def test_a_cut_document_is_flagged(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -166,7 +175,9 @@ def submission(status: str, minutes_ago: int) -> Submission:
     return Submission(status=status, updated_at=now - timedelta(minutes=minutes_ago))
 
 
-def test_stuck_means_waiting_or_processing_too_long(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_stuck_means_waiting_or_processing_too_long(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(settings, "sweeper_grace_seconds", 600)
     monkeypatch.setattr(settings, "worker_stale_after_seconds", 1800)
     now = datetime.now(UTC)

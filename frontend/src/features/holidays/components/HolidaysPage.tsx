@@ -2,7 +2,7 @@ import { getRouteApi } from "@tanstack/react-router";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type JSX } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -10,6 +10,9 @@ import { errorMessage } from "@/services/apiErrors";
 import type { HolidayRead } from "../types/holiday";
 import { useIsAdmin } from "@/features/auth";
 import { CompanySelect, useCompanyMap } from "@/features/companies";
+import { CompanyChecklist } from "./CompanyChecklist";
+import { CopyHolidaysDialog } from "./CopyHolidaysDialog";
+import { describeBulkResult } from "../utils/bulkResult";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { Field, FormError } from "@/components/forms/Field";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -42,11 +45,11 @@ const THIS_YEAR = new Date().getFullYear();
 const schema = z.object({
   holiday_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date"),
   name: z.string().trim().min(1, "Enter a name").max(150),
-  company_id: z.string(),
+  company_ids: z.array(z.string()).min(1, "Choose at least one company"),
 });
 type Values = z.infer<typeof schema>;
 
-export function HolidaysPage() {
+export function HolidaysPage(): JSX.Element {
   const search = routeApi.useSearch();
   const navigate = routeApi.useNavigate();
   const isAdmin = useIsAdmin();
@@ -66,22 +69,30 @@ export function HolidaysPage() {
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { holiday_date: "", name: "", company_id: search.company_id ?? "" },
+    defaultValues: {
+      holiday_date: "",
+      name: "",
+      company_ids: search.company_id ? [search.company_id] : [],
+    },
   });
+  // One date for every chosen company, in one request (a company that already has a
+  // holiday that day is skipped and named in the message).
   const create = useMutation({
     mutationFn: (v: Values) =>
-      holidayService.createHoliday({
+      holidayService.bulkCreateHolidays({
         holiday_date: v.holiday_date,
         name: v.name.trim(),
-        company_id: v.company_id || null,
+        company_ids: v.company_ids,
       }),
     meta: { silentError: true },
-    onSuccess: (h) => {
-      toast.success(`${h.name} added.`);
-      form.reset({ holiday_date: "", name: "", company_id: form.getValues("company_id") });
+    onSuccess: (result) => {
+      const message = describeBulkResult(result, (id) => companies.get(id)?.name ?? "A company");
+      if (result.created > 0) toast.success(message);
+      else toast.warning(message);
+      form.reset({ holiday_date: "", name: "", company_ids: form.getValues("company_ids") });
       void queryClient.invalidateQueries({ queryKey: holidayKeys.all });
     },
-    onError: (err) => applyFieldErrors(err, form.setError, ["holiday_date", "name", "company_id"]),
+    onError: (err) => applyFieldErrors(err, form.setError, ["holiday_date", "name", "company_ids"]),
   });
   const remove = useMutation({
     mutationFn: (h: HolidayRead) => holidayService.deleteHoliday(h.id),
@@ -94,17 +105,24 @@ export function HolidaysPage() {
 
   const years = Array.from({ length: 6 }, (_, i) => THIS_YEAR - 2 + i);
   const rows = useMemo(
-    () => [...(list.data ?? [])].sort((a, b) => a.holiday_date.localeCompare(b.holiday_date)),
-    [list.data],
+    () =>
+      [...(list.data ?? [])].sort(
+        (a, b) =>
+          a.holiday_date.localeCompare(b.holiday_date) ||
+          (companies.get(a.company_id)?.name ?? "").localeCompare(
+            companies.get(b.company_id)?.name ?? "",
+          ),
+      ),
+    [list.data, companies],
   );
   const bulkRows = useMemo(
     () =>
       rows.map((h) => ({
         id: h.id,
-        label: `${h.name} (${formatDayLabel(h.holiday_date)})`,
+        label: `${h.name} (${formatDayLabel(h.holiday_date)}, ${companies.get(h.company_id)?.name ?? "a company"})`,
         isActive: h.is_active,
       })),
-    [rows],
+    [rows, companies],
   );
   const selection = useRowSelection(bulkRows, JSON.stringify(params));
 
@@ -112,13 +130,16 @@ export function HolidaysPage() {
     <>
       <PageHeader
         title="Holidays"
-        description="Hours worked on these days are paid at the holiday rate. A holiday with no company applies to all of them."
+        description="Each holiday belongs to one company. Hours worked on it are paid at that company's holiday rate, and the timesheet goes to a reviewer."
         actions={
           isAdmin ? (
-            <ImportButton
-              resource="holidays"
-              onImported={() => void queryClient.invalidateQueries({ queryKey: holidayKeys.all })}
-            />
+            <div className="flex flex-wrap gap-2">
+              <CopyHolidaysDialog years={years} defaultYear={year} />
+              <ImportButton
+                resource="holidays"
+                onImported={() => void queryClient.invalidateQueries({ queryKey: holidayKeys.all })}
+              />
+            </div>
           ) : null
         }
       />
@@ -188,7 +209,14 @@ export function HolidaysPage() {
             </CardContent>
           ) : rows.length === 0 ? (
             <CardContent>
-              <EmptyState title={`No holidays in ${year}`} />
+              <EmptyState
+                title={`No holidays in ${year}`}
+                hint={
+                  isAdmin
+                    ? "Add one, import a file, or copy another company's holidays."
+                    : undefined
+                }
+              />
             </CardContent>
           ) : (
             <Table>
@@ -201,7 +229,7 @@ export function HolidaysPage() {
                   ) : null}
                   <TableHead>Date</TableHead>
                   <TableHead>Name</TableHead>
-                  <TableHead>Applies to</TableHead>
+                  <TableHead>Company</TableHead>
                   <TableHead>Status</TableHead>
                   {isAdmin ? <TableHead className="w-10" /> : null}
                 </TableRow>
@@ -219,13 +247,7 @@ export function HolidaysPage() {
                     ) : null}
                     <TableCell className="tabular">{formatDayLabel(h.holiday_date)}</TableCell>
                     <TableCell className="font-medium">{h.name}</TableCell>
-                    <TableCell>
-                      {h.company_id ? (
-                        (companies.get(h.company_id)?.name ?? "One company")
-                      ) : (
-                        <Badge variant="secondary">All companies</Badge>
-                      )}
-                    </TableCell>
+                    <TableCell>{companies.get(h.company_id)?.name ?? "—"}</TableCell>
                     <TableCell>
                       <Badge variant={h.is_active ? "success" : "muted"}>
                         {h.is_active ? "Active" : "Inactive"}
@@ -272,21 +294,18 @@ export function HolidaysPage() {
                 <Field label="Name" htmlFor="h-name" error={form.formState.errors.name?.message}>
                   <Input id="h-name" placeholder="Diwali" {...form.register("name")} />
                 </Field>
-                <Field label="Applies to" htmlFor="h-scope">
-                  <Controller
-                    control={form.control}
-                    name="company_id"
-                    render={({ field }) => (
-                      <CompanySelect
-                        id="h-scope"
-                        value={field.value}
-                        onChange={field.onChange}
-                        allLabel="All companies"
-                        activeOnly
-                      />
-                    )}
-                  />
-                </Field>
+                <Controller
+                  control={form.control}
+                  name="company_ids"
+                  render={({ field, fieldState }) => (
+                    <CompanyChecklist
+                      id="h-companies"
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={fieldState.error?.message}
+                    />
+                  )}
+                />
                 <Button type="submit" disabled={create.isPending}>
                   <Plus /> {create.isPending ? "Adding…" : "Add holiday"}
                 </Button>

@@ -26,7 +26,15 @@ from src.data.models import Company, Employee, ExportBatch, Timesheet
 from src.data.repositories.export_repository import ExportRepository
 from src.utils.dates import start_of_week
 
-DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+DAY_NAMES = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+]
 
 
 def to_row(timesheet: Timesheet, employee: Employee) -> ExportRow:
@@ -57,7 +65,8 @@ def duplicate_problems(
     pairs: list[tuple[Timesheet, Employee]], exported: set[uuid.UUID]
 ) -> list[str]:
     """Pure: an employee must be paid at most once per week. Returns one message per
-    employee with two approved timesheets, or one already in an earlier payroll sheet."""
+    employee with two approved timesheets, or one already in an earlier payroll
+    sheet."""
     seen: dict[uuid.UUID, list[Timesheet]] = {}
     names: dict[uuid.UUID, str] = {}
     for timesheet, employee in pairs:
@@ -67,13 +76,14 @@ def duplicate_problems(
     for employee_id, sheets in seen.items():
         if len(sheets) > 1:
             problems.append(
-                f"{names[employee_id]} has {len(sheets)} approved timesheets for this week "
-                f"({', '.join(str(t.id) for t in sheets)}). Reject all but one."
+                f"{names[employee_id]} has {len(sheets)} approved timesheets for this "
+                f"week ({', '.join(str(t.id) for t in sheets)}). Reject all but one."
             )
         if employee_id in exported:
             problems.append(
-                f"{names[employee_id]} was already paid for this week in an earlier payroll "
-                "sheet. Reject the new timesheet, or correct the earlier payroll by hand."
+                f"{names[employee_id]} was already paid for this week in an earlier "
+                "payroll sheet. Reject the new timesheet, or correct the earlier "
+                "payroll by hand."
             )
     return problems
 
@@ -112,13 +122,14 @@ class ExportService:
 
     @staticmethod
     def _check_week(company: Company, week_start: date) -> None:
-        """Timesheets are stored by the company's own week, so week_start must be its first day."""
+        """Timesheets are stored by the company's own week, so week_start must be its
+        first day."""
         if week_start.weekday() != company.week_start:
             first = start_of_week(week_start, company.week_start)
             raise ValidationFailedError(
-                f"{company.name}'s week starts on {DAY_NAMES[company.week_start]}, "
-                f"but {week_start} is a {DAY_NAMES[week_start.weekday()]}. "
-                f"Use {first} for that week."
+                f"{company.name}'s week starts on {DAY_NAMES[company.week_start]}, but "
+                f"{week_start} is a {DAY_NAMES[week_start.weekday()]}. Use {first} for "
+                "that week."
             )
 
     async def get(self, batch_id: uuid.UUID) -> ExportBatch:
@@ -127,7 +138,9 @@ class ExportService:
             raise NotFoundError("Export not found.")
         return batch
 
-    async def preview(self, company_id: uuid.UUID, week_start: date) -> ExportPreviewResult:
+    async def preview(
+        self, company_id: uuid.UUID, week_start: date
+    ) -> ExportPreviewResult:
         company = await self._company(company_id)
         self._check_week(company, week_start)
         pairs = await self.exports.ready_to_export(company_id, week_start)
@@ -139,7 +152,9 @@ class ExportService:
     async def _duplicates(
         self, pairs: list[tuple[Timesheet, Employee]], week_start: date
     ) -> list[str]:
-        exported = await self.exports.exported_employees(list({e.id for _, e in pairs}), week_start)
+        exported = await self.exports.exported_employees(
+            list({e.id for _, e in pairs}), week_start
+        )
         return duplicate_problems(pairs, exported)
 
     async def create(
@@ -157,17 +172,21 @@ class ExportService:
         pending = counts.get(TimesheetStatus.NEEDS_REVIEW, 0)
         if pending and not allow_pending:
             raise ConflictError(
-                f"{pending} timesheet(s) for this week still need review. Review them first, "
-                "or export anyway with allow_pending=true (they can go in a later export)."
+                f"{pending} timesheet(s) for this week still need review. Review them "
+                "first, or export anyway with allow_pending=true (they can go in a "
+                "later export)."
             )
 
         pairs = await self.exports.ready_to_export(company_id, week_start, lock=True)
         if not pairs:
-            raise ConflictError("No approved timesheets left to export for this company and week.")
+            raise ConflictError(
+                "No approved timesheets left to export for this company and week."
+            )
         problems = await self._duplicates(pairs, week_start)
         if problems:
             raise ConflictError(
-                "An employee would be paid twice for this week: " + " ".join(problems[:5])
+                "An employee would be paid twice for this week: "
+                + " ".join(problems[:5])
             )
 
         rows = [to_row(t, e) for t, e in pairs]
@@ -175,9 +194,9 @@ class ExportService:
         if unpriced:
             names = ", ".join(sorted(r.employee_name for r in unpriced)[:5])
             raise ConflictError(
-                f"{len(unpriced)} approved timesheet(s) have no pay amount ({names}): a company "
-                "rate is missing. Add the rate to the company, recalculate those timesheets, "
-                "then export again."
+                f"{len(unpriced)} approved timesheet(s) have no pay amount ({names}): "
+                "a company rate is missing. Add the rate to the company, recalculate "
+                "those timesheets, then export again."
             )
         sums = totals(rows)
         batch_id = uuid.uuid4()

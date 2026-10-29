@@ -23,12 +23,15 @@ def make(**values: Any) -> Settings:
     return Settings(_env_file=None, **values)
 
 
-# --- settings ------------------------------------------------------------------------------
+# --- settings
+# ------------------------------------------------------------------------------
 
 
 def test_no_fallback_by_default_and_blank_means_unset() -> None:
     assert make().llm_fallback_model is None
-    blank = make(llm_fallback_model="  ", llm_fallback_provider="", llm_fallback_base_url="")
+    blank = make(
+        llm_fallback_model="  ", llm_fallback_provider="", llm_fallback_base_url=""
+    )
     assert blank.llm_fallback_model is None and blank.llm_fallback_provider is None
 
 
@@ -66,7 +69,11 @@ def test_the_main_key_is_never_sent_to_another_host() -> None:
             llm_fallback_base_url="https://other.example/v1",
         )
     with pytest.raises(ValidationError, match="LLM_FALLBACK_API_KEY"):
-        make(llm_api_key="main-key", llm_fallback_model="m", llm_fallback_provider="anthropic")
+        make(
+            llm_api_key="main-key",
+            llm_fallback_model="m",
+            llm_fallback_provider="anthropic",
+        )
 
 
 def test_a_fallback_identical_to_the_main_model_is_refused() -> None:
@@ -82,7 +89,8 @@ def test_a_fallback_identical_to_the_main_model_is_refused() -> None:
     )
 
 
-# --- the factory -----------------------------------------------------------------------------
+# --- the factory
+# -----------------------------------------------------------------------------
 
 
 @pytest.fixture(autouse=True)
@@ -109,12 +117,16 @@ def configure(monkeypatch: pytest.MonkeyPatch, **values: Any) -> None:
         monkeypatch.setattr(settings, key, value)
 
 
-def test_no_fallback_model_is_built_when_not_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_no_fallback_model_is_built_when_not_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     configure(monkeypatch)
     assert llm.get_fallback_chat_model() is None
 
 
-def test_the_fallback_model_is_built_with_its_own_options(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_the_fallback_model_is_built_with_its_own_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     configure(
         monkeypatch,
         llm_fallback_model="backup-model",
@@ -133,12 +145,20 @@ def test_the_fallback_model_is_built_with_its_own_options(monkeypatch: pytest.Mo
     assert llm.get_chat_model() == "model:main-model"  # type: ignore[comparison-overlap]
     backup, main = calls[0], calls[1]
     assert backup[1]["base_url"] == "https://backup.example/v1"
-    assert backup[1]["api_key"] == "backup-key" and backup[1]["model_provider"] == "openai"
-    assert backup[1]["timeout"] == settings.llm_timeout_s  # same limits as the main model
-    assert main[1]["base_url"] == "https://main.example/v1" and main[1]["api_key"] == "main-key"
+    assert (
+        backup[1]["api_key"] == "backup-key" and backup[1]["model_provider"] == "openai"
+    )
+    assert (
+        backup[1]["timeout"] == settings.llm_timeout_s
+    )  # same limits as the main model
+    assert (
+        main[1]["base_url"] == "https://main.example/v1"
+        and main[1]["api_key"] == "main-key"
+    )
 
 
-# --- the agent -----------------------------------------------------------------------------------
+# --- the agent
+# -----------------------------------------------------------------------------------
 
 
 class FakeModel:
@@ -152,7 +172,9 @@ class FakeModel:
         answer = self.answers[min(self.calls, len(self.answers)) - 1]
         if isinstance(answer, Exception):
             raise answer
-        return AIMessage(content=answer, response_metadata={"finish_reason": self.finish_reason})
+        return AIMessage(
+            content=answer, response_metadata={"finish_reason": self.finish_reason}
+        )
 
 
 def provider_down() -> openai.InternalServerError:
@@ -167,10 +189,14 @@ async def extract() -> ExtractionResult:
     )
 
 
-def use(monkeypatch: pytest.MonkeyPatch, main: FakeModel, fallback: FakeModel | None) -> None:
+def use(
+    monkeypatch: pytest.MonkeyPatch, main: FakeModel, fallback: FakeModel | None
+) -> None:
     monkeypatch.setattr(agent, "get_chat_model", lambda: main)
     monkeypatch.setattr(agent, "get_fallback_chat_model", lambda: fallback)
-    monkeypatch.setattr(settings, "llm_fallback_model", "backup-model" if fallback else None)
+    monkeypatch.setattr(
+        settings, "llm_fallback_model", "backup-model" if fallback else None
+    )
     monkeypatch.setattr(settings, "llm_json_retries", 2)
 
 
@@ -201,19 +227,28 @@ async def test_invalid_json_from_the_main_model_falls_back_after_its_own_retries
     main, fallback = FakeModel("this is not json"), FakeModel(VALID)
     use(monkeypatch, main, fallback)
     await extract()
-    assert main.calls == 3  # first try + llm_json_retries (2): the main model gets its chances
+    assert (
+        main.calls == 3
+    )  # first try + llm_json_retries (2): the main model gets its chances
     assert fallback.calls == 1
 
 
-async def test_a_cut_off_answer_does_not_fall_back(monkeypatch: pytest.MonkeyPatch) -> None:
-    main, fallback = FakeModel('{"timesheets": [', finish_reason="length"), FakeModel(VALID)
+async def test_a_cut_off_answer_does_not_fall_back(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    main, fallback = (
+        FakeModel('{"timesheets": [', finish_reason="length"),
+        FakeModel(VALID),
+    )
     use(monkeypatch, main, fallback)
     with pytest.raises(AnswerTooLongError):
         await extract()
     assert fallback.calls == 0
 
 
-async def test_without_a_fallback_errors_are_as_before(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_without_a_fallback_errors_are_as_before(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     use(monkeypatch, FakeModel(provider_down()), None)
     with pytest.raises(agent.ExtractionError, match="The LLM call failed") as caught:
         await extract()
@@ -242,4 +277,6 @@ async def test_both_returning_unusable_answers_is_retried_later_like_any_ai_fail
     use(monkeypatch, FakeModel("not json"), FakeModel("also not json"))
     with pytest.raises(agent.ExtractionError) as caught:
         await extract()
-    assert explain(caught.value).temporary  # as before: the worker tries the job again later
+    assert explain(
+        caught.value
+    ).temporary  # as before: the worker tries the job again later

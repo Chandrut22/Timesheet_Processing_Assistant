@@ -28,20 +28,26 @@ def upgrade() -> None:
     # --- reprocess_runs -------------------------------------------------------------
     op.create_table(
         "reprocess_runs",
-        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column(
+            "id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False
+        ),
         sa.Column("submission_id", sa.Uuid(), nullable=False),
         sa.Column("document_id", sa.Uuid(), nullable=True),
         sa.Column("reason", sa.Text(), nullable=False),
         sa.Column("requested_by_id", sa.Uuid(), nullable=False),
         sa.Column("requested_by_name", sa.String(length=150), nullable=False),
-        sa.Column("status", sa.String(length=20), server_default="running", nullable=False),
+        sa.Column(
+            "status", sa.String(length=20), server_default="running", nullable=False
+        ),
         sa.Column(
             "before_result",
             postgresql.JSONB(astext_type=sa.Text()),
             server_default=sa.text("'{}'::jsonb"),
             nullable=False,
         ),
-        sa.Column("after_result", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column(
+            "after_result", postgresql.JSONB(astext_type=sa.Text()), nullable=True
+        ),
         sa.Column("error", sa.Text(), nullable=True),
         sa.Column(
             "created_at",
@@ -55,7 +61,8 @@ def upgrade() -> None:
             name=op.f("ck_reprocess_runs_status_valid"),
         ),
         sa.CheckConstraint(
-            "length(btrim(reason)) >= 3", name=op.f("ck_reprocess_runs_reason_not_blank")
+            "length(btrim(reason)) >= 3",
+            name=op.f("ck_reprocess_runs_reason_not_blank"),
         ),
         sa.CheckConstraint(
             "(status = 'running') = (completed_at IS NULL)",
@@ -94,7 +101,9 @@ def upgrade() -> None:
     # --- timesheets -----------------------------------------------------------------
     op.add_column(
         "timesheets",
-        sa.Column("version", sa.SmallInteger(), server_default=sa.text("1"), nullable=False),
+        sa.Column(
+            "version", sa.SmallInteger(), server_default=sa.text("1"), nullable=False
+        ),
         schema=SCHEMA,
     )
     op.add_column("timesheets", sa.Column("reprocess_run_id", sa.Uuid()), schema=SCHEMA)
@@ -126,7 +135,10 @@ def upgrade() -> None:
         schema=SCHEMA,
     )
     op.create_check_constraint(
-        op.f("ck_timesheets_version_positive"), "timesheets", "version >= 1", schema=SCHEMA
+        op.f("ck_timesheets_version_positive"),
+        "timesheets",
+        "version >= 1",
+        schema=SCHEMA,
     )
     op.create_check_constraint(
         op.f("ck_timesheets_not_superseded_by_self"),
@@ -143,7 +155,9 @@ def upgrade() -> None:
     )
 
     # --- processing_steps -----------------------------------------------------------
-    op.add_column("processing_steps", sa.Column("reprocess_run_id", sa.Uuid()), schema=SCHEMA)
+    op.add_column(
+        "processing_steps", sa.Column("reprocess_run_id", sa.Uuid()), schema=SCHEMA
+    )
     op.create_foreign_key(
         op.f("fk_processing_steps_reprocess_run_id_reprocess_runs"),
         "processing_steps",
@@ -164,7 +178,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_processing_steps_reprocess_run", table_name="processing_steps", schema=SCHEMA)
+    op.drop_index(
+        "ix_processing_steps_reprocess_run",
+        table_name="processing_steps",
+        schema=SCHEMA,
+    )
     op.drop_constraint(
         op.f("fk_processing_steps_reprocess_run_id_reprocess_runs"),
         "processing_steps",
@@ -186,10 +204,16 @@ def downgrade() -> None:
         f"status IN ({TS_STATUSES_OLD})",
         schema=SCHEMA,
     )
-    op.drop_constraint(op.f("ck_timesheets_not_superseded_by_self"), "timesheets", schema=SCHEMA)
-    op.drop_constraint(op.f("ck_timesheets_version_positive"), "timesheets", schema=SCHEMA)
+    op.drop_constraint(
+        op.f("ck_timesheets_not_superseded_by_self"), "timesheets", schema=SCHEMA
+    )
+    op.drop_constraint(
+        op.f("ck_timesheets_version_positive"), "timesheets", schema=SCHEMA
+    )
     op.drop_index(
-        op.f("ix_core_timesheets_reprocess_run_id"), table_name="timesheets", schema=SCHEMA
+        op.f("ix_core_timesheets_reprocess_run_id"),
+        table_name="timesheets",
+        schema=SCHEMA,
     )
     op.drop_constraint(
         op.f("fk_timesheets_superseded_by_id_timesheets"),
@@ -207,6 +231,10 @@ def downgrade() -> None:
     op.drop_column("timesheets", "reprocess_run_id", schema=SCHEMA)
     op.drop_column("timesheets", "version", schema=SCHEMA)
 
-    op.drop_index("uq_reprocess_runs_one_running", table_name="reprocess_runs", schema=SCHEMA)
-    op.drop_index("ix_reprocess_runs_submission", table_name="reprocess_runs", schema=SCHEMA)
+    op.drop_index(
+        "uq_reprocess_runs_one_running", table_name="reprocess_runs", schema=SCHEMA
+    )
+    op.drop_index(
+        "ix_reprocess_runs_submission", table_name="reprocess_runs", schema=SCHEMA
+    )
     op.drop_table("reprocess_runs", schema=SCHEMA)

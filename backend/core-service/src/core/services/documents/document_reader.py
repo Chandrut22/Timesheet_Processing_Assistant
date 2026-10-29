@@ -177,16 +177,19 @@ def read_document_full(filename: str, data: bytes) -> ReadOutcome:
             )
     extension = _extension(filename) if filename else ""
     text, limit = _read_with_docling(filename, data)
-    return ReadOutcome(text, limit, "plain" if extension in (".csv", ".txt") else "docling")
+    return ReadOutcome(
+        text, limit, "plain" if extension in (".csv", ".txt") else "docling"
+    )
 
 
 def _read_with_docling(filename: str, data: bytes) -> tuple[str, ReadLimit]:
     """Convert uploaded document bytes into Markdown, within the size limits.
 
     Big files are checked first (document_limits.prepare): only the first MAX_PAGES of a
-    PDF and the first MAX_SHEETS sheets with data of a workbook are converted; hidden and
-    empty sheets never are. Returns the text and what was left out. In refuse mode a file
-    over the limit raises DocumentTooLargeError (its message says to split the file).
+    PDF and the first MAX_SHEETS sheets with data of a workbook are converted; hidden
+    and empty sheets never are. Returns the text and what was left out. In refuse mode a
+    file over the limit raises DocumentTooLargeError (its message says to split the
+    file).
 
     Args:
         filename: Original filename, including its extension.
@@ -244,13 +247,17 @@ def _read_with_docling(filename: str, data: bytes) -> tuple[str, ReadLimit]:
         markdown = result.document.export_to_markdown().strip()
 
         if extension == ".pdf":
-            # Docling can take a table for a picture and drop its text: add the PDF's own
-            # text layer when it holds numbers (hours, dates) that are missing.
+            # Docling can take a table for a picture and drop its text: add the PDF's
+            # own text layer when it holds numbers (hours, dates) that are missing.
             layer = pdf_text_layer(prepared.data, prepared.page_range)
             before = len(markdown)
             markdown = with_pdf_text_layer(markdown, layer) if markdown else layer
             if len(markdown) != before:
-                logger.info("Added the PDF text layer for %s (%d characters)", filename, len(layer))
+                logger.info(
+                    "Added the PDF text layer for %s (%d characters)",
+                    filename,
+                    len(layer),
+                )
 
         if not markdown:
             raise DocumentReadError(f"No readable text found in '{filename}'.")

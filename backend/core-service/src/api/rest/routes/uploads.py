@@ -17,6 +17,7 @@ async def upload_timesheets(
     files: Annotated[list[UploadFile], File(description="PDF, DOCX, XLSX or images")],
     company_id: Annotated[uuid.UUID | None, Form()] = None,
 ) -> SubmissionRead:
-    """202 Accepted: the files are saved and queued; processing happens in the background."""
+    """202 Accepted: the files are saved and queued; processing happens in the
+    background."""
     submission = await UploadService(session).create(files, company_id, principal)
     return SubmissionRead.model_validate(submission)

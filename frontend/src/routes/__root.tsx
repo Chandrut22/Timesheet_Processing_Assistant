@@ -4,6 +4,7 @@ import type { SessionUser } from "@/services/session";
 import { RouterDevtools } from "@/app/devtools";
 import { ErrorState } from "@/components/common/States";
 import { Button } from "@/components/ui/button";
+import type { JSX } from "react";
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
@@ -14,7 +15,7 @@ export const Route = createRootRouteWithContext<{
   errorComponent: RootError,
 });
 
-function RootError({ error, reset }: { error: unknown; reset: () => void }) {
+function RootError({ error, reset }: { error: unknown; reset: () => void }): JSX.Element {
   const router = useRouter();
   return (
     <div className="mx-auto max-w-xl p-8">
@@ -29,7 +30,7 @@ function RootError({ error, reset }: { error: unknown; reset: () => void }) {
   );
 }
 
-function RootLayout() {
+function RootLayout(): JSX.Element {
   return (
     <>
       <Outlet />
@@ -38,7 +39,7 @@ function RootLayout() {
   );
 }
 
-function NotFound() {
+function NotFound(): JSX.Element {
   return (
     <div className="mx-auto flex max-w-md flex-col items-center gap-3 p-10 text-center">
       <p className="text-4xl font-semibold">404</p>

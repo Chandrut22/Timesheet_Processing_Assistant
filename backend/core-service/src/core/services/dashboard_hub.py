@@ -51,7 +51,8 @@ class DashboardHub:
         self._clients.discard(q)
 
     async def current(self) -> str:
-        """The latest snapshot (JSON text), built on demand if it is stale or missing."""
+        """The latest snapshot (JSON text), built on demand if it is stale or
+        missing."""
         async with self._lock:
             if self._latest is None or time.monotonic() - self._built_at > FRESH_S:
                 await self._rebuild()
@@ -70,7 +71,8 @@ class DashboardHub:
 
     @staticmethod
     def _offer(q: asyncio.Queue[str | None], item: str | None) -> None:
-        # Keep only the newest item: a slow browser gets the latest picture, not a backlog.
+        # Keep only the newest item: a slow browser gets the latest picture, not a
+        # backlog.
         if q.full():
             with contextlib.suppress(asyncio.QueueEmpty):
                 q.get_nowait()
@@ -87,19 +89,24 @@ class DashboardHub:
                         if message["type"] == "message":
                             self._dirty.set()
                 finally:
-                    # aclose() has no type hints in some redis versions: call it untyped.
+                    # aclose() has no type hints in some redis versions: call it
+                    # untyped.
                     await cast(Any, pubsub).aclose()
             except asyncio.CancelledError:
                 raise
             except Exception:
-                logger.warning("Dashboard listener lost Redis; retrying in 2 s", exc_info=True)
+                logger.warning(
+                    "Dashboard listener lost Redis; retrying in 2 s", exc_info=True
+                )
                 await asyncio.sleep(2)
 
     async def _refresh_loop(self) -> None:
         while True:
             # Safety net: refresh even if no message arrived within the poll time.
             with contextlib.suppress(TimeoutError):
-                await asyncio.wait_for(self._dirty.wait(), timeout=settings.dashboard_poll_seconds)
+                await asyncio.wait_for(
+                    self._dirty.wait(), timeout=settings.dashboard_poll_seconds
+                )
             await asyncio.sleep(DEBOUNCE_S)
             self._dirty.clear()
             if not self._clients:

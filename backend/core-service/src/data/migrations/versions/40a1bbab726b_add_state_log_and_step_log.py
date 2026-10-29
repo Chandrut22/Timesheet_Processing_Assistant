@@ -33,7 +33,9 @@ STATES = (
 
 def upgrade() -> None:
     # --- submissions: ignored status + state columns ------------------------------
-    op.drop_constraint(op.f("ck_submissions_status_valid"), "submissions", schema=SCHEMA)
+    op.drop_constraint(
+        op.f("ck_submissions_status_valid"), "submissions", schema=SCHEMA
+    )
     op.create_check_constraint(
         op.f("ck_submissions_status_valid"),
         "submissions",
@@ -42,19 +44,32 @@ def upgrade() -> None:
     )
     op.add_column(
         "submissions",
-        sa.Column("state", sa.String(length=20), nullable=False, server_default="received"),
+        sa.Column(
+            "state", sa.String(length=20), nullable=False, server_default="received"
+        ),
         schema=SCHEMA,
     )
-    op.add_column("submissions", sa.Column("state_reason", sa.Text(), nullable=True), schema=SCHEMA)
-    op.create_check_constraint(
-        op.f("ck_submissions_state_valid"), "submissions", f"state IN ({STATES})", schema=SCHEMA
+    op.add_column(
+        "submissions",
+        sa.Column("state_reason", sa.Text(), nullable=True),
+        schema=SCHEMA,
     )
-    op.create_index(op.f("ix_core_submissions_state"), "submissions", ["state"], schema=SCHEMA)
+    op.create_check_constraint(
+        op.f("ck_submissions_state_valid"),
+        "submissions",
+        f"state IN ({STATES})",
+        schema=SCHEMA,
+    )
+    op.create_index(
+        op.f("ix_core_submissions_state"), "submissions", ["state"], schema=SCHEMA
+    )
 
     # --- state log -------------------------------------------------------------------
     op.create_table(
         "submission_state_changes",
-        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column(
+            "id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False
+        ),
         sa.Column("submission_id", sa.Uuid(), nullable=False),
         sa.Column("from_state", sa.String(length=20), nullable=True),
         sa.Column("to_state", sa.String(length=20), nullable=False),
@@ -68,7 +83,8 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.CheckConstraint(
-            f"to_state IN ({STATES})", name=op.f("ck_submission_state_changes_to_state_valid")
+            f"to_state IN ({STATES})",
+            name=op.f("ck_submission_state_changes_to_state_valid"),
         ),
         sa.ForeignKeyConstraint(
             ["submission_id"],
@@ -89,7 +105,9 @@ def upgrade() -> None:
     # --- step log --------------------------------------------------------------------
     op.create_table(
         "processing_steps",
-        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column(
+            "id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False
+        ),
         sa.Column("submission_id", sa.Uuid(), nullable=False),
         sa.Column("document_id", sa.Uuid(), nullable=True),
         sa.Column("timesheet_id", sa.Uuid(), nullable=True),
@@ -109,7 +127,9 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("error_details", sa.Text(), nullable=True),
-        sa.Column("duration_ms", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column(
+            "duration_ms", sa.Integer(), server_default=sa.text("0"), nullable=False
+        ),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -148,7 +168,9 @@ def upgrade() -> None:
 
     # --- backfill: a state for every existing submission -----------------------------
     conn = op.get_bind()
-    submissions = conn.execute(sa.text(f"SELECT id, status, error FROM {SCHEMA}.submissions")).all()
+    submissions = conn.execute(
+        sa.text(f"SELECT id, status, error FROM {SCHEMA}.submissions")
+    ).all()
     for submission_id, status, error in submissions:
         reason: str | None = None
         if status == "failed":
@@ -158,7 +180,9 @@ def upgrade() -> None:
         else:
             statuses = (
                 conn.execute(
-                    sa.text(f"SELECT status FROM {SCHEMA}.timesheets WHERE submission_id = :id"),
+                    sa.text(
+                        f"SELECT status FROM {SCHEMA}.timesheets WHERE submission_id = :id"
+                    ),
                     {"id": submission_id},
                 )
                 .scalars()
@@ -178,7 +202,10 @@ def upgrade() -> None:
                 if failed_doc is not None:
                     state, reason = "failed", failed_doc[0]
                 else:
-                    state, reason = "ignored", "No timesheet found in this email or upload."
+                    state, reason = (
+                        "ignored",
+                        "No timesheet found in this email or upload.",
+                    )
         conn.execute(
             sa.text(
                 f"UPDATE {SCHEMA}.submissions SET state = :state, state_reason = :reason "
@@ -191,12 +218,18 @@ def upgrade() -> None:
                 f"INSERT INTO {SCHEMA}.submission_state_changes "
                 "(submission_id, from_state, to_state, reason) VALUES (:id, NULL, :state, :reason)"
             ),
-            {"id": submission_id, "state": state, "reason": reason or "State log started"},
+            {
+                "id": submission_id,
+                "state": state,
+                "reason": reason or "State log started",
+            },
         )
 
 
 def downgrade() -> None:
-    op.drop_index("ix_processing_steps_submission", table_name="processing_steps", schema=SCHEMA)
+    op.drop_index(
+        "ix_processing_steps_submission", table_name="processing_steps", schema=SCHEMA
+    )
     op.drop_table("processing_steps", schema=SCHEMA)
     op.drop_index(
         "ix_submission_state_changes_submission",
@@ -204,12 +237,16 @@ def downgrade() -> None:
         schema=SCHEMA,
     )
     op.drop_table("submission_state_changes", schema=SCHEMA)
-    op.drop_index(op.f("ix_core_submissions_state"), table_name="submissions", schema=SCHEMA)
+    op.drop_index(
+        op.f("ix_core_submissions_state"), table_name="submissions", schema=SCHEMA
+    )
     op.drop_constraint(op.f("ck_submissions_state_valid"), "submissions", schema=SCHEMA)
     op.drop_column("submissions", "state_reason", schema=SCHEMA)
     op.drop_column("submissions", "state", schema=SCHEMA)
     op.execute(f"DELETE FROM {SCHEMA}.submissions WHERE status = 'ignored'")
-    op.drop_constraint(op.f("ck_submissions_status_valid"), "submissions", schema=SCHEMA)
+    op.drop_constraint(
+        op.f("ck_submissions_status_valid"), "submissions", schema=SCHEMA
+    )
     op.create_check_constraint(
         op.f("ck_submissions_status_valid"),
         "submissions",

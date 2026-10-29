@@ -40,7 +40,9 @@ async def list_companies(
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-async def create_company(body: CompanyCreate, session: SessionDep, _: Admin) -> CompanyRead:
+async def create_company(
+    body: CompanyCreate, session: SessionDep, _: Admin
+) -> CompanyRead:
     return CompanyRead.model_validate(await CompanyService(session).create(body))
 
 
@@ -65,7 +67,9 @@ async def get_company(
 async def update_company(
     company_id: uuid.UUID, body: CompanyUpdate, session: SessionDep, _: Admin
 ) -> CompanyRead:
-    return CompanyRead.model_validate(await CompanyService(session).update(company_id, body))
+    return CompanyRead.model_validate(
+        await CompanyService(session).update(company_id, body)
+    )
 
 
 # --- whitelist (admin only: it decides whose emails get processed) ------------
@@ -87,11 +91,15 @@ async def add_whitelist(
     return WhitelistRead.model_validate(entry)
 
 
-@router.delete("/{company_id}/whitelist/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{company_id}/whitelist/{entry_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 async def remove_whitelist(
     company_id: uuid.UUID, entry_id: uuid.UUID, session: SessionDep, _: Admin
 ) -> None:
     await CompanyService(session).remove_whitelist(company_id, entry_id)
 
 
-add_import_routes(router, "companies")  # GET /companies/import/template, POST /companies/import
+add_import_routes(
+    router, "companies"
+)  # GET /companies/import/template, POST /companies/import

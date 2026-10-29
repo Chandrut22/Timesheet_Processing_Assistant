@@ -11,7 +11,9 @@ from urllib.parse import quote
 PLACEHOLDER_SUFFIX = "@imap.local>"
 
 
-def mail_url(source: str, message_id: str | None, account: str | None, template: str) -> str | None:
+def mail_url(
+    source: str, message_id: str | None, account: str | None, template: str
+) -> str | None:
     """The link, or None: uploads, no / placeholder Message-ID, no account set."""
     if source != "email" or not account or not message_id:
         return None

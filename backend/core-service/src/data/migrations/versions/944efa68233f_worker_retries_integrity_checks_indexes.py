@@ -32,8 +32,16 @@ SCHEMA = "core"
 CHECKS: list[tuple[str, str, str]] = [
     # (table, name, condition)
     ("submissions", "attempts_non_negative", "attempts >= 0"),
-    ("submissions", "retry_fields_together", "(retry_at IS NULL) = (retry_token IS NULL)"),
-    ("submissions", "processed_has_time", "status <> 'processed' OR processed_at IS NOT NULL"),
+    (
+        "submissions",
+        "retry_fields_together",
+        "(retry_at IS NULL) = (retry_token IS NULL)",
+    ),
+    (
+        "submissions",
+        "processed_has_time",
+        "status <> 'processed' OR processed_at IS NOT NULL",
+    ),
     (
         "timesheets",
         "hours_non_negative",
@@ -75,10 +83,14 @@ def upgrade() -> None:
     # --- submissions: retry bookkeeping -----------------------------------------------
     op.add_column(
         "submissions",
-        sa.Column("attempts", sa.SmallInteger(), server_default=sa.text("0"), nullable=False),
+        sa.Column(
+            "attempts", sa.SmallInteger(), server_default=sa.text("0"), nullable=False
+        ),
         schema=SCHEMA,
     )
-    op.add_column("submissions", sa.Column("retry_at", sa.DateTime(timezone=True)), schema=SCHEMA)
+    op.add_column(
+        "submissions", sa.Column("retry_at", sa.DateTime(timezone=True)), schema=SCHEMA
+    )
     op.add_column("submissions", sa.Column("retry_token", sa.Uuid()), schema=SCHEMA)
 
     # --- fill in existing rows so the new checks hold --------------------------------
@@ -100,11 +112,16 @@ def upgrade() -> None:
 
     # --- checks ------------------------------------------------------------------------
     for table, name, condition in CHECKS:
-        op.create_check_constraint(op.f(f"ck_{table}_{name}"), table, condition, schema=SCHEMA)
+        op.create_check_constraint(
+            op.f(f"ck_{table}_{name}"), table, condition, schema=SCHEMA
+        )
 
     # --- indexes -----------------------------------------------------------------------
     op.create_index(
-        op.f("ix_core_submissions_received_at"), "submissions", ["received_at"], schema=SCHEMA
+        op.f("ix_core_submissions_received_at"),
+        "submissions",
+        ["received_at"],
+        schema=SCHEMA,
     )
     op.create_index(
         op.f("ix_core_timesheets_superseded_by_id"),
@@ -112,7 +129,9 @@ def upgrade() -> None:
         ["superseded_by_id"],
         schema=SCHEMA,
     )
-    op.create_index("ix_timesheets_week_start", "timesheets", ["week_start"], schema=SCHEMA)
+    op.create_index(
+        "ix_timesheets_week_start", "timesheets", ["week_start"], schema=SCHEMA
+    )
     op.create_index(
         "ix_timesheets_flags",
         "timesheets",
@@ -138,15 +157,25 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_reprocess_runs_document", table_name="reprocess_runs", schema=SCHEMA)
-    op.drop_index("ix_processing_steps_document", table_name="processing_steps", schema=SCHEMA)
+    op.drop_index(
+        "ix_reprocess_runs_document", table_name="reprocess_runs", schema=SCHEMA
+    )
+    op.drop_index(
+        "ix_processing_steps_document", table_name="processing_steps", schema=SCHEMA
+    )
     op.drop_index("ix_timesheets_flags", table_name="timesheets", schema=SCHEMA)
     op.drop_index("ix_timesheets_week_start", table_name="timesheets", schema=SCHEMA)
     op.drop_index(
-        op.f("ix_core_timesheets_superseded_by_id"), table_name="timesheets", schema=SCHEMA
+        op.f("ix_core_timesheets_superseded_by_id"),
+        table_name="timesheets",
+        schema=SCHEMA,
     )
-    op.drop_index(op.f("ix_core_submissions_received_at"), table_name="submissions", schema=SCHEMA)
+    op.drop_index(
+        op.f("ix_core_submissions_received_at"), table_name="submissions", schema=SCHEMA
+    )
     for table, name, _ in reversed(CHECKS):
-        op.drop_constraint(op.f(f"ck_{table}_{name}"), table, type_="check", schema=SCHEMA)
+        op.drop_constraint(
+            op.f(f"ck_{table}_{name}"), table, type_="check", schema=SCHEMA
+        )
     for column in ("retry_token", "retry_at", "attempts"):
         op.drop_column("submissions", column, schema=SCHEMA)

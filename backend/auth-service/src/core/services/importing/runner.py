@@ -96,8 +96,8 @@ def match_headers(table: Table, resource: Resource) -> tuple[dict[str, int], lis
     missing = [c.name for c in resource.columns if c.required and c.name not in index]
     if missing:
         raise ValidationFailedError(
-            f"Missing required column(s): {', '.join(missing)}. "
-            "Download the template for the exact headers."
+            f"Missing required column(s): {', '.join(missing)}. Download the template "
+            "for the exact headers."
         )
     return index, warnings
 
@@ -116,7 +116,8 @@ async def run_import(
 ) -> ImportReport:
     if on_duplicate == "update" and resource.update is None:
         raise ValidationFailedError(
-            f"on_duplicate=update is not allowed for {resource.name}: use error or skip."
+            f"on_duplicate=update is not allowed for {resource.name}: use error or "
+            "skip."
         )
     index, warnings = match_headers(table, resource)
     report = ImportReport(

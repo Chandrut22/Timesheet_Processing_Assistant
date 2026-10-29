@@ -6,7 +6,8 @@ most of the text away, we look first (cheap: page / sheet count) and then:
 
   PDF   > MAX_PAGES  -> partial: read pages 1..MAX_PAGES      | refuse: "split the file"
   XLSX               -> hidden and empty sheets are dropped (never read)
-        > MAX_SHEETS -> partial: keep the first MAX_SHEETS     | refuse: "split the file"
+        > MAX_SHEETS -> partial: keep the first MAX_SHEETS     | refuse: "split the
+        file"
 
 LARGE_DOCUMENT_MODE chooses partial (default) or refuse. What was left out is returned
 as a ReadLimit, stored on the document, and becomes a document_too_large flag on every
@@ -116,7 +117,9 @@ def _prepare_xlsx(filename: str, data: bytes) -> Prepared:
 
     if len(keep) > settings.max_sheets:
         if settings.large_document_mode == "refuse":
-            raise _too_large(filename, len(keep), settings.max_sheets, "sheets with data")
+            raise _too_large(
+                filename, len(keep), settings.max_sheets, "sheets with data"
+            )
         limit.sheets_skipped_over_limit = [s.title for s in keep[settings.max_sheets :]]
         keep = keep[: settings.max_sheets]
     limit.sheets_read = [s.title for s in keep]
@@ -174,6 +177,7 @@ def too_large_flag(limit: dict[str, Any] | None) -> dict[str, Any] | None:
         "code": "document_too_large",
         "message": "The document is too large: "
         + "; ".join(parts)
-        + ". Hours on those pages or sheets are missing. Split the file and send it again.",
+        + ". Hours on those pages or sheets are missing. Split the file and send it "
+        "again.",
         **{k: v for k, v in limit.items() if k in ("pages_total", "pages_read")},
     }

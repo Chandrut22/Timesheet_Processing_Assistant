@@ -1,7 +1,12 @@
 import { useSyncExternalStore } from "react";
-import { getSession, subscribeSession, type SessionUser } from "@/services/session";
+import {
+  getSession,
+  subscribeSession,
+  type SessionUser,
+  type SessionState,
+} from "@/services/session";
 
-export function useSession() {
+export function useSession(): SessionState {
   return useSyncExternalStore(subscribeSession, getSession, getSession);
 }
 

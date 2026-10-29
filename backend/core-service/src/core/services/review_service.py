@@ -15,7 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.constants.flags import Severity
 from src.constants.timesheet_status import TimesheetChange, TimesheetStatus
-from src.core.exceptions import AppError, ConflictError, NotFoundError, ValidationFailedError
+from src.core.exceptions import (
+    AppError,
+    ConflictError,
+    NotFoundError,
+    ValidationFailedError,
+)
 from src.core.rbac.principal import Principal
 from src.core.services.activity_log import refresh_state
 from src.core.services.audit import record_event
@@ -35,8 +40,19 @@ from src.core.services.timesheet_validation import (
     other_paid_timesheet,
     validate_duplicates,
 )
-from src.core.services.version_history import save_version, switch_to_version, take_snapshot
-from src.data.models import Company, Document, Employee, Timesheet, TimesheetEntry, TimesheetVersion
+from src.core.services.version_history import (
+    save_version,
+    switch_to_version,
+    take_snapshot,
+)
+from src.data.models import (
+    Company,
+    Document,
+    Employee,
+    Timesheet,
+    TimesheetEntry,
+    TimesheetVersion,
+)
 from src.data.repositories.holiday_repository import HolidayRepository
 from src.schemas.review import BulkItemResult, BulkResult, EntriesUpdate
 from src.utils.dates import start_of_week, weekday_name
@@ -51,14 +67,17 @@ ENTRY_FLAG_CODES = frozenset(
         "no_entries",
         "total_mismatch",
         "conflicting_hours",
-        "overlap_disagreement",  # the reviewer has checked the days against the original
+        # the reviewer has checked the days against the original
+        "overlap_disagreement",
         # A weekly-total timesheet becomes a normal one once the reviewer enters days.
         WEEKLY_TOTAL_FLAG,
         WEEK_ASSUMED_FLAG,
     }
 )
 # Company flags raised at extraction: settled once a reviewer picks the employee.
-COMPANY_FLAG_CODES = frozenset({"company_mismatch", "company_from_sheet", "company_guessed"})
+COMPANY_FLAG_CODES = frozenset(
+    {"company_mismatch", "company_from_sheet", "company_guessed"}
+)
 
 
 async def _new_version_if_asked(
@@ -95,7 +114,8 @@ def _totals(timesheet: Timesheet) -> dict[str, float | None]:
 
 
 def is_priced(timesheet: Timesheet) -> bool:
-    """All four amounts known (the generated gross_amount is only read after a refresh)."""
+    """All four amounts known (the generated gross_amount is only read after a
+    refresh)."""
     return None not in (
         timesheet.regular_amount,
         timesheet.overtime_amount,
@@ -116,8 +136,8 @@ def _refresh_entry_flags(timesheet: Timesheet) -> None:
             flags.append(
                 {
                     "code": "total_mismatch",
-                    "message": f"Sheet says {timesheet.stated_total} h; "
-                    f"the days add up to {total} h.",
+                    "message": f"Sheet says {timesheet.stated_total} h; the days add "
+                    f"up to {total} h.",
                 }
             )
         # The reviewer's days are now "the attachment": compare with the email again.
@@ -140,7 +160,9 @@ class ReviewService:
     @staticmethod
     def _ensure_editable(timesheet: Timesheet) -> None:
         if timesheet.status == TimesheetStatus.EXPORTED:
-            raise ConflictError("This timesheet was already exported to payroll and cannot change.")
+            raise ConflictError(
+                "This timesheet was already exported to payroll and cannot change."
+            )
 
     async def _company(self, timesheet: Timesheet) -> Company | None:
         if timesheet.company_id is None:
@@ -152,7 +174,10 @@ class ReviewService:
         company = await self._company(timesheet)
         holidays = await HolidayRepository(self.session).dates_for(timesheet.company_id)
         recalculate(
-            timesheet, rules_from_company(company), holidays, default_rules_used=company is None
+            timesheet,
+            rules_from_company(company),
+            holidays,
+            default_rules_used=company is None,
         )
         employee = (
             await self.session.get(Employee, timesheet.employee_id)
@@ -160,7 +185,9 @@ class ReviewService:
             else None
         )
         if employee is not None:
-            check_assignment(timesheet, employee.assignment_start, employee.assignment_end)
+            check_assignment(
+                timesheet, employee.assignment_start, employee.assignment_end
+            )
         await self.session.flush()
         document = (
             await self.session.get(Document, timesheet.document_id)
@@ -178,7 +205,8 @@ class ReviewService:
             timesheet.reviewed_at = None
 
     async def _save(self, timesheet: Timesheet, actor: Principal) -> Timesheet:
-        # The email's state follows its timesheets (awaiting review / approved / rejected).
+        # The email's state follows its timesheets (awaiting review / approved /
+        # rejected).
         await refresh_state(self.session, timesheet.submission_id, actor=actor)
         await self.session.commit()
         await self.session.refresh(timesheet)
@@ -195,11 +223,13 @@ class ReviewService:
         snap = take_snapshot(timesheet)
         company = await self._company(timesheet)
         week_start_day = company.week_start if company else 0
-        weeks = sorted({start_of_week(e.work_date, week_start_day) for e in data.entries})
+        weeks = sorted(
+            {start_of_week(e.work_date, week_start_day) for e in data.entries}
+        )
         if len(weeks) > 1:
             raise ValidationFailedError(
-                "All days must be in one week (a timesheet is paid per week). These days "
-                f"fall in the weeks starting {', '.join(str(w) for w in weeks)}."
+                "All days must be in one week (a timesheet is paid per week). These "
+                f"days fall in the weeks starting {', '.join(str(w) for w in weeks)}."
             )
 
         timesheet.entries = [
@@ -220,7 +250,12 @@ class ReviewService:
         await self._recompute(timesheet)
         self._back_to_review(timesheet)
         made = await _new_version_if_asked(
-            self.session, timesheet, snap, TimesheetChange.ENTRIES_EDITED, actor, data.new_version
+            self.session,
+            timesheet,
+            snap,
+            TimesheetChange.ENTRIES_EDITED,
+            actor,
+            data.new_version,
         )
 
         record_event(
@@ -248,7 +283,9 @@ class ReviewService:
         employee = await self.session.get(Employee, employee_id)
         if employee is None or not employee.is_active:
             raise ValidationFailedError("Employee not found or inactive.")
-        company_in_doubt = any(f.get("code") in COMPANY_FLAG_CODES for f in timesheet.flags or [])
+        company_in_doubt = any(
+            f.get("code") in COMPANY_FLAG_CODES for f in timesheet.flags or []
+        )
         if (
             timesheet.company_id is not None
             and employee.company_id != timesheet.company_id
@@ -258,9 +295,13 @@ class ReviewService:
 
         timesheet.company_id = employee.company_id  # sets the company if it was unknown
         timesheet.flags = [
-            f for f in (timesheet.flags or []) if f.get("code") not in COMPANY_FLAG_CODES
+            f
+            for f in (timesheet.flags or [])
+            if f.get("code") not in COMPANY_FLAG_CODES
         ]
-        apply_match(timesheet, MatchResult(employee.id, "manual"), matched=to_record(employee))
+        apply_match(
+            timesheet, MatchResult(employee.id, "manual"), matched=to_record(employee)
+        )
         await self._recompute(timesheet)
         self._back_to_review(timesheet)  # saved in the current version
 
@@ -270,7 +311,10 @@ class ReviewService:
             entity_id=timesheet.id,
             action="employee_matched",
             actor=actor,
-            details={"employee_id": str(employee.id), "employee_code": employee.employee_code},
+            details={
+                "employee_id": str(employee.id),
+                "employee_code": employee.employee_code,
+            },
         )
         return await self._save(timesheet, actor)
 
@@ -288,15 +332,15 @@ class ReviewService:
         self._ensure_editable(timesheet)
         if weekly_total(timesheet) is None:
             raise ValidationFailedError(
-                "Only a timesheet with a weekly total and no days can be moved to another "
-                "week. For one with days, change the days."
+                "Only a timesheet with a weekly total and no days can be moved to "
+                "another week. For one with days, change the days."
             )
         company = await self._company(timesheet)
         week_start_day = company.week_start if company else 0
         if start_of_week(week_start, week_start_day) != week_start:
             raise ValidationFailedError(
-                f"Weeks start on {weekday_name(week_start_day)} for this company: pick a "
-                f"{weekday_name(week_start_day)}."
+                f"Weeks start on {weekday_name(week_start_day)} for this company: pick "
+                f"a {weekday_name(week_start_day)}."
             )
         before = timesheet.week_start
         snap = take_snapshot(timesheet)
@@ -304,10 +348,17 @@ class ReviewService:
         timesheet.flags = [
             f for f in timesheet.flags or [] if f.get("code") != WEEK_ASSUMED_FLAG
         ]  # the reviewer chose it: no longer an assumption
-        await self._recompute(timesheet)  # pay, and the duplicate check for the new week
+        await self._recompute(
+            timesheet
+        )  # pay, and the duplicate check for the new week
         self._back_to_review(timesheet)
         made = await _new_version_if_asked(
-            self.session, timesheet, snap, TimesheetChange.WEEK_CHANGED, actor, new_version
+            self.session,
+            timesheet,
+            snap,
+            TimesheetChange.WEEK_CHANGED,
+            actor,
+            new_version,
         )
         record_event(
             self.session,
@@ -355,9 +406,13 @@ class ReviewService:
         bulk: bool = False,
     ) -> Timesheet:
         timesheet = await self._get(timesheet_id)
-        if timesheet.status not in (TimesheetStatus.NEEDS_REVIEW, TimesheetStatus.REJECTED):
+        if timesheet.status not in (
+            TimesheetStatus.NEEDS_REVIEW,
+            TimesheetStatus.REJECTED,
+        ):
             raise ConflictError(
-                f"Only timesheets in review can be approved (this one is {timesheet.status})."
+                "Only timesheets in review can be approved (this one is "
+                f"{timesheet.status})."
             )
         if timesheet.employee_id is None:
             raise ValidationFailedError("Match an employee before approving.")
@@ -369,13 +424,16 @@ class ReviewService:
                 "missing). Add the rate to the company, recalculate, then approve."
             )
         # One paid timesheet per employee and week: never approve a second one.
-        await lock_employee_weeks(self.session, [(timesheet.employee_id, timesheet.week_start)])
+        await lock_employee_weeks(
+            self.session, [(timesheet.employee_id, timesheet.week_start)]
+        )
         other = await other_paid_timesheet(self.session, timesheet)
         if other is not None:
             raise ConflictError(
-                f"Another timesheet for this employee and the week of {timesheet.week_start} "
-                f"is already {other.status} ({other.id}). Only one can be paid: reject one "
-                "of them, or put all the hours on one timesheet."
+                "Another timesheet for this employee and the week of "
+                f"{timesheet.week_start} is already {other.status} ({other.id}). Only "
+                "one can be paid: reject one of them, or put all the hours on one "
+                "timesheet."
             )
 
         timesheet.status = TimesheetStatus.APPROVED
@@ -400,7 +458,12 @@ class ReviewService:
         return await self._save(timesheet, actor)
 
     async def reject(
-        self, timesheet_id: uuid.UUID, reason: str, actor: Principal, *, bulk: bool = False
+        self,
+        timesheet_id: uuid.UUID,
+        reason: str,
+        actor: Principal,
+        *,
+        bulk: bool = False,
     ) -> Timesheet:
         timesheet = await self._get(timesheet_id)
         self._ensure_editable(timesheet)
@@ -423,9 +486,12 @@ class ReviewService:
         )
         return await self._save(timesheet, actor)
 
-    # --- versions ----------------------------------------------------------------------
+    # --- versions
+    # ----------------------------------------------------------------------
 
-    async def versions(self, timesheet_id: uuid.UUID) -> tuple[Timesheet, list[TimesheetVersion]]:
+    async def versions(
+        self, timesheet_id: uuid.UUID
+    ) -> tuple[Timesheet, list[TimesheetVersion]]:
         """The timesheet and its saved versions, oldest first."""
         timesheet = await self._get(timesheet_id)
         rows = await self.session.scalars(
@@ -460,8 +526,12 @@ class ReviewService:
         saved = await self.version(timesheet_id, number)
         current = timesheet.version
 
-        await switch_to_version(self.session, timesheet, saved, actor=actor, reason=reason)
-        timesheet.status = TimesheetStatus.NEEDS_REVIEW  # a person checks the restored data
+        await switch_to_version(
+            self.session, timesheet, saved, actor=actor, reason=reason
+        )
+        timesheet.status = (
+            TimesheetStatus.NEEDS_REVIEW
+        )  # a person checks the restored data
         timesheet.reviewed_by_id = None
         timesheet.reviewed_by_name = None
         timesheet.reviewed_at = None
@@ -507,7 +577,9 @@ class ReviewService:
                     await self._refuse_high_severity(timesheet_id)
                 timesheet = await self.approve(timesheet_id, notes, actor, bulk=True)
                 results.append(
-                    BulkItemResult(timesheet_id=timesheet_id, ok=True, status=timesheet.status)
+                    BulkItemResult(
+                        timesheet_id=timesheet_id, ok=True, status=timesheet.status
+                    )
                 )
             except AppError as exc:
                 results.append(await self._failed(timesheet_id, exc))
@@ -521,7 +593,9 @@ class ReviewService:
             try:
                 timesheet = await self.reject(timesheet_id, reason, actor, bulk=True)
                 results.append(
-                    BulkItemResult(timesheet_id=timesheet_id, ok=True, status=timesheet.status)
+                    BulkItemResult(
+                        timesheet_id=timesheet_id, ok=True, status=timesheet.status
+                    )
                 )
             except AppError as exc:
                 results.append(await self._failed(timesheet_id, exc))
@@ -534,7 +608,9 @@ class ReviewService:
             TimesheetStatus.REJECTED,
         ):
             codes = ", ".join(
-                str(f.get("code")) for f in timesheet.flags or [] if f.get("severity") == "high"
+                str(f.get("code"))
+                for f in timesheet.flags or []
+                if f.get("severity") == "high"
             )
             raise ValidationFailedError(
                 f"Has high-severity flags ({codes}). Open it and approve it on its own."
@@ -542,7 +618,9 @@ class ReviewService:
 
     async def _failed(self, timesheet_id: uuid.UUID, exc: AppError) -> BulkItemResult:
         await self.session.rollback()  # drop anything half-done for this item
-        timesheet = await self.session.get(Timesheet, timesheet_id, populate_existing=True)
+        timesheet = await self.session.get(
+            Timesheet, timesheet_id, populate_existing=True
+        )
         return BulkItemResult(
             timesheet_id=timesheet_id,
             ok=False,
