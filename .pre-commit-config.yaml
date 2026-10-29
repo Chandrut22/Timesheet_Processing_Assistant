@@ -9,4 +9,5 @@ repos:
     rev: v1.13.0
     hooks:
       - id: mypy
+        exclude: '(^|/)conftest\.py$'
         additional_dependencies: [pydantic]
