@@ -9,4 +9,3 @@ export const router = createRouter({
   defaultPreloadStaleTime: 0,
   scrollRestoration: true,
 });
-

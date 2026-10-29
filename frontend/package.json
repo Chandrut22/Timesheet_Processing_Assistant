@@ -11,7 +11,7 @@
     "lint": "eslint .",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "test": "vitest run",
-    "prepare": "husky",
+    "prepare": "cd .. && husky frontend/.husky",
     "validate": "tsc -b && eslint . && prettier --check \"src/**/*.{ts,tsx,css}\""
   },
   "lint-staged": {
