@@ -1,10 +1,9 @@
 import { getRouteApi } from "@tanstack/react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEmployeesList } from "@/features/employees";
 import { Pencil, Plus } from "lucide-react";
 import { useMemo, useState, type JSX } from "react";
 import { toast } from "sonner";
-import { errorMessage } from "@/services/apiErrors";
+import { errorMessage } from "@/utils/errors";
 import type { EmployeeRead } from "../types/employee";
 import { useIsAdmin } from "@/features/auth";
 import { CompanySelect, useCompanyMap } from "@/features/companies";
@@ -31,23 +30,19 @@ import { toEmployeeCreate, toEmployeeUpdate } from "../utils/employeeUtils";
 import { ImportButton } from "@/features/import";
 import { DebouncedInput } from "@/components/forms/DebouncedInput";
 import { formatDate } from "@/utils/format";
-import { employeeService } from "../services/employeeService";
-import { employeeKeys } from "../queries/employeeQueries";
+import {
+  employeeBulkStatus,
+  useRefreshEmployees,
+  useSaveEmployee,
+} from "../hooks/useEmployeeMutations";
+import type { EmployeesSearch } from "../utils/employeesSearch";
 
 const routeApi = getRouteApi("/_app/employees");
-
-type EmployeesSearch = {
-  company_id?: string;
-  q?: string;
-  active?: "all" | "inactive";
-  page?: number;
-};
 
 export function EmployeesPage(): JSX.Element {
   const search = routeApi.useSearch();
   const navigate = routeApi.useNavigate();
   const isAdmin = useIsAdmin();
-  const queryClient = useQueryClient();
   const companies = useCompanyMap();
   const [editing, setEditing] = useState<EmployeeRead | "new" | null>(null);
 
@@ -76,16 +71,11 @@ export function EmployeesPage(): JSX.Element {
       replace: true,
     });
 
-  const save = useMutation({
-    mutationFn: (v: EmployeeFormValues) =>
-      editing && editing !== "new"
-        ? employeeService.updateEmployee(editing.id, toEmployeeUpdate(v))
-        : employeeService.createEmployee(toEmployeeCreate(v)),
-    meta: { silentError: true },
-    onSuccess: (e) => {
-      toast.success(editing === "new" ? `${e.full_name} added.` : "Saved.");
+  const refreshEmployees = useRefreshEmployees();
+  const save = useSaveEmployee({
+    onSuccess: (e, v) => {
+      toast.success(v.id === null ? `${e.full_name} added.` : "Saved.");
       setEditing(null);
-      void queryClient.invalidateQueries({ queryKey: employeeKeys.all });
     },
   });
 
@@ -97,12 +87,7 @@ export function EmployeesPage(): JSX.Element {
         actions={
           isAdmin ? (
             <>
-              <ImportButton
-                resource="employees"
-                onImported={() =>
-                  void queryClient.invalidateQueries({ queryKey: employeeKeys.all })
-                }
-              />
+              <ImportButton resource="employees" onImported={refreshEmployees} />
               <Button onClick={() => setEditing("new")}>
                 <Plus /> New employee
               </Button>
@@ -239,8 +224,7 @@ export function EmployeesPage(): JSX.Element {
         <BulkStatusBar
           selection={selection}
           noun={{ one: "employee", many: "employees" }}
-          setStatus={employeeService.bulkEmployeeStatus}
-          invalidate={[employeeKeys.all]}
+          api={employeeBulkStatus}
           warnings={{
             deactivate:
               "Timesheets that arrive for them are no longer matched to them. Their past timesheets are kept.",
@@ -267,7 +251,13 @@ export function EmployeesPage(): JSX.Element {
               key={editing === "new" ? "new" : editing.id}
               employee={editing === "new" ? undefined : editing}
               defaultCompanyId={search.company_id}
-              onSubmit={(v) => save.mutateAsync(v)}
+              onSubmit={(v: EmployeeFormValues) =>
+                save.mutateAsync(
+                  editing && editing !== "new"
+                    ? { id: editing.id, body: toEmployeeUpdate(v) }
+                    : { id: null, body: toEmployeeCreate(v) },
+                )
+              }
               onCancel={() => setEditing(null)}
               serverError={save.error ? errorMessage(save.error) : null}
             />
@@ -279,9 +269,3 @@ export function EmployeesPage(): JSX.Element {
 }
 
 /** The page's search params, checked when the URL changes. */
-export const validateEmployeesSearch = (s: Record<string, unknown>): EmployeesSearch => ({
-  company_id: typeof s.company_id === "string" && s.company_id ? s.company_id : undefined,
-  q: typeof s.q === "string" && s.q ? s.q : undefined,
-  active: s.active === "all" || s.active === "inactive" ? s.active : undefined,
-  page: Number.isInteger(Number(s.page)) && Number(s.page) > 1 ? Number(s.page) : undefined,
-});

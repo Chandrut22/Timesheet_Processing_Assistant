@@ -14,14 +14,16 @@ import { timesheetKeys } from "../queries/timesheetQueries";
  * Shared wiring for every timesheet action: put the returned timesheet in the
  * cache, refresh lists / history, and show a success toast.
  */
+export type TimesheetMutationOptions<V> = {
+  /** The toast; a function when it depends on what was sent. */
+  success?: string | ((t: TimesheetRead, vars: V) => string);
+  silentError?: boolean;
+  onSuccess?: (t: TimesheetRead) => void;
+};
+
 export function useTimesheetMutation<V>(
   fn: (vars: V) => Promise<TimesheetRead>,
-  opts: {
-    /** The toast; a function when it depends on what was sent. */
-    success?: string | ((t: TimesheetRead, vars: V) => string);
-    silentError?: boolean;
-    onSuccess?: (t: TimesheetRead) => void;
-  } = {},
+  opts: TimesheetMutationOptions<V> = {},
 ): UseMutationResult<TimesheetRead, DefaultError, V> {
   const queryClient = useQueryClient();
   return useMutation({

@@ -3,12 +3,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState, type JSX } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { errorMessage } from "@/services/apiErrors";
+import { errorMessage } from "@/utils/errors";
 import { Field, FormError } from "@/components/forms/Field";
 import { Banner } from "@/components/common/States";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { authService } from "../services/authService";
+import { useForgotPassword } from "../hooks/useAuthForms";
 
 const schema = z.object({ email: z.email("Enter a valid email address") });
 type Values = z.infer<typeof schema>;
@@ -20,13 +20,14 @@ const SENT_MESSAGE =
 export function ForgotPasswordPage(): JSX.Element {
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const forgot = useForgotPassword();
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { email: "" } });
   const { errors, isSubmitting } = form.formState;
 
   const onSubmit = form.handleSubmit(async ({ email }) => {
     setFormError(null);
     try {
-      await authService.forgotPassword(email.trim());
+      await forgot.mutateAsync(email.trim());
       setSentTo(email.trim());
     } catch (err) {
       setFormError(errorMessage(err)); // e.g. 429 "Try again in N seconds"

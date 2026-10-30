@@ -4,16 +4,14 @@ import { useState, type JSX } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { errorMessage } from "@/services/apiErrors";
+import { errorMessage } from "@/utils/errors";
 import { Field, FormError } from "@/components/forms/Field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { applyFieldErrors } from "@/lib/forms";
-import { authService } from "../services/authService";
+import { useResetPassword } from "../hooks/useAuthForms";
 
 const routeApi = getRouteApi("/_auth/reset-password");
-
-type ResetSearch = { email?: string };
 
 const schema = z
   .object({
@@ -32,6 +30,7 @@ export function ResetPasswordPage(): JSX.Element {
   const { email } = routeApi.useSearch();
   const navigate = useNavigate();
   const [formError, setFormError] = useState<string | null>(null);
+  const reset = useResetPassword();
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: { email: email ?? "", code: "", new_password: "", confirm: "" },
@@ -41,7 +40,11 @@ export function ResetPasswordPage(): JSX.Element {
   const onSubmit = form.handleSubmit(async (v) => {
     setFormError(null);
     try {
-      const res = await authService.resetPassword(v.email.trim(), v.code, v.new_password);
+      const res = await reset.mutateAsync({
+        email: v.email.trim(),
+        code: v.code,
+        newPassword: v.new_password,
+      });
       toast.success(res.message || "Your password has been changed. Sign in with the new one.");
       await navigate({ to: "/login" });
     } catch (err) {
@@ -100,6 +103,3 @@ export function ResetPasswordPage(): JSX.Element {
 }
 
 /** The page's search params, checked when the URL changes. */
-export const validateResetPasswordSearch = (search: Record<string, unknown>): ResetSearch => ({
-  email: typeof search.email === "string" ? search.email : undefined,
-});

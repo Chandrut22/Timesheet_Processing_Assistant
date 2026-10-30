@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { errorMessage } from "@/services/apiErrors";
+import { errorMessage } from "@/utils/errors";
 import type { TimesheetRead } from "../types/timesheet";
 import { Field, FormError } from "@/components/forms/Field";
 import { Banner } from "@/components/common/States";
@@ -15,8 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/input";
-import { useTimesheetMutation } from "../hooks/useTimesheetMutation";
-import { timesheetService } from "../services/timesheetService";
+import { useApproveTimesheet, useRejectTimesheet } from "../hooks/useTimesheetActions";
 import type { JSX } from "react";
 
 const approveSchema = z.object({ notes: z.string().max(1000, "At most 1000 characters") });
@@ -41,17 +40,14 @@ export function ApproveDialog({
     resolver: zodResolver(approveSchema),
     defaultValues: { notes: "" },
   });
-  const m = useTimesheetMutation(
-    (notes: string) => timesheetService.approve(t.id, notes.trim() || undefined),
-    {
-      success: "Timesheet approved.",
-      silentError: true,
-      onSuccess: () => {
-        form.reset();
-        onOpenChange(false);
-      },
+  const m = useApproveTimesheet(t.id, {
+    success: "Timesheet approved.",
+    silentError: true,
+    onSuccess: () => {
+      form.reset();
+      onOpenChange(false);
     },
-  );
+  });
   const high = t.flags.filter((f) => f.severity === "high").length;
   return (
     <Dialog
@@ -112,7 +108,7 @@ export function RejectDialog({
     resolver: zodResolver(rejectSchema),
     defaultValues: { reason: "" },
   });
-  const m = useTimesheetMutation((reason: string) => timesheetService.reject(t.id, reason.trim()), {
+  const m = useRejectTimesheet(t.id, {
     success: "Timesheet rejected.",
     silentError: true,
     onSuccess: () => {

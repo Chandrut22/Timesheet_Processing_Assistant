@@ -1,9 +1,8 @@
 import { getRouteApi, Link } from "@tanstack/react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, FileSpreadsheet } from "lucide-react";
 import { useState, type JSX } from "react";
 import { toast } from "sonner";
-import { errorMessage } from "@/services/apiErrors";
+import { errorMessage } from "@/utils/errors";
 import { type CompanyRead, CompanySelect, useCompanyMap } from "@/features/companies";
 import type { ExportBatchRead, ExportPreview } from "../types/export";
 import { FormError } from "@/components/forms/Field";
@@ -33,14 +32,11 @@ import {
   shiftIsoDate,
   WEEKDAYS,
 } from "@/utils/format";
-import { exportService } from "../services/exportService";
-import { exportKeys } from "../queries/exportQueries";
-import { timesheetKeys } from "@/features/timesheets";
+import { useCreateExport } from "../hooks/useExportActions";
 import { BackButton } from "@/components/common/BackButton";
+import type { ExportSearch } from "../utils/exportSearch";
 
 const routeApi = getRouteApi("/_app/export");
-
-type ExportSearch = { company_id?: string; week?: string };
 
 // Admins and reviewers: no role guard (the API's export routes allow both).
 
@@ -142,19 +138,14 @@ export function ExportPage(): JSX.Element {
 }
 
 function PreviewSection({ company, week }: { company: CompanyRead; week: string }): JSX.Element {
-  const queryClient = useQueryClient();
   const [allowPending, setAllowPending] = useState(false);
   const [created, setCreated] = useState<ExportBatchRead | null>(null);
   const preview = useExportPreview(company.id, week);
 
-  const create = useMutation({
-    mutationFn: () => exportService.createExport(company.id, week, allowPending),
-    meta: { silentError: true },
+  const create = useCreateExport(company.id, week, {
     onSuccess: (batch) => {
       setCreated(batch);
       toast.success(`Payroll sheet created with ${batch.row_count} rows.`);
-      void queryClient.invalidateQueries({ queryKey: exportKeys.all });
-      void queryClient.invalidateQueries({ queryKey: timesheetKeys.all });
     },
   });
 
@@ -225,7 +216,10 @@ function PreviewSection({ company, week }: { company: CompanyRead; week: string 
                 Export even though {p.pending_review} still need review
               </label>
             ) : null}
-            <Button onClick={() => create.mutate()} disabled={!canExport || create.isPending}>
+            <Button
+              onClick={() => create.mutate(allowPending)}
+              disabled={!canExport || create.isPending}
+            >
               <FileSpreadsheet /> {create.isPending ? "Creating…" : "Create payroll sheet"}
             </Button>
           </div>
@@ -461,7 +455,3 @@ function History({ companyId }: { companyId?: string }): JSX.Element {
 }
 
 /** The page's search params, checked when the URL changes. */
-export const validateExportSearch = (s: Record<string, unknown>): ExportSearch => ({
-  company_id: typeof s.company_id === "string" && s.company_id ? s.company_id : undefined,
-  week: typeof s.week === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s.week) ? s.week : undefined,
-});

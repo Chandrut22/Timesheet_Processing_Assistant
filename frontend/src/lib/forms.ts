@@ -1,5 +1,5 @@
 import type { FieldValues, Path, UseFormSetError } from "react-hook-form";
-import { ApiError } from "@/services/apiErrors";
+import { ApiError } from "@/utils/errors";
 
 /**
  * Puts FastAPI 422 field errors next to the matching form fields.

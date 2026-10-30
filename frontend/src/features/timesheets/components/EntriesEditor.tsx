@@ -3,8 +3,8 @@ import { CopyPlus, Plus, Save, Trash2, Undo2 } from "lucide-react";
 import { useState, type JSX } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
-import { errorMessage } from "@/services/apiErrors";
-import type { TimesheetRead } from "../types/timesheet";
+import { errorMessage } from "@/utils/errors";
+import type { EntryInput, TimesheetRead } from "../types/timesheet";
 import { FormError } from "@/components/forms/Field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,8 +20,7 @@ import {
 } from "@/components/ui/table";
 import { applyFieldErrors } from "@/lib/forms";
 import { daysBetween, formatDayLabel, formatHours, formatWeek, shiftIsoDate } from "@/utils/format";
-import { useTimesheetMutation } from "../hooks/useTimesheetMutation";
-import { timesheetService } from "../services/timesheetService";
+import { useSaveEntries } from "../hooks/useTimesheetActions";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -98,6 +97,17 @@ function toValues(t: TimesheetRead): Values {
  * The editable days table. Parent should give it key={…entries…} so it resets
  * when the timesheet changes on the server.
  */
+/** The form's days as the API takes them. */
+function toEntryInputs(values: Values): EntryInput[] {
+  return values.entries.map((e) => ({
+    work_date: e.work_date,
+    hours: e.hours,
+    double_time_marked: e.double_time_marked,
+    is_holiday: e.sheet_holiday,
+    note: e.note.trim() || null,
+  }));
+}
+
 export function EntriesEditor({
   timesheet,
   readOnly,
@@ -117,34 +127,20 @@ export function EntriesEditor({
   const listError = listErrorBox?.message ?? listErrorBox?.root?.message;
   const finalHoliday = new Map(timesheet.entries.map((e) => [e.work_date, e.is_holiday]));
 
-  const save = useTimesheetMutation(
-    ({ values, newVersion }: { values: Values; newVersion: boolean }) =>
-      timesheetService.updateEntries(
-        timesheet.id,
-        values.entries.map((e) => ({
-          work_date: e.work_date,
-          hours: e.hours,
-          double_time_marked: e.double_time_marked,
-          is_holiday: e.sheet_holiday,
-          note: e.note.trim() || null,
-        })),
-        newVersion,
-      ),
-    {
-      success: (t, { newVersion }) =>
-        newVersion
-          ? `Saved as version ${t.version}. Version ${t.version - 1} is kept in the history.`
-          : "Days saved. Hours and pay were recalculated.",
-      silentError: true,
-    },
-  );
+  const save = useSaveEntries(timesheet.id, {
+    success: (t, { newVersion }) =>
+      newVersion
+        ? `Saved as version ${t.version}. Version ${t.version - 1} is kept in the history.`
+        : "Days saved. Hours and pay were recalculated.",
+    silentError: true,
+  });
 
   /** Save: the change goes into the current version. As new version: the old data is kept. */
   const submit = (newVersion: boolean): ReturnType<typeof form.handleSubmit> =>
     form.handleSubmit((values) => {
       setFormError(null);
       save.mutate(
-        { values, newVersion },
+        { entries: toEntryInputs(values), newVersion },
         {
           onError: (err) => {
             // 422 (e.g. "all days must be in one week") is shown as the backend wrote it.

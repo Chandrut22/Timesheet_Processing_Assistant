@@ -3,10 +3,9 @@
 // composes the pieces in this feature and owns the upload itself.
 // import { UploadGuide } from "./UploadGuide";
 import { useNavigate } from "@tanstack/react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type JSX } from "react";
 import { toast } from "sonner";
-import { errorMessage } from "@/services/apiErrors";
+import { errorMessage } from "@/utils/errors";
 import { DropOverlay } from "./DropOverlay";
 import { RecentUploads } from "./RecentUploads";
 import { SelectedFiles } from "./SelectedFiles";
@@ -14,26 +13,18 @@ import { UploadDropzone } from "./UploadDropzone";
 import { MobileUploadBar, UploadSettings } from "./UploadSettings";
 import { totalBytes, validateFiles } from "../utils/uploadLimits";
 import { useWindowFileDrop } from "../hooks/useWindowFileDrop";
-import { uploadService } from "../services/uploadService";
-import { submissionKeys } from "@/features/submissions";
+import { useUpload } from "../hooks/useUploads";
 
 export function UploadPage(): JSX.Element {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [files, setFiles] = useState<File[]>([]);
   const [problems, setProblems] = useState<string[]>([]);
   const [companyId, setCompanyId] = useState("");
-  const [progress, setProgress] = useState<number | null>(null);
-
-  const upload = useMutation({
-    mutationFn: () => uploadService.upload(files, companyId || undefined, setProgress),
-    meta: { silentError: true },
+  const { upload, progress } = useUpload({
     onSuccess: (submission) => {
       toast.success("Uploaded. Processing has started.");
-      void queryClient.invalidateQueries({ queryKey: submissionKeys.all });
       void navigate({ to: "/submissions/$submissionId", params: { submissionId: submission.id } });
     },
-    onSettled: () => setProgress(null),
   });
   const pending = upload.isPending;
 
@@ -50,7 +41,7 @@ export function UploadPage(): JSX.Element {
     totalBytes: bytes,
     pending,
     progress,
-    onUpload: () => upload.mutate(),
+    onUpload: () => upload.mutate({ files, companyId: companyId || undefined }),
   };
 
   return (

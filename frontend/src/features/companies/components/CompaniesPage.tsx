@@ -1,9 +1,8 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus } from "lucide-react";
 import { useMemo, useState, type JSX } from "react";
 import { toast } from "sonner";
-import { errorMessage } from "@/services/apiErrors";
+import { errorMessage } from "@/utils/errors";
 import { useIsAdmin } from "@/features/auth";
 import { Money } from "@/components/common/Money";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -35,15 +34,16 @@ import { toCompanyBody } from "../utils/companyUtils";
 import { ImportButton } from "@/features/import";
 import { DebouncedInput } from "@/components/forms/DebouncedInput";
 import { WEEKDAYS } from "@/utils/format";
-import { companyService } from "../services/companyService";
-import { companyKeys } from "../queries/companyQueries";
-import { employeeKeys } from "@/features/employees";
+import {
+  companyBulkStatus,
+  useCreateCompany,
+  useRefreshCompanies,
+} from "../hooks/useCompanyMutations";
 import { useCompaniesList } from "../hooks/useCompaniesList";
 
 export function CompaniesPage(): JSX.Element {
   const isAdmin = useIsAdmin();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
 
   const [q, setQ] = useState("");
   const [active, setActive] = useState<"" | "true" | "false">("true");
@@ -64,16 +64,10 @@ export function CompaniesPage(): JSX.Element {
   );
   const selection = useRowSelection(bulkRows, JSON.stringify(params));
 
-  const create = useMutation({
-    mutationFn: (v: CompanyFormValues) => companyService.createCompany(toCompanyBody(v)),
-    meta: { silentError: true },
-
+  const refreshCompanies = useRefreshCompanies();
+  const create = useCreateCompany({
     onSuccess: (c) => {
       toast.success(`${c.name} created. Next, add the email addresses it sends timesheets from.`);
-
-      void queryClient.invalidateQueries({
-        queryKey: companyKeys.all,
-      });
 
       setCreating(false);
 
@@ -93,14 +87,7 @@ export function CompaniesPage(): JSX.Element {
         actions={
           isAdmin ? (
             <>
-              <ImportButton
-                resource="companies"
-                onImported={() =>
-                  void queryClient.invalidateQueries({
-                    queryKey: companyKeys.all,
-                  })
-                }
-              />
+              <ImportButton resource="companies" onImported={refreshCompanies} />
 
               <Button onClick={() => setCreating(true)}>
                 <Plus />
@@ -263,8 +250,7 @@ export function CompaniesPage(): JSX.Element {
         <BulkStatusBar
           selection={selection}
           noun={{ one: "company", many: "companies" }}
-          setStatus={companyService.bulkCompanyStatus}
-          invalidate={[companyKeys.all, employeeKeys.all]}
+          api={companyBulkStatus}
           warnings={{
             deactivate:
               "All their employees are deactivated too. Timesheets from these companies are no longer matched.",
@@ -295,7 +281,7 @@ export function CompaniesPage(): JSX.Element {
 
           <CompanyForm
             submitLabel="Create company"
-            onSubmit={(v) => create.mutateAsync(v)}
+            onSubmit={(v: CompanyFormValues) => create.mutateAsync(toCompanyBody(v))}
             onCancel={() => setCreating(false)}
             serverError={create.error ? errorMessage(create.error) : null}
           />

@@ -2,10 +2,9 @@
 // "Create as new version" keeps the earlier version here. A reviewer can look at one and restore it; the
 // restored data becomes a NEW version and goes back to review (nothing is lost).
 // Approve / reject are not versions: they are in the History panel.
-import { useQuery } from "@tanstack/react-query";
 import { History, RotateCcw } from "lucide-react";
 import { useState, type JSX } from "react";
-import { errorMessage } from "@/services/apiErrors";
+import { errorMessage } from "@/utils/errors";
 import type { TimesheetChange, TimesheetRead, TimesheetVersionSummary } from "../types/timesheet";
 import { Field, FormError } from "@/components/forms/Field";
 import { Money } from "@/components/common/Money";
@@ -24,9 +23,8 @@ import {
 import { Textarea } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate, formatDateTime, formatHours, formatWeek, humanize } from "@/utils/format";
-import { useTimesheetMutation } from "../hooks/useTimesheetMutation";
-import { timesheetService } from "../services/timesheetService";
-import { timesheetKeys } from "../queries/timesheetQueries";
+import { useRestoreVersion } from "../hooks/useTimesheetActions";
+import { useTimesheetVersion, useTimesheetVersions } from "../hooks/useTimesheets";
 
 /** What happened when the timesheet moved on from a version. */
 const CHANGE_LABELS: Record<TimesheetChange, string> = {
@@ -45,10 +43,7 @@ export function VersionsPanel({
   t: TimesheetRead;
   readOnly: boolean;
 }): JSX.Element {
-  const q = useQuery({
-    queryKey: timesheetKeys.versions(t.id),
-    queryFn: () => timesheetService.listVersions(t.id),
-  });
+  const q = useTimesheetVersions(t.id);
   const [open, setOpen] = useState<number | null>(null);
   const [restoring, setRestoring] = useState<TimesheetVersionSummary | null>(null);
 
@@ -122,12 +117,7 @@ export function VersionsPanel({
 }
 
 function VersionDays({ id, version }: { id: string; version: number }): JSX.Element {
-  const q = useQuery({
-    queryKey: timesheetKeys.version(id, version),
-    queryFn: () => timesheetService.getVersion(id, version),
-    // Refetched when the timesheet changes (its key is under the versions list's key).
-    staleTime: Infinity,
-  });
+  const q = useTimesheetVersion(id, version);
   if (q.isPending) return <Skeleton className="mt-2 h-16" />;
   if (q.isError) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   const v = q.data;
@@ -181,14 +171,11 @@ function RestoreDialog({
   onClose: () => void;
 }): JSX.Element {
   const [reason, setReason] = useState("");
-  const m = useTimesheetMutation(
-    () => timesheetService.restoreVersion(t.id, version.version, reason.trim()),
-    {
-      success: `Back on version ${version.version}. Version ${t.version} is kept.`,
-      silentError: true,
-      onSuccess: onClose,
-    },
-  );
+  const m = useRestoreVersion(t.id, version.version, {
+    success: `Back on version ${version.version}. Version ${t.version} is kept.`,
+    silentError: true,
+    onSuccess: onClose,
+  });
   return (
     <Dialog open onOpenChange={(o) => (!o ? onClose() : undefined)}>
       <DialogContent>
@@ -196,7 +183,7 @@ function RestoreDialog({
           className="grid gap-4"
           onSubmit={(e) => {
             e.preventDefault();
-            m.mutate(undefined);
+            m.mutate(reason);
           }}
         >
           <DialogHeader>

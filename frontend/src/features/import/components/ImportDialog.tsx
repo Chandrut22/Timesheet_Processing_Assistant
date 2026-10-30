@@ -1,13 +1,12 @@
 // Bulk import for an admin list (users, employees, companies, holidays):
 // pick a CSV / XLSX file -> "Check file" (a dry run: nothing is written, the report
 // shows each row's fate) -> "Import" (the same file and options, for real).
-import { useMutation } from "@tanstack/react-query";
-import { useRunImport } from "@/features/import";
-import { importService } from "../services/importService";
+import { useDownloadTemplate } from "../hooks/useDownloadTemplate";
+import { useRunImport } from "../hooks/useRunImport";
 import { Download, FileUp } from "lucide-react";
 import { useId, useState, type JSX } from "react";
 import { toast } from "sonner";
-import { errorMessage } from "@/services/apiErrors";
+import { errorMessage } from "@/utils/errors";
 import type { ImportReport, ImportResource, OnDuplicate, OnError } from "../types/import";
 import { Banner } from "@/components/common/States";
 import { Badge } from "@/components/ui/badge";
@@ -94,9 +93,7 @@ export function ImportDialog(props: {
     },
   });
 
-  const template = useMutation({
-    mutationFn: () => importService.downloadTemplate(resource),
-  });
+  const template = useDownloadTemplate(resource);
 
   const done = report?.committed === true;
 

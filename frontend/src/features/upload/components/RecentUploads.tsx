@@ -2,15 +2,8 @@
 // says who uploaded it). Refreshes every 5 s while one of them is still being processed,
 // and not at all while the browser tab is hidden.
 import { Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import {
-  type SubmissionListParams,
-  type SubmissionRead,
-  SubmissionStateBadge,
-  IN_PROGRESS_STATES,
-  submissionService,
-  submissionKeys,
-} from "@/features/submissions";
+import { type SubmissionRead, SubmissionStateBadge } from "@/features/submissions";
+import { useRecentUploads } from "../hooks/useUploads";
 import { ErrorState } from "@/components/common/States";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,9 +11,6 @@ import { formatRelative } from "@/utils/format";
 import { useCompanyMap } from "@/features/companies";
 import { cn } from "@/lib/utils";
 import type { JSX } from "react";
-
-const RECENT_UPLOADS: SubmissionListParams = { source: "upload", page: 1, size: 5 };
-const POLL_MS = 5000;
 
 function fileSummary(s: SubmissionRead): { label: string; title: string } {
   const names = s.documents.map((d) => d.filename);
@@ -31,13 +21,7 @@ function fileSummary(s: SubmissionRead): { label: string; title: string } {
 
 export function RecentUploads({ className }: { className?: string }): JSX.Element {
   const companies = useCompanyMap();
-  const recent = useQuery({
-    queryKey: submissionKeys.recentUploads(RECENT_UPLOADS),
-    queryFn: () => submissionService.listSubmissions(RECENT_UPLOADS),
-    refetchInterval: (q) =>
-      q.state.data?.items.some((s) => IN_PROGRESS_STATES.has(s.state)) ? POLL_MS : false,
-    refetchIntervalInBackground: false, // a hidden tab does not poll
-  });
+  const recent = useRecentUploads();
 
   return (
     <Card className={cn("flex min-h-0 flex-col overflow-hidden", className)}>

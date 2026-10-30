@@ -3,7 +3,7 @@
 import { MailCheck, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { errorMessage } from "@/services/apiErrors";
+import { errorMessage } from "@/utils/errors";
 import { formatRelative } from "@/utils/format";
 import { cn } from "@/lib/utils";
 import { useCountdown } from "../hooks/useCountdown";

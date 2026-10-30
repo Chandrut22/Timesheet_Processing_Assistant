@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { useUser } from "@/features/auth";
 import { passwordSchema, useChangePassword, type PasswordValues } from "@/features/account";
-import { errorMessage } from "@/services/apiErrors";
+import { errorMessage } from "@/utils/errors";
 
 export function AccountPage(): JSX.Element {
   const user = useUser();

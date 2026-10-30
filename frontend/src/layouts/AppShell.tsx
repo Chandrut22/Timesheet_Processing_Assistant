@@ -1,9 +1,7 @@
 import { Link, useMatches } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
 import { CircleUser, LogOut } from "lucide-react";
-import { useRef, useState, type ReactNode, type JSX } from "react";
-import { logout } from "@/services/session";
-import { useUser } from "@/features/auth";
+import { type ReactNode, type JSX } from "react";
+import { useLogout, useUser } from "@/features/auth";
 import { navFor } from "@/layouts/nav";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -14,29 +12,14 @@ const SIDEBAR_ITEM =
 
 export function AppShell({ children }: { children: ReactNode }): JSX.Element {
   const user = useUser();
-  const queryClient = useQueryClient();
   // Routes with `staticData: { fullWidth: true }` (the Upload page) own the whole
   // viewport: no width cap, and on desktop a definite height their panels scroll in.
   const fullWidth = useMatches({
     select: (matches) => matches.some((m) => m.staticData?.fullWidth === true),
   });
 
-  // Ending the session makes the _app layout send us to /login. The ref stops a
-  // double click from starting a second logout before React re-renders the button.
-  const [signingOut, setSigningOut] = useState(false);
-  const signingOutRef = useRef(false);
-  const onLogout = async (): Promise<void> => {
-    if (signingOutRef.current) return;
-    signingOutRef.current = true;
-    setSigningOut(true);
-    try {
-      await logout();
-      queryClient.clear();
-    } finally {
-      signingOutRef.current = false;
-      setSigningOut(false);
-    }
-  };
+  // Ending the session makes the _app layout send us to /login.
+  const { logout: onLogout, signingOut } = useLogout();
 
   // Admin-only items (Users) are filtered out for reviewers in navFor.
   const sections = navFor(user.role);

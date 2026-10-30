@@ -1,10 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type JSX } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { errorMessage, isApiError } from "@/services/apiErrors";
+import { errorMessage, isApiError } from "@/utils/errors";
 import type { ReprocessRunRead, SubmissionRead } from "../types/submission";
 import { Field, FormError } from "@/components/forms/Field";
 // import { JsonBlock } from "@/components/common/JsonBlock";
@@ -20,9 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox, NativeSelect, Textarea } from "@/components/ui/input";
 import { formatDateTime, humanize } from "@/utils/format";
-import { submissionService } from "../services/submissionService";
-import { submissionKeys } from "../queries/submissionQueries";
-import { timesheetKeys } from "@/features/timesheets";
+import { type ReprocessVariables, useReprocess } from "../hooks/useReprocess";
 import { canFetchFromMailbox, fetchesFromMailbox } from "../utils/refetch";
 
 const schema = z.object({
@@ -36,6 +33,15 @@ const schema = z.object({
 });
 type Values = z.infer<typeof schema>;
 
+function toReprocess(v: Values, confirmApproved: boolean): ReprocessVariables {
+  return {
+    reason: v.reason.trim(),
+    documentId: v.document_id || null,
+    confirmApproved,
+    refetch: v.refetch,
+  };
+}
+
 export function ReprocessDialog({
   submission,
   open,
@@ -45,7 +51,6 @@ export function ReprocessDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }): JSX.Element {
-  const queryClient = useQueryClient();
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: { reason: "", document_id: "", refetch: false },
@@ -54,19 +59,11 @@ export function ReprocessDialog({
   // already approved. Its message says which; the reviewer can go back, or send
   // the same request again with confirm_approved: true.
   const [confirm, setConfirm] = useState<{ message: string; values: Values } | null>(null);
-  const m = useMutation({
-    mutationFn: ({ v, confirmApproved }: { v: Values; confirmApproved: boolean }) =>
-      submissionService.reprocess(
-        submission.id,
-        v.reason.trim(),
-        v.document_id || null,
-        confirmApproved,
-        v.refetch,
-      ),
-    meta: { silentError: true },
-    onError: (err, { v }) => {
+  const m = useReprocess(submission.id, {
+    onError: (err) => {
       if (isApiError(err, 409) && err.code === "confirmation_required") {
-        setConfirm({ message: errorMessage(err), values: v });
+        // The form still holds what was sent: offer to send it again, confirmed.
+        setConfirm({ message: errorMessage(err), values: form.getValues() });
       }
     },
     onSuccess: () => {
@@ -76,8 +73,6 @@ export function ReprocessDialog({
       );
       form.reset();
       onOpenChange(false);
-      void queryClient.invalidateQueries({ queryKey: submissionKeys.all });
-      void queryClient.invalidateQueries({ queryKey: timesheetKeys.all });
     },
   });
 
@@ -103,7 +98,7 @@ export function ReprocessDialog({
     <Dialog open={open} onOpenChange={close}>
       <DialogContent>
         <form
-          onSubmit={form.handleSubmit((v) => m.mutate({ v, confirmApproved: false }))}
+          onSubmit={form.handleSubmit((v) => m.mutate(toReprocess(v, false)))}
           className="grid gap-4"
         >
           <DialogHeader>
@@ -126,7 +121,7 @@ export function ReprocessDialog({
                   size="sm"
                   variant="destructive"
                   disabled={m.isPending}
-                  onClick={() => m.mutate({ v: confirm.values, confirmApproved: true })}
+                  onClick={() => m.mutate(toReprocess(confirm.values, true))}
                 >
                   {m.isPending ? "Replacing…" : "Replace anyway"}
                 </Button>

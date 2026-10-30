@@ -1,7 +1,7 @@
 // Public API of the submissions feature: other parts of the app import only from here.
+// Pages are not exported: only their route files import them (src/routes), so each
+// page stays in its own chunk (autoCodeSplitting).
 export { SourceIcon, SubmissionStateBadge } from "./components/SubmissionBadges";
-export { SubmissionPage } from "./components/SubmissionPage";
-export { SubmissionsPage, validateSubmissionsSearch } from "./components/SubmissionsPage";
 export { submissionKeys } from "./queries/submissionQueries";
 export { submissionService } from "./services/submissionService";
 export {
@@ -29,3 +29,4 @@ export { hasHandwrittenHours, writingChip } from "./utils/writing";
 export { isSubmissionBusy, useSubmissionTimeline } from "./hooks/useSubmissionTimeline";
 
 export { useSubmissionTimesheets } from "./hooks/useSubmissionTimesheets";
+export { useSubmission, useSubmissionsList } from "./hooks/useSubmissions";

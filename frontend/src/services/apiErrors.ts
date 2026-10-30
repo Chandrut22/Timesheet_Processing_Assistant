@@ -1,32 +1,22 @@
 import { isAxiosError, isCancel } from "axios";
 
-/** Every failed API call becomes one of these. `message` is safe to show to people. */
-export class ApiError extends Error {
-  readonly status: number;
-  readonly code: string | null;
-  readonly fieldErrors: Record<string, string>;
-  readonly retryAfter: number | null;
+import {
+  ApiError,
+  BUSY_MESSAGE,
+  FORBIDDEN_MESSAGE,
+  NETWORK_MESSAGE,
+  SERVER_MESSAGE,
+} from "@/utils/errors";
 
-  constructor(opts: {
-    status: number;
-    message: string;
-    code?: string | null;
-    fieldErrors?: Record<string, string>;
-    retryAfter?: number | null;
-  }) {
-    super(opts.message);
-    this.name = "ApiError";
-    this.status = opts.status;
-    this.code = opts.code ?? null;
-    this.fieldErrors = opts.fieldErrors ?? {};
-    this.retryAfter = opts.retryAfter ?? null;
-  }
-}
-
-export const NETWORK_MESSAGE = "Can't reach the server. Check your connection and try again.";
-export const SERVER_MESSAGE = "Something went wrong on our side. Please try again.";
-export const FORBIDDEN_MESSAGE = "You don't have permission to do that.";
-export const BUSY_MESSAGE = "The service is busy. Please try again in a few seconds.";
+export {
+  ApiError,
+  BUSY_MESSAGE,
+  FORBIDDEN_MESSAGE,
+  NETWORK_MESSAGE,
+  SERVER_MESSAGE,
+  errorMessage,
+  isApiError,
+} from "@/utils/errors";
 
 type ValidationItem = { loc?: unknown; msg?: unknown };
 
@@ -154,14 +144,4 @@ export async function toApiError(err: unknown): Promise<ApiError> {
     return buildApiError(err.response.status, data, headers?.["retry-after"]);
   }
   return new ApiError({ status: -1, message: "Something went wrong. Please try again." });
-}
-
-export function errorMessage(err: unknown): string {
-  if (err instanceof ApiError) return err.message;
-  if (err instanceof Error && err.message) return err.message;
-  return "Something went wrong. Please try again.";
-}
-
-export function isApiError(err: unknown, status?: number): err is ApiError {
-  return err instanceof ApiError && (status === undefined || err.status === status);
 }

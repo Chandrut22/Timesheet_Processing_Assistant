@@ -1,6 +1,6 @@
 import { TriangleAlert, Inbox, RotateCw } from "lucide-react";
 import type { ReactNode, JSX } from "react";
-import { errorMessage } from "@/services/apiErrors";
+import { errorMessage } from "@/utils/errors";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";

@@ -1,6 +1,6 @@
 // Public API of the companies feature: other parts of the app import only from here.
-export { CompaniesPage } from "./components/CompaniesPage";
-export { CompanyPage, validateCompanySearch } from "./components/CompanyPage";
+// Pages are not exported: only their route files import them (src/routes), so each
+// page stays in its own chunk (autoCodeSplitting).
 export { CompanySelect } from "./components/CompanySelect";
 
 export { useCompanyMap } from "./hooks/useCompanies";

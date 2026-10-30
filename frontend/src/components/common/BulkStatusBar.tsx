@@ -1,12 +1,10 @@
 // Tick boxes and the bar for activating, deactivating or deleting many rows at once
 // (admins only). Each row is handled on its own by the backend: the ones that fail stay
 // ticked and their reasons are listed; the rest still go through.
-import type { QueryKey } from "@tanstack/react-query";
-import { useBulkStatusMutation } from "@/hooks/useBulkStatusMutation";
+import { type BulkStatusApi, useBulkStatusMutation } from "@/hooks/useBulkStatusMutation";
 import { CircleX, Power, PowerOff, Trash2 } from "lucide-react";
 import { type ReactNode, useState, type JSX } from "react";
 import { toast } from "sonner";
-import type { BulkDeleteResult, BulkStatusResult } from "@/types/api";
 import { Banner } from "@/components/common/States";
 import { Button } from "@/components/ui/button";
 
@@ -96,18 +94,13 @@ type Outcome = { action: BulkAction; failures: { id: string; label: string; erro
 export function BulkStatusBar({
   selection,
   noun,
-  setStatus,
-  remove,
-  invalidate,
+  api,
   warnings = {},
 }: {
   selection: RowSelection;
   noun: Noun;
-  setStatus: (ids: string[], isActive: boolean) => Promise<BulkStatusResult>;
-  /** Offer "Delete" too (holidays). */
-  remove?: (ids: string[]) => Promise<BulkDeleteResult>;
-  /** Lists to refresh afterwards. */
-  invalidate: QueryKey[];
+  /** The list's bulk calls and the lists to refresh (from the feature's hooks). */
+  api: BulkStatusApi;
   /** What the confirm dialog warns about, per action. */
   warnings?: Partial<Record<BulkAction, ReactNode>>;
 }): JSX.Element | null {
@@ -115,10 +108,9 @@ export function BulkStatusBar({
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const rows = selection.selectedRows;
 
+  const remove = api.remove;
   const m = useBulkStatusMutation({
-    setStatus,
-    remove,
-    invalidate,
+    ...api,
 
     onSuccess: (result, { action, ids }) => {
       const summary = resultSummary(result, action, noun);

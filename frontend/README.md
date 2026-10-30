@@ -176,7 +176,10 @@ sidebar's role rules are in `src/layouts/nav.ts`. The backend checks everything 
 Code is grouped by **feature**. Each feature folder holds everything for one part of the app and exposes
 a public API in its `index.ts`; the rest of the app imports only from `@/features/<name>`, never from a
 file inside it (ESLint enforces this; tests may reach in to mock one module). Inside a feature, files
-import each other with relative paths.
+import each other with relative paths. Two exceptions, both enforced by ESLint: **pages are not in
+`index.ts`** (only their route file imports them, see [Code splitting](#code-splitting)), and
+**components never call services or `useQuery` / `useMutation`**: they use the feature's hooks
+(Component → Hook → Service → API client).
 
 ```
 src/
@@ -191,29 +194,51 @@ src/
     <name>/     account, audit, auth, companies, dashboard, employees, export, holidays, import,
                 review, submissions, timesheets, upload, users
       components/   the feature's screens (<Name>Page.tsx) and their parts
-      hooks/        React hooks (useCompanies, useTimesheetMutation, …)
+      hooks/        React hooks: every query and mutation (useCompaniesList, useUpdateCompany, …)
       queries/      TanStack Query keys (<name>Keys)
       services/     typed API calls through the shared axios client (<name>Service)
       types/        zod schemas and TypeScript types for the feature's API
-      utils/        pure helpers
-      index.ts      the public API
+      utils/        pure helpers, and the page's URL validator (<name>Search.ts)
+      index.ts      the public API (hooks, types, small helpers; never a page)
   hooks/        shared hooks (useDebounce, useRowSelection)
   layouts/      AppShell, nav.ts (sidebar + role rules), AuthLayout, AuthBackground
   lib/          axios.ts (the HTTP client: token, refresh, errors), sse.ts, forms.ts, utils.ts (cn)
-  routes/       TanStack file routes; each file only wires a path to a page from a feature
+  routes/       TanStack file routes; each file only wires a path to a page and its URL validator
   services/     session.ts (sign-in, refresh, logout), apiErrors.ts, response.ts, schemas.ts
   styles/       global CSS
   test/         render.tsx (renderWithClient), fixtures/api-responses.json
   types/        shared API types (api.ts), vite-env.d.ts
-  utils/        format.ts, rowSelection.ts
+  utils/        format.ts, rowSelection.ts, errors.ts (ApiError, errorMessage), chunkError.ts
 ```
 
 Tests sit next to the file they cover (`Foo.test.ts` beside `Foo.ts`). `*.test.ts` run in Node;
 `*.test.tsx` component tests start with `// @vitest-environment jsdom`.
 
 **Adding a screen:** create `src/features/<name>/components/<Name>Page.tsx` (read the URL with
-`getRouteApi("<route id>")`), export it from the feature's `index.ts`, then add a thin route file in
-`src/routes/` that sets `component` (and `validateSearch`, if any) from the feature.
+`getRouteApi("<route id>")`), its data hooks in `hooks/`, and, if it has URL parameters, a validator in
+`utils/<name>Search.ts`. Then add a thin route file in `src/routes/` that imports the page and the
+validator **directly** (`@/features/<name>/components/<Name>Page`), not from the feature's `index.ts`.
+
+## Code splitting
+
+Every page is loaded only when it is first opened. This is done by TanStack Router's
+**`autoCodeSplitting: true`** (in `vite.config.ts`): at build time the router plugin moves each route's
+`component` into its own chunk and loads it on demand. That is TanStack's recommended way, so there is
+**no `React.lazy()`** in the app: wrapping pages in `React.lazy` as well would split them twice. (A
+checker that only searches for `React.lazy` will not see this; `npm run build` lists one chunk per page.)
+
+What keeps it working:
+
+- Route files import the page **directly**. If a page were exported from its feature's `index.ts`, every
+  other import of that feature (a hook, a type) would bring the page into the main chunk.
+  `src/app/codeSplitting.test.ts` and an ESLint rule on `src/routes/**` check this.
+- A page's URL validator lives in `utils/<name>Search.ts`, not in the page: the validator is needed at
+  once (to read the URL), the page only when it is shown.
+- While a page's chunk loads, the router shows `PagePending` (after 1 s, for at least 300 ms), and
+  hovering a link already starts loading it (`defaultPreload: "intent"`).
+- After a deploy, a tab opened earlier may ask for an old chunk that no longer exists. The route error
+  then says **"A new version of the app is available"** with a Reload button (`RouteError`,
+  `utils/chunkError.ts`), instead of a generic error.
 
 ## Notes and known gaps
 

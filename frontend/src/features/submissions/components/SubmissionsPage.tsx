@@ -1,5 +1,4 @@
 import { getRouteApi, Link } from "@tanstack/react-router";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { RotateCcw, Upload } from "lucide-react";
 import { useMemo, type JSX } from "react";
 import {
@@ -28,19 +27,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateTime, formatTime, humanize } from "@/utils/format";
-import { submissionService } from "../services/submissionService";
-import { submissionKeys } from "../queries/submissionQueries";
+import { useSubmissionsList } from "../hooks/useSubmissions";
 import { BackButton } from "@/components/common/BackButton";
+import type { SubmissionsSearch } from "../utils/submissionsSearch";
 
 const routeApi = getRouteApi("/_app/submissions/");
-
-type SubmissionsSearch = {
-  status?: SubmissionStatus;
-  state?: SubmissionState;
-  source?: SubmissionSource;
-  company_id?: string;
-  page?: number;
-};
 
 const PAGE_SIZE = 25;
 
@@ -52,16 +43,8 @@ export function SubmissionsPage(): JSX.Element {
     [search],
   );
 
-  const q = useQuery({
-    queryKey: submissionKeys.list(params),
-    queryFn: () => submissionService.listSubmissions(params),
-    placeholderData: keepPreviousData,
-    // Live updates while anything on screen is still being processed.
-    refetchInterval: (query) =>
-      query.state.data?.items.some((s) => s.status === "received" || s.status === "processing")
-        ? 5000
-        : false,
-  });
+  // Live updates while anything on screen is still being processed.
+  const q = useSubmissionsList(params);
 
   const update = (patch: Partial<SubmissionsSearch>): void =>
     void navigate({
@@ -246,14 +229,3 @@ export function SubmissionsPage(): JSX.Element {
 }
 
 /** The page's search params, checked when the URL changes. */
-export const validateSubmissionsSearch = (s: Record<string, unknown>): SubmissionsSearch => ({
-  status: (SUBMISSION_STATUSES as string[]).includes(String(s.status))
-    ? (s.status as SubmissionStatus)
-    : undefined,
-  state: (SUBMISSION_STATES as string[]).includes(String(s.state))
-    ? (s.state as SubmissionState)
-    : undefined,
-  source: s.source === "email" || s.source === "upload" ? s.source : undefined,
-  company_id: typeof s.company_id === "string" && s.company_id ? s.company_id : undefined,
-  page: Number.isInteger(Number(s.page)) && Number(s.page) > 1 ? Number(s.page) : undefined,
-});

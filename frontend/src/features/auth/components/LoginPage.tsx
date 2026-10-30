@@ -3,15 +3,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState, type JSX } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { errorMessage } from "@/services/apiErrors";
-import { login } from "@/services/session";
+import { errorMessage } from "@/utils/errors";
 import { Field, FormError } from "@/components/forms/Field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useLogin } from "../hooks/useAuthForms";
 
 const routeApi = getRouteApi("/_auth/login");
-
-type LoginSearch = { redirect?: string };
 
 const schema = z.object({
   email: z.email("Enter a valid email address"),
@@ -30,6 +28,7 @@ export function LoginPage(): JSX.Element {
   const { redirect } = routeApi.useSearch();
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
+  const signIn = useLogin();
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: { email: "", password: "" },
@@ -39,7 +38,7 @@ export function LoginPage(): JSX.Element {
   const onSubmit = form.handleSubmit(async (values) => {
     setFormError(null);
     try {
-      await login(values.email.trim(), values.password);
+      await signIn.mutateAsync({ email: values.email.trim(), password: values.password });
       router.history.push(safeRedirect(redirect));
     } catch (err) {
       setFormError(errorMessage(err));
@@ -83,9 +82,3 @@ export function LoginPage(): JSX.Element {
 }
 
 /** The page's search params, checked when the URL changes. */
-export const validateLoginSearch = (search: Record<string, unknown>): LoginSearch => {
-  const r = search.redirect;
-  return {
-    redirect: typeof r === "string" && r.length <= 1000 && !r.startsWith("/login") ? r : undefined,
-  };
-};

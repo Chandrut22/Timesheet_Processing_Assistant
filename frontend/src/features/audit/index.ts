@@ -3,3 +3,4 @@ export { auditKeys } from "./queries/auditQueries";
 export { auditService } from "./services/auditService";
 export { AuditEventReadSchema } from "./types/audit";
 export type { AuditEventRead } from "./types/audit";
+export { useAuditEvents } from "./hooks/useAuditEvents";

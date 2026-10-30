@@ -4,7 +4,7 @@
 // a normal timesheet.
 import { CalendarClock, CopyPlus } from "lucide-react";
 import { useState, type JSX } from "react";
-import { errorMessage } from "@/services/apiErrors";
+import { errorMessage } from "@/utils/errors";
 import type { TimesheetRead } from "../types/timesheet";
 import { FormError } from "@/components/forms/Field";
 import { Banner } from "@/components/common/States";
@@ -13,8 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
 import { backendWeekday, formatHours, formatWeek, WEEKDAYS } from "@/utils/format";
 import { hasFlag } from "../utils/severity";
-import { useTimesheetMutation } from "../hooks/useTimesheetMutation";
-import { timesheetService } from "../services/timesheetService";
+import { useSetWeek } from "../hooks/useTimesheetActions";
 
 export function WeeklyTotalPanel({
   t,
@@ -27,18 +26,14 @@ export function WeeklyTotalPanel({
   readOnly: boolean;
 }): JSX.Element {
   const [week, setWeek] = useState(t.week_start ?? "");
-  const save = useTimesheetMutation(
-    ({ w, newVersion }: { w: string; newVersion: boolean }) =>
-      timesheetService.setWeek(t.id, w, newVersion),
-    {
-      success: (r, { newVersion }) =>
-        newVersion
-          ? `Week changed as version ${r.version}. Version ${r.version - 1} is kept in the history.`
-          : "Week changed.",
-      silentError: true,
-    },
-  );
-  const change = (newVersion: boolean): void => save.mutate({ w: week, newVersion });
+  const save = useSetWeek(t.id, {
+    success: (r, { newVersion }) =>
+      newVersion
+        ? `Week changed as version ${r.version}. Version ${r.version - 1} is kept in the history.`
+        : "Week changed.",
+    silentError: true,
+  });
+  const change = (newVersion: boolean): void => save.mutate({ weekStart: week, newVersion });
   const savingAsNew = save.isPending && save.variables?.newVersion === true;
   const assumed = hasFlag(t.flags, "week_assumed");
   const startDay = weekStartDay ?? 0;

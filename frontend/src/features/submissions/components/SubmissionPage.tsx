@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState, type JSX } from "react";
 import { toast } from "sonner";
-import { isApiError } from "@/services/apiErrors";
+import { isApiError } from "@/utils/errors";
 import {
   FlagBadges,
   MatchAction,

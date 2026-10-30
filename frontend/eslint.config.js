@@ -37,9 +37,35 @@ const FEATURE_INTERNALS = {
   group: ["@/features/*/*"],
   message: "Import from the feature's public API instead: '@/features/<name>'.",
 };
+// Route files are the one place that reaches into a feature: they import its page and
+// its search validator directly, so the page is not pulled in through the feature's
+// index.ts (which would put it in the main chunk; autoCodeSplitting splits each page).
+const ROUTE_FEATURE_INTERNALS = {
+  // A regex: gitignore-style "!" can't re-include a file inside a folder already matched.
+  regex: "^@/features/[^/]+/(?!components/[A-Za-z]+Page$|utils/[A-Za-z]*[sS]earch$).+",
+  message:
+    "Routes import only a feature's page (components/*Page) and search validator (utils/*Search); everything else comes from '@/features/<name>'.",
+};
 // Files that own the HTTP client (and tests that mock it) may import axios.
 const CLIENT_FILES = ["src/lib/axios.ts", "src/services/session.ts", "src/services/apiErrors.ts"];
 const TEST_FILES = ["src/**/*.test.{ts,tsx}", "src/test/**/*.{ts,tsx}"];
+// Components and layouts get server data only through hooks (features/<name>/hooks):
+// Component -> Hook -> Service -> API client.
+const UI_FILES = [
+  "src/features/*/components/**/*.{ts,tsx}",
+  "src/components/**/*.{ts,tsx}",
+  "src/layouts/**/*.{ts,tsx}",
+];
+const USE_A_HOOK = "Use the feature's hook (features/<name>/hooks) instead.";
+const QUERY_HOOKS_IN_UI = {
+  name: "@tanstack/react-query",
+  importNames: ["useQuery", "useQueries", "useInfiniteQuery", "useSuspenseQuery", "useMutation"],
+  message: `No queries or mutations in components. ${USE_A_HOOK}`,
+};
+const SERVICES_IN_UI = {
+  group: ["../services/*", "@/services/*", "@/features/*/services/*"],
+  message: `Components don't call services. ${USE_A_HOOK} Error helpers are in @/utils/errors.`,
+};
 
 export default defineConfig([
   globalIgnores(["dist", "src/app/routeTree.gen.ts"]),
@@ -88,12 +114,36 @@ export default defineConfig([
     },
   },
   {
+    files: ["src/routes/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [...OTHER_HTTP_LIBRARIES, AXIOS_OUTSIDE_CLIENT],
+          patterns: [AXIOS_SUBPATHS, ROUTE_FEATURE_INTERNALS],
+        },
+      ],
+    },
+  },
+  {
     // The client files may import axios; other HTTP libraries still are not allowed.
     files: CLIENT_FILES,
     rules: {
       "no-restricted-imports": [
         "error",
         { paths: OTHER_HTTP_LIBRARIES, patterns: [AXIOS_SUBPATHS, FEATURE_INTERNALS] },
+      ],
+    },
+  },
+  {
+    files: UI_FILES,
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [...OTHER_HTTP_LIBRARIES, AXIOS_OUTSIDE_CLIENT, QUERY_HOOKS_IN_UI],
+          patterns: [AXIOS_SUBPATHS, FEATURE_INTERNALS, SERVICES_IN_UI],
+        },
       ],
     },
   },
@@ -108,13 +158,9 @@ export default defineConfig([
     },
   },
   {
-    // Route files export `Route`; UI kit files export variants next to components; page
-    // components export their search validator next to the page.
-    files: [
-      "src/routes/**/*.tsx",
-      "src/components/ui/**/*.tsx",
-      "src/features/*/components/*Page.tsx",
-    ],
+    // Route files export `Route`; UI kit files export variants next to components.
+    // (Search validators live in features/<name>/utils, not next to the page.)
+    files: ["src/routes/**/*.tsx", "src/components/ui/**/*.tsx"],
     rules: { "react-refresh/only-export-components": "off" },
   },
 ]);

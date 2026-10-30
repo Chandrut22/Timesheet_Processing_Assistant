@@ -1,13 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
 import { Check, Search } from "lucide-react";
 import { useRef, useState, type JSX } from "react";
-import { errorMessage } from "@/services/apiErrors";
-import {
-  type EmployeeRead,
-  useEmployeeMap,
-  employeeService,
-  employeeKeys,
-} from "@/features/employees";
+import { errorMessage } from "@/utils/errors";
+import { type EmployeeRead, useEmployeeMap, useEmployeeSearch } from "@/features/employees";
 import type { TimesheetRead } from "../types/timesheet";
 import { FormError } from "@/components/forms/Field";
 import { ErrorState } from "@/components/common/States";
@@ -27,8 +21,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { formatDate } from "@/utils/format";
 import { flagCandidates } from "../utils/severity";
 import { cn } from "@/lib/utils";
-import { useTimesheetMutation } from "../hooks/useTimesheetMutation";
-import { timesheetService } from "../services/timesheetService";
+import { useMatchEmployee } from "../hooks/useTimesheetActions";
 
 export function MatchEmployeeDialog({
   t,
@@ -54,25 +47,18 @@ export function MatchEmployeeDialog({
     size: 20,
     page: 1,
   };
-  const results = useQuery({
-    queryKey: employeeKeys.list(params),
-    queryFn: ({ signal }) => employeeService.listEmployees(params, signal),
-    enabled: open,
-  });
+  const results = useEmployeeSearch(params, open);
   const companyEmployees = useEmployeeMap([t.company_id]);
   const candidates = flagCandidates(t.flags).filter((c) => fuzzy || c.id !== t.employee_id);
 
-  const m = useTimesheetMutation(
-    (employeeId: string) => timesheetService.matchEmployee(t.id, employeeId),
-    {
-      success: "Employee matched. Pay was recalculated.",
-      silentError: true,
-      onSuccess: () => {
-        if (goNext.current && onMatchNext) onMatchNext();
-        else onOpenChange(false);
-      },
+  const m = useMatchEmployee(t.id, {
+    success: "Employee matched. Pay was recalculated.",
+    silentError: true,
+    onSuccess: () => {
+      if (goNext.current && onMatchNext) onMatchNext();
+      else onOpenChange(false);
     },
-  );
+  });
 
   const row = (
     e: Pick<EmployeeRead, "id" | "full_name" | "employee_code"> & Partial<EmployeeRead>,

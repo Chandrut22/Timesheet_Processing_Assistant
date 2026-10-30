@@ -1,11 +1,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyRound, Plus } from "lucide-react";
 import { useMemo, useState, type JSX } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { errorMessage } from "@/services/apiErrors";
+import { errorMessage } from "@/utils/errors";
 import type { RoleName } from "@/types/api";
 import type { UserRead } from "../types/user";
 import { useUser } from "@/features/auth";
@@ -40,12 +39,17 @@ import { ImportButton } from "@/features/import";
 import { DebouncedInput } from "@/components/forms/DebouncedInput";
 import { applyFieldErrors } from "@/lib/forms";
 import { formatDate, formatRelative } from "@/utils/format";
-import { userService } from "../services/userService";
-import { userKeys } from "../queries/userQueries";
+import {
+  useCreateUser,
+  useRefreshUsers,
+  userBulkStatus,
+  useSetUserPassword,
+  useUpdateUser,
+  useUsersList,
+} from "../hooks/useUsers";
 
 export function UsersPage(): JSX.Element {
   const me = useUser();
-  const queryClient = useQueryClient();
   const [q, setQ] = useState("");
   const [role, setRole] = useState<"" | RoleName>("");
   const [active, setActive] = useState<"" | "true" | "false">("true");
@@ -61,11 +65,8 @@ export function UsersPage(): JSX.Element {
     page,
     size: 25,
   };
-  const list = useQuery({
-    queryKey: userKeys.list(params),
-    queryFn: ({ signal }) => userService.listUsers(params, signal),
-    placeholderData: keepPreviousData,
-  });
+  const list = useUsersList(params);
+  const refreshUsers = useRefreshUsers();
   const bulkRows = useMemo(
     () =>
       (list.data?.items ?? []).map((u) => ({
@@ -80,13 +81,10 @@ export function UsersPage(): JSX.Element {
   const selection = useRowSelection(bulkRows, JSON.stringify(params));
 
   // The backend refuses changing your own role or demoting the last admin; its message is shown in a toast.
-  const update = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: { role?: RoleName; is_active?: boolean } }) =>
-      userService.updateUser(id, body),
+  const update = useUpdateUser({
     onSuccess: (u) => {
       toast.success(`${u.name} updated.`);
       setToggling(null);
-      void queryClient.invalidateQueries({ queryKey: userKeys.all });
     },
   });
 
@@ -97,10 +95,7 @@ export function UsersPage(): JSX.Element {
         description="People who can sign in. Reviewers check timesheets; admins also export payroll and manage setup."
         actions={
           <>
-            <ImportButton
-              resource="users"
-              onImported={() => void queryClient.invalidateQueries({ queryKey: userKeys.all })}
-            />
+            <ImportButton resource="users" onImported={refreshUsers} />
             <Button onClick={() => setCreating(true)}>
               <Plus /> New user
             </Button>
@@ -250,8 +245,7 @@ export function UsersPage(): JSX.Element {
       <BulkStatusBar
         selection={selection}
         noun={{ one: "user", many: "users" }}
-        setStatus={userService.bulkUserStatus}
-        invalidate={[userKeys.all]}
+        api={userBulkStatus}
         warnings={{
           deactivate:
             "They can't sign in any more and are signed out within minutes. Their past work is kept. The last active admin always stays.",
@@ -301,20 +295,15 @@ function CreateUserDialog({
   open: boolean;
   onOpenChange: (o: boolean) => void;
 }): JSX.Element {
-  const queryClient = useQueryClient();
   const form = useForm<CreateValues>({
     resolver: zodResolver(createSchema),
     defaultValues: { name: "", email: "", password: "", role: "reviewer" },
   });
-  const m = useMutation({
-    mutationFn: (v: CreateValues) =>
-      userService.createUser({ ...v, name: v.name.trim(), email: v.email.trim() }),
-    meta: { silentError: true },
+  const m = useCreateUser({
     onSuccess: (u) => {
       toast.success(`${u.name} can now sign in.`);
       form.reset();
       onOpenChange(false);
-      void queryClient.invalidateQueries({ queryKey: userKeys.all });
     },
     onError: (err) => applyFieldErrors(err, form.setError, ["name", "email", "password", "role"]),
   });
@@ -328,7 +317,13 @@ function CreateUserDialog({
       }}
     >
       <DialogContent>
-        <form onSubmit={form.handleSubmit((v) => m.mutate(v))} noValidate className="grid gap-4">
+        <form
+          onSubmit={form.handleSubmit((v) =>
+            m.mutate({ ...v, name: v.name.trim(), email: v.email.trim() }),
+          )}
+          noValidate
+          className="grid gap-4"
+        >
           <DialogHeader>
             <DialogTitle>New user</DialogTitle>
             <DialogDescription>
@@ -397,9 +392,7 @@ function ResetPasswordDialog({
     resolver: zodResolver(resetSchema),
     defaultValues: { new_password: "", confirm: "" },
   });
-  const m = useMutation({
-    mutationFn: (v: ResetValues) => userService.setUserPassword(user.id, v.new_password),
-    meta: { silentError: true },
+  const m = useSetUserPassword(user.id, {
     onSuccess: () => {
       toast.success(`Password changed for ${user.name}.`);
       onClose();
@@ -410,7 +403,11 @@ function ResetPasswordDialog({
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
-        <form onSubmit={form.handleSubmit((v) => m.mutate(v))} noValidate className="grid gap-4">
+        <form
+          onSubmit={form.handleSubmit((v) => m.mutate(v.new_password))}
+          noValidate
+          className="grid gap-4"
+        >
           <DialogHeader>
             <DialogTitle>Set a new password for {user.name}</DialogTitle>
             <DialogDescription>

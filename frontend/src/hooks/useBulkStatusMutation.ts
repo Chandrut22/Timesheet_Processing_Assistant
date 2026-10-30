@@ -15,10 +15,17 @@ export type BulkStatusMutationVariables = {
 
 type BulkStatusMutationResult = BulkStatusResult | BulkDeleteResult;
 
-type UseBulkStatusMutationOptions = {
+/** One list's bulk actions: the API calls and the lists to refresh afterwards. Each
+ * feature defines its own in its hooks (e.g. companyBulkStatus), and passes it to
+ * BulkStatusBar. */
+export type BulkStatusApi = {
   setStatus: (ids: string[], isActive: boolean) => Promise<BulkStatusResult>;
+  /** Offer "Delete" too (holidays). */
   remove?: (ids: string[]) => Promise<BulkDeleteResult>;
   invalidate: QueryKey[];
+};
+
+type UseBulkStatusMutationOptions = BulkStatusApi & {
   onSuccess?: (result: BulkStatusMutationResult, variables: BulkStatusMutationVariables) => void;
 };
 

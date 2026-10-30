@@ -1,5 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { timesheetKeys, timesheetService } from "@/features/timesheets";
+
+type TimesheetPage = Awaited<ReturnType<typeof timesheetService.listTimesheets>>;
 
 interface SubmissionTimesheetParams {
   submission_id: string;
@@ -11,7 +13,7 @@ interface SubmissionTimesheetParams {
 export function useSubmissionTimesheets(
   submissionId: string,
   busy: boolean,
-): ReturnType<typeof useQuery> {
+): UseQueryResult<TimesheetPage> {
   const params: SubmissionTimesheetParams = {
     submission_id: submissionId,
     size: 100,

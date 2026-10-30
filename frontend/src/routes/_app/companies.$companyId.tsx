@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CompanyPage, validateCompanySearch } from "@/features/companies";
+import { CompanyPage } from "@/features/companies/components/CompanyPage";
+import { validateCompanySearch } from "@/features/companies/utils/companySearch";
 
 export const Route = createFileRoute("/_app/companies/$companyId")({
   validateSearch: validateCompanySearch,

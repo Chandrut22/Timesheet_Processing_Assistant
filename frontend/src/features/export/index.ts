@@ -1,5 +1,6 @@
 // Public API of the export feature: other parts of the app import only from here.
-export { ExportPage, validateExportSearch } from "./components/ExportPage";
+// Pages are not exported: only their route files import them (src/routes), so each
+// page stays in its own chunk (autoCodeSplitting).
 export {
   ExportBatchPageSchema,
   ExportBatchReadSchema,

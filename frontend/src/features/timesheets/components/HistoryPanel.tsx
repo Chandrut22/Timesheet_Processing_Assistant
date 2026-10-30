@@ -1,10 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
 // import { JsonBlock } from "@/components/common/JsonBlock";
 import { ErrorState } from "@/components/common/States";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateTime, humanize } from "@/utils/format";
-import { auditService, auditKeys } from "@/features/audit";
+import { useAuditEvents } from "@/features/audit";
 import type { JSX } from "react";
 
 export function HistoryPanel({
@@ -14,10 +13,7 @@ export function HistoryPanel({
   entityType: "timesheet" | "submission";
   entityId: string;
 }): JSX.Element {
-  const q = useQuery({
-    queryKey: auditKeys.entity(entityType, entityId),
-    queryFn: () => auditService.listAuditEvents(entityType, entityId),
-  });
+  const q = useAuditEvents(entityType, entityId);
   return (
     <Card>
       <CardHeader>

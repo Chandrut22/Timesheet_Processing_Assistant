@@ -1,6 +1,5 @@
 // "Copy holidays": give other companies (a new client, say) the holidays one company
 // already has, for one year or all of them. Dates a company already has are skipped.
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Copy } from "lucide-react";
 import { useState, type JSX } from "react";
 import { toast } from "sonner";
@@ -16,9 +15,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { NativeSelect } from "@/components/ui/input";
-import { errorMessage } from "@/services/apiErrors";
-import { holidayKeys } from "../queries/holidayQueries";
-import { holidayService } from "../services/holidayService";
+import { errorMessage } from "@/utils/errors";
+import { useCopyHolidays } from "../hooks/useHolidayMutations";
 import { describeBulkResult } from "../utils/bulkResult";
 import { CompanyChecklist } from "./CompanyChecklist";
 
@@ -34,15 +32,7 @@ export function CopyHolidaysDialog({
   const [to, setTo] = useState<string[]>([]);
   const [year, setYear] = useState(String(defaultYear));
   const companies = useCompanyMap();
-  const queryClient = useQueryClient();
-  const copy = useMutation({
-    mutationFn: () =>
-      holidayService.copyHolidays({
-        from_company_id: from,
-        to_company_ids: to,
-        year: year ? Number(year) : undefined,
-      }),
-    meta: { silentError: true },
+  const copy = useCopyHolidays({
     onSuccess: (result) => {
       toast.success(
         describeBulkResult(result, (id) => companies.get(id)?.name ?? "A company", {
@@ -50,7 +40,6 @@ export function CopyHolidaysDialog({
           many: "holidays",
         }),
       );
-      void queryClient.invalidateQueries({ queryKey: holidayKeys.all });
       setOpen(false);
     },
   });
@@ -113,7 +102,13 @@ export function CopyHolidaysDialog({
               Cancel
             </Button>
             <Button
-              onClick={() => copy.mutate()}
+              onClick={() =>
+                copy.mutate({
+                  from_company_id: from,
+                  to_company_ids: to,
+                  year: year ? Number(year) : undefined,
+                })
+              }
               disabled={!from || to.length === 0 || copy.isPending}
             >
               {copy.isPending

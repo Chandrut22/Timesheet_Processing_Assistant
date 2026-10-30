@@ -1,8 +1,9 @@
 // Public API of the timesheets feature: other parts of the app import only from here.
+// Pages are not exported: only their route files import them (src/routes), so each
+// page stays in its own chunk (autoCodeSplitting).
 export { FlagBadges, SeverityDot, TimesheetStatusBadge } from "./components/TimesheetBadges";
 export { MatchAction } from "./components/MatchAction";
 export { MatchEmployeeDialog } from "./components/MatchEmployeeDialog";
-export { TimesheetPage } from "./components/TimesheetPage";
 export { timesheetKeys } from "./queries/timesheetQueries";
 export { timesheetService } from "./services/timesheetService";
 export {

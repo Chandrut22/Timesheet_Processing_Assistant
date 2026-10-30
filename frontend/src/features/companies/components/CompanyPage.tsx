@@ -1,9 +1,8 @@
 import { getRouteApi, Link } from "@tanstack/react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { useState, type JSX } from "react";
 import { toast } from "sonner";
-import { errorMessage, isApiError } from "@/services/apiErrors";
+import { errorMessage, isApiError } from "@/utils/errors";
 import type { CompanyRead, WhitelistRead } from "../types/company";
 import { useIsAdmin } from "@/features/auth";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
@@ -28,13 +27,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CompanyForm, type CompanyFormValues } from "./CompanyForm";
 import { toCompanyBody } from "../utils/companyUtils";
 import { formatDate, humanize } from "@/utils/format";
-import { companyService } from "../services/companyService";
-import { companyKeys } from "../queries/companyQueries";
+import {
+  useAddWhitelist,
+  useRemoveWhitelist,
+  useUpdateCompany,
+} from "../hooks/useCompanyMutations";
 import { BackButton } from "@/components/common/BackButton";
 
 const routeApi = getRouteApi("/_app/companies/$companyId");
-
-type CompanySearch = { tab?: "details" | "senders" };
 
 export function CompanyPage(): JSX.Element {
   const { companyId } = routeApi.useParams();
@@ -108,14 +108,8 @@ export function CompanyPage(): JSX.Element {
 
 function DetailsTab({ company }: { company: CompanyRead }): JSX.Element {
   const isAdmin = useIsAdmin();
-  const queryClient = useQueryClient();
-  const update = useMutation({
-    mutationFn: (v: CompanyFormValues) =>
-      companyService.updateCompany(company.id, { ...toCompanyBody(v), is_active: v.is_active }),
-    meta: { silentError: true },
-    onSuccess: (c) => {
-      queryClient.setQueryData(companyKeys.detail(c.id), c);
-      void queryClient.invalidateQueries({ queryKey: companyKeys.all });
+  const update = useUpdateCompany(company.id, {
+    onSuccess: () => {
       toast.success("Saved. New rates apply to timesheets calculated from now on.");
     },
   });
@@ -130,7 +124,9 @@ function DetailsTab({ company }: { company: CompanyRead }): JSX.Element {
           company={company}
           readOnly={!isAdmin}
           submitLabel="Save changes"
-          onSubmit={(v) => update.mutateAsync(v)}
+          onSubmit={(v: CompanyFormValues) =>
+            update.mutateAsync({ ...toCompanyBody(v), is_active: v.is_active })
+          }
           serverError={update.error ? errorMessage(update.error) : null}
         />
       </CardContent>
@@ -140,26 +136,20 @@ function DetailsTab({ company }: { company: CompanyRead }): JSX.Element {
 
 function WhitelistTab({ company }: { company: CompanyRead }): JSX.Element {
   const isAdmin = useIsAdmin();
-  const queryClient = useQueryClient();
   const [value, setValue] = useState("");
   const [removing, setRemoving] = useState<WhitelistRead | null>(null);
   const list = useCompanyWhitelist(company.id);
 
-  const add = useMutation({
-    mutationFn: (v: string) => companyService.addWhitelist(company.id, v),
-    meta: { silentError: true },
+  const add = useAddWhitelist(company.id, {
     onSuccess: (entry) => {
       setValue("");
       toast.success(`Added ${entry.value}.`);
-      void queryClient.invalidateQueries({ queryKey: companyKeys.whitelist(company.id) });
     },
   });
-  const remove = useMutation({
-    mutationFn: (entry: WhitelistRead) => companyService.removeWhitelist(company.id, entry.id),
+  const remove = useRemoveWhitelist(company.id, {
     onSuccess: () => {
       setRemoving(null);
       toast.success("Removed.");
-      void queryClient.invalidateQueries({ queryKey: companyKeys.whitelist(company.id) });
     },
   });
 
@@ -263,6 +253,3 @@ function WhitelistTab({ company }: { company: CompanyRead }): JSX.Element {
 }
 
 /** The page's search params, checked when the URL changes. */
-export const validateCompanySearch = (s: Record<string, unknown>): CompanySearch => ({
-  tab: s.tab === "senders" ? "senders" : undefined,
-});

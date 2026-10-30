@@ -1,8 +1,7 @@
 import { getRouteApi, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { CircleCheck, Search, CircleX } from "lucide-react";
 import { useState, type ReactNode, type JSX } from "react";
-import { isApiError } from "@/services/apiErrors";
+import { isApiError } from "@/utils/errors";
 import type { TimesheetRead } from "../types/timesheet";
 import { TimesheetStatusBadge } from "./TimesheetBadges";
 import { MailLink } from "@/components/common/MailLink";
@@ -17,7 +16,8 @@ import { HandwritingBanner } from "./HandwritingBanner";
 import { HistoryPanel } from "./HistoryPanel";
 import { MatchEmployeeDialog } from "./MatchEmployeeDialog";
 import { PayBreakdown } from "./PayBreakdown";
-import { useTimesheetMutation } from "../hooks/useTimesheetMutation";
+import { useRecalculateTimesheet } from "../hooks/useTimesheetActions";
+import { useTimesheet } from "../hooks/useTimesheets";
 import { VersionsPanel } from "./VersionsPanel";
 import { WeeklyTotalPanel } from "./WeeklyTotalPanel";
 import { formatDateTime, formatHours, formatPercent, formatWeek, humanize } from "@/utils/format";
@@ -25,9 +25,7 @@ import { timesheetCompanyName, timesheetEmployeeName } from "../utils/names";
 import { useCompanyMap } from "@/features/companies";
 import { useEmployeeMap } from "@/features/employees";
 import { hasFlag, isWeeklyTotal } from "../utils/severity";
-import { submissionService, submissionKeys } from "@/features/submissions";
-import { timesheetService } from "../services/timesheetService";
-import { timesheetKeys } from "../queries/timesheetQueries";
+import { useSubmission } from "@/features/submissions";
 import { BackButton } from "@/components/common/BackButton";
 import { matchMethodLabel } from "../utils/flags";
 
@@ -37,10 +35,7 @@ const READ_ONLY = new Set(["exported"]);
 
 export function TimesheetPage(): JSX.Element {
   const { timesheetId } = routeApi.useParams();
-  const q = useQuery({
-    queryKey: timesheetKeys.detail(timesheetId),
-    queryFn: () => timesheetService.getTimesheet(timesheetId),
-  });
+  const q = useTimesheet(timesheetId);
 
   const back = <BackButton fallback="/review" fallbackLabel="Review queue" />;
 
@@ -81,7 +76,7 @@ function TimesheetDetail({ t, back }: { t: TimesheetRead; back: ReactNode }): JS
   const company = timesheetCompanyName(t, companies);
   const readOnly = READ_ONLY.has(t.status);
 
-  const recalc = useTimesheetMutation(() => timesheetService.recalculate(t.id), {
+  const recalc = useRecalculateTimesheet(t.id, {
     success: "Recalculated with the company's current rules and rates.",
   });
 
@@ -268,10 +263,7 @@ function DetailsPanel({
 }
 
 function SourcePanel({ t }: { t: TimesheetRead }): JSX.Element {
-  const q = useQuery({
-    queryKey: submissionKeys.detail(t.submission_id),
-    queryFn: () => submissionService.getSubmission(t.submission_id),
-  });
+  const q = useSubmission(t.submission_id);
   const doc = q.data?.documents.find((d) => d.id === t.document_id);
   return (
     <Card>

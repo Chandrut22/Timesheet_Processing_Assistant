@@ -1,6 +1,6 @@
 import { MutationCache, QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ApiError, errorMessage } from "@/services/apiErrors";
+import { ApiError, errorMessage } from "@/utils/errors";
 
 declare module "@tanstack/react-query" {
   interface Register {

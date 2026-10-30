@@ -19,9 +19,7 @@ function isBusy(submission: SubmissionRead): boolean {
   );
 }
 
-type SubmissionTimelineData = Awaited<
-  ReturnType<typeof submissionService.getTimeline>
->;
+type SubmissionTimelineData = Awaited<ReturnType<typeof submissionService.getTimeline>>;
 
 export function isSubmissionBusy(submission: SubmissionRead): boolean {
   return isBusy(submission);

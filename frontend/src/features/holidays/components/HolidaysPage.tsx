@@ -1,12 +1,11 @@
 import { getRouteApi } from "@tanstack/react-router";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { useMemo, useState, type JSX } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { errorMessage } from "@/services/apiErrors";
+import { errorMessage } from "@/utils/errors";
 import type { HolidayRead } from "../types/holiday";
 import { useIsAdmin } from "@/features/auth";
 import { CompanySelect, useCompanyMap } from "@/features/companies";
@@ -35,12 +34,16 @@ import { useRowSelection } from "@/hooks/useRowSelection";
 import { ImportButton } from "@/features/import";
 import { applyFieldErrors } from "@/lib/forms";
 import { formatDayLabel } from "@/utils/format";
-import { holidayService } from "../services/holidayService";
-import { holidayKeys } from "../queries/holidayQueries";
+import {
+  holidayBulkStatus,
+  useCreateHolidays,
+  useDeleteHoliday,
+  useRefreshHolidays,
+} from "../hooks/useHolidayMutations";
+import type { HolidaysSearch } from "../utils/holidaysSearch";
 
 const routeApi = getRouteApi("/_app/holidays");
 
-type HolidaysSearch = { year?: number; company_id?: string; active?: "active" | "inactive" };
 const THIS_YEAR = new Date().getFullYear();
 
 const schema = z.object({
@@ -55,7 +58,7 @@ export function HolidaysPage(): JSX.Element {
   const navigate = routeApi.useNavigate();
   const isAdmin = useIsAdmin();
   const companies = useCompanyMap();
-  const queryClient = useQueryClient();
+  const refreshHolidays = useRefreshHolidays();
   const [deleting, setDeleting] = useState<HolidayRead | null>(null);
   const year = search.year ?? THIS_YEAR;
   const params = {
@@ -75,29 +78,19 @@ export function HolidaysPage(): JSX.Element {
   });
   // One date for every chosen company, in one request (a company that already has a
   // holiday that day is skipped and named in the message).
-  const create = useMutation({
-    mutationFn: (v: Values) =>
-      holidayService.bulkCreateHolidays({
-        holiday_date: v.holiday_date,
-        name: v.name.trim(),
-        company_ids: v.company_ids,
-      }),
-    meta: { silentError: true },
+  const create = useCreateHolidays({
     onSuccess: (result) => {
       const message = describeBulkResult(result, (id) => companies.get(id)?.name ?? "A company");
       if (result.created > 0) toast.success(message);
       else toast.warning(message);
       form.reset({ holiday_date: "", name: "", company_ids: form.getValues("company_ids") });
-      void queryClient.invalidateQueries({ queryKey: holidayKeys.all });
     },
     onError: (err) => applyFieldErrors(err, form.setError, ["holiday_date", "name", "company_ids"]),
   });
-  const remove = useMutation({
-    mutationFn: (h: HolidayRead) => holidayService.deleteHoliday(h.id),
+  const remove = useDeleteHoliday({
     onSuccess: () => {
       setDeleting(null);
       toast.success("Holiday removed.");
-      void queryClient.invalidateQueries({ queryKey: holidayKeys.all });
     },
   });
 
@@ -133,10 +126,7 @@ export function HolidaysPage(): JSX.Element {
           isAdmin ? (
             <div className="flex flex-wrap gap-2">
               <CopyHolidaysDialog years={years} defaultYear={year} />
-              <ImportButton
-                resource="holidays"
-                onImported={() => void queryClient.invalidateQueries({ queryKey: holidayKeys.all })}
-              />
+              <ImportButton resource="holidays" onImported={refreshHolidays} />
             </div>
           ) : null
         }
@@ -277,7 +267,13 @@ export function HolidaysPage(): JSX.Element {
             </CardHeader>
             <CardContent>
               <form
-                onSubmit={form.handleSubmit((v) => create.mutate(v))}
+                onSubmit={form.handleSubmit((v) =>
+                  create.mutate({
+                    holiday_date: v.holiday_date,
+                    name: v.name.trim(),
+                    company_ids: v.company_ids,
+                  }),
+                )}
                 noValidate
                 className="grid gap-4"
               >
@@ -317,9 +313,7 @@ export function HolidaysPage(): JSX.Element {
         <BulkStatusBar
           selection={selection}
           noun={{ one: "holiday", many: "holidays" }}
-          setStatus={holidayService.bulkHolidayStatus}
-          remove={holidayService.bulkDeleteHolidays}
-          invalidate={[holidayKeys.all]}
+          api={holidayBulkStatus}
           warnings={{
             deactivate:
               "They stay in the list but are no longer paid at the holiday rate. Timesheets already priced keep their pay until they are recalculated.",
@@ -346,11 +340,3 @@ export function HolidaysPage(): JSX.Element {
 }
 
 /** The page's search params, checked when the URL changes. */
-export const validateHolidaysSearch = (s: Record<string, unknown>): HolidaysSearch => {
-  const y = Number(s.year);
-  return {
-    year: Number.isInteger(y) && y >= 2000 && y <= 2100 ? y : undefined,
-    company_id: typeof s.company_id === "string" && s.company_id ? s.company_id : undefined,
-    active: s.active === "active" || s.active === "inactive" ? s.active : undefined,
-  };
-};

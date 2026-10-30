@@ -2,7 +2,7 @@ import { createRootRouteWithContext, Link, Outlet, useRouter } from "@tanstack/r
 import type { QueryClient } from "@tanstack/react-query";
 import type { SessionUser } from "@/services/session";
 import { RouterDevtools } from "@/app/devtools";
-import { ErrorState } from "@/components/common/States";
+import { RouteError } from "@/components/common/RouteError";
 import { Button } from "@/components/ui/button";
 import type { JSX } from "react";
 
@@ -19,7 +19,7 @@ function RootError({ error, reset }: { error: unknown; reset: () => void }): JSX
   const router = useRouter();
   return (
     <div className="mx-auto max-w-xl p-8">
-      <ErrorState
+      <RouteError
         error={error}
         onRetry={() => {
           reset();

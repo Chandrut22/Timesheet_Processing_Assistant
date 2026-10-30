@@ -1,7 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
 import type { TimesheetRead } from "../types/timesheet";
 import { Banner } from "@/components/common/States";
-import { hasHandwrittenHours, submissionService, submissionKeys } from "@/features/submissions";
+import { hasHandwrittenHours, useSubmission } from "@/features/submissions";
 import type { JSX } from "react";
 
 /**
@@ -10,10 +9,7 @@ import type { JSX } from "react";
  */
 export function HandwritingBanner({ t }: { t: TimesheetRead }): JSX.Element | null {
   // The submission is also loaded (and cached) by the Source panel.
-  const q = useQuery({
-    queryKey: submissionKeys.detail(t.submission_id),
-    queryFn: () => submissionService.getSubmission(t.submission_id),
-  });
+  const q = useSubmission(t.submission_id);
   const doc = q.data?.documents.find((d) => d.id === t.document_id);
   if (!doc || doc.read_method !== "vision") return null;
   if (doc.writing_class === "uncertain" || doc.writing_class === "no_text") {

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ReviewQueuePage, parseReviewSearch } from "@/features/review";
+import { ReviewQueuePage } from "@/features/review/components/ReviewPage";
+import { parseReviewSearch } from "@/features/review/utils/search";
 
 export const Route = createFileRoute("/_app/review")({
   validateSearch: parseReviewSearch,
