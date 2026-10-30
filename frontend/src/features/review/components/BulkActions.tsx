@@ -1,13 +1,15 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { CircleCheck, CircleX } from "lucide-react";
 import { useState, type JSX } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { type BulkResult, timesheetService, timesheetKeys } from "@/features/timesheets";
+import { type BulkResult, timesheetKeys } from "@/features/timesheets";
 import { Field } from "@/components/forms/Field";
 import { Banner } from "@/components/common/States";
 import { Button } from "@/components/ui/button";
+import { useBulkApprove, useBulkReject } from "@/features/review";
+
 import {
   Dialog,
   DialogContent,
@@ -106,12 +108,9 @@ function BulkApproveDialog({
     resolver: zodResolver(approveSchema),
     defaultValues: { notes: "" },
   });
-  const m = useMutation({
-    mutationFn: (notes: string) => timesheetService.bulkApprove(ids, notes.trim() || undefined),
-    onSuccess: (d) => {
-      form.reset();
-      onDone(d);
-    },
+  const m = useBulkApprove(ids, (result) => {
+    form.reset();
+    onDone(result);
   });
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -163,12 +162,9 @@ function BulkRejectDialog({
     resolver: zodResolver(rejectSchema),
     defaultValues: { reason: "" },
   });
-  const m = useMutation({
-    mutationFn: (reason: string) => timesheetService.bulkReject(ids, reason.trim()),
-    onSuccess: (d) => {
-      form.reset();
-      onDone(d);
-    },
+  const m = useBulkReject(ids, (result) => {
+    form.reset();
+    onDone(result);
   });
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

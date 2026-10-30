@@ -1,10 +1,9 @@
 import { getRouteApi, Link } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState, type JSX } from "react";
 import { toast } from "sonner";
 import { isApiError } from "@/services/apiErrors";
-import type { SubmissionRead } from "../types/submission";
 import {
   FlagBadges,
   MatchAction,
@@ -13,8 +12,6 @@ import {
   SeverityDot,
   TimesheetStatusBadge,
   timesheetEmployeeName,
-  timesheetService,
-  timesheetKeys,
 } from "@/features/timesheets";
 import {
   WritingClassChip,
@@ -56,43 +53,18 @@ import {
 } from "@/utils/format";
 import { useCompanyMap } from "@/features/companies";
 import { useEmployeeMap } from "@/features/employees";
-import { submissionService } from "../services/submissionService";
-import { submissionKeys } from "../queries/submissionQueries";
 import { BackButton } from "@/components/common/BackButton";
+import { useSubmissionTimesheets } from "../hooks/useSubmissionTimesheets";
+import { isSubmissionBusy, useSubmissionTimeline } from "../hooks/useSubmissionTimeline";
 
 const routeApi = getRouteApi("/_app/submissions/$submissionId");
-
-function isBusy(s: SubmissionRead): boolean {
-  const IN_PROGRESS_STATES = new Set([
-    "received",
-    "reading",
-    "matching",
-    "rule_checks",
-    "reprocessing",
-  ]);
-  return s.status === "received" || s.status === "processing" || IN_PROGRESS_STATES.has(s.state);
-}
 
 export function SubmissionPage(): JSX.Element {
   const { submissionId } = routeApi.useParams();
   const [reprocessOpen, setReprocessOpen] = useState(false);
-  const timeline = useQuery({
-    queryKey: submissionKeys.timeline(submissionId),
-    queryFn: () => submissionService.getTimeline(submissionId),
-    refetchInterval: (q) => (q.state.data && isBusy(q.state.data.submission) ? 3000 : false),
-  });
-  const busy = timeline.data ? isBusy(timeline.data.submission) : false;
-  const tsParams = {
-    submission_id: submissionId,
-    size: 100,
-    sort: "employee" as const,
-    order: "asc" as const,
-  };
-  const timesheets = useQuery({
-    queryKey: timesheetKeys.list(tsParams),
-    queryFn: () => timesheetService.listTimesheets(tsParams),
-    refetchInterval: busy ? 3000 : false,
-  });
+  const timeline = useSubmissionTimeline(submissionId);
+  const busy = timeline.data ? isSubmissionBusy(timeline.data.submission) : false;
+  const timesheets = useSubmissionTimesheets(submissionId, busy);
   const companies = useCompanyMap();
   const employees = useEmployeeMap((timesheets.data?.items ?? []).map((t) => t.company_id));
 

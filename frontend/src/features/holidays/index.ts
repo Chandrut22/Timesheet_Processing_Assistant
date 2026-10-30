@@ -2,3 +2,4 @@
 export { HolidaysPage, validateHolidaysSearch } from "./components/HolidaysPage";
 export { HolidayReadSchema } from "./types/holiday";
 export type { HolidayCreate, HolidayListParams } from "./types/holiday";
+export { useHolidaysList } from "./hooks/useHolidaysList";

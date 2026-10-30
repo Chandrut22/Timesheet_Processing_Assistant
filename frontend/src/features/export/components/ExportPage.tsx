@@ -1,5 +1,5 @@
 import { getRouteApi, Link } from "@tanstack/react-router";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, FileSpreadsheet } from "lucide-react";
 import { useState, type JSX } from "react";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { Pagination } from "@/components/common/Pagination";
 import { Banner, EmptyState, ErrorState, TableSkeleton } from "@/components/common/States";
 import { Button } from "@/components/ui/button";
+import { useExportPreview, useExportHistory } from "@/features/export";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox, Input, Label } from "@/components/ui/input";
 import {
@@ -144,11 +145,7 @@ function PreviewSection({ company, week }: { company: CompanyRead; week: string 
   const queryClient = useQueryClient();
   const [allowPending, setAllowPending] = useState(false);
   const [created, setCreated] = useState<ExportBatchRead | null>(null);
-  const preview = useQuery({
-    queryKey: exportKeys.preview(company.id, week),
-    queryFn: () => exportService.previewExport(company.id, week),
-    placeholderData: keepPreviousData,
-  });
+  const preview = useExportPreview(company.id, week);
 
   const create = useMutation({
     mutationFn: () => exportService.createExport(company.id, week, allowPending),
@@ -402,11 +399,7 @@ function Warnings({ p }: { p: ExportPreview }): JSX.Element | null {
 function History({ companyId }: { companyId?: string }): JSX.Element {
   const [page, setPage] = useState(1);
   const params = { company_id: companyId, page, size: 10 };
-  const q = useQuery({
-    queryKey: exportKeys.list(params),
-    queryFn: () => exportService.listExports(params),
-    placeholderData: keepPreviousData,
-  });
+  const q = useExportHistory(params);
   const companies = useCompanyMap();
   return (
     <Card className="mt-6">

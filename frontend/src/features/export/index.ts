@@ -7,4 +7,6 @@ export {
   ExportRowReadSchema,
   ExportTotalsReadSchema,
 } from "./types/export";
+export { useExportPreview } from "./hooks/useExportPreview";
+export { useExportHistory } from "./hooks/useExportHistory";
 export type { ExportBatchRead, ExportFormat, ExportListParams } from "./types/export";

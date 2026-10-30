@@ -2,11 +2,12 @@
 // pick a CSV / XLSX file -> "Check file" (a dry run: nothing is written, the report
 // shows each row's fate) -> "Import" (the same file and options, for real).
 import { useMutation } from "@tanstack/react-query";
+import { useRunImport } from "@/features/import";
+import { importService } from "../services/importService";
 import { Download, FileUp } from "lucide-react";
 import { useId, useState, type JSX } from "react";
 import { toast } from "sonner";
 import { errorMessage } from "@/services/apiErrors";
-import { importService } from "../services/importService";
 import type { ImportReport, ImportResource, OnDuplicate, OnError } from "../types/import";
 import { Banner } from "@/components/common/States";
 import { Badge } from "@/components/ui/badge";
@@ -64,17 +65,13 @@ export function ImportButton({
   );
 }
 
-export function ImportDialog({
-  resource,
-  open,
-  onOpenChange,
-  onImported,
-}: {
+export function ImportDialog(props: {
   resource: ImportResource;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onImported: (report: ImportReport) => void;
 }): JSX.Element {
+  const { resource, open, onOpenChange } = props;
   const ids = useId();
   const label = RESOURCE_LABEL[resource];
   const [file, setFile] = useState<File | null>(null);
@@ -85,16 +82,15 @@ export function ImportDialog({
   // Any change to the file or the options makes the last check stale.
   const reset = (): void => setReport(null);
 
-  const run = useMutation({
-    mutationFn: (dryRun: boolean) =>
-      importService.importFile(resource, file as File, { dryRun, onError, onDuplicate }),
-    meta: { silentError: true }, // shown in the dialog
-    onSuccess: (result) => {
-      setReport(result);
-      if (result.committed) {
-        onImported(result);
-        toast.success(summarize(result, resource));
-      }
+  const run = useRunImport({
+    resource,
+    file,
+    onError,
+    onDuplicate,
+    onResult: setReport,
+    onImported: (result) => {
+      props.onImported(result);
+      toast.success(summarize(result, resource));
     },
   });
 

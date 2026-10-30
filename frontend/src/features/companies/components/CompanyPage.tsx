@@ -1,5 +1,5 @@
 import { getRouteApi, Link } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { useState, type JSX } from "react";
 import { toast } from "sonner";
@@ -14,6 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
+import { useCompanyDetails } from "@/features/companies";
+import { useCompanyWhitelist } from "@/features/companies";
 import {
   Table,
   TableBody,
@@ -38,10 +40,7 @@ export function CompanyPage(): JSX.Element {
   const { companyId } = routeApi.useParams();
   const { tab } = routeApi.useSearch();
   const navigate = routeApi.useNavigate();
-  const q = useQuery({
-    queryKey: companyKeys.detail(companyId),
-    queryFn: () => companyService.getCompany(companyId),
-  });
+  const q = useCompanyDetails(companyId);
 
   const back = <BackButton fallback="/companies" fallbackLabel="Companies" />;
 
@@ -144,10 +143,7 @@ function WhitelistTab({ company }: { company: CompanyRead }): JSX.Element {
   const queryClient = useQueryClient();
   const [value, setValue] = useState("");
   const [removing, setRemoving] = useState<WhitelistRead | null>(null);
-  const list = useQuery({
-    queryKey: companyKeys.whitelist(company.id),
-    queryFn: () => companyService.listWhitelist(company.id),
-  });
+  const list = useCompanyWhitelist(company.id);
 
   const add = useMutation({
     mutationFn: (v: string) => companyService.addWhitelist(company.id, v),

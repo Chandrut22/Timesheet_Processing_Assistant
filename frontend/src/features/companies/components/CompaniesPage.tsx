@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus } from "lucide-react";
 import { useMemo, useState, type JSX } from "react";
 import { toast } from "sonner";
@@ -38,6 +38,7 @@ import { WEEKDAYS } from "@/utils/format";
 import { companyService } from "../services/companyService";
 import { companyKeys } from "../queries/companyQueries";
 import { employeeKeys } from "@/features/employees";
+import { useCompaniesList } from "../hooks/useCompaniesList";
 
 export function CompaniesPage(): JSX.Element {
   const isAdmin = useIsAdmin();
@@ -56,11 +57,7 @@ export function CompaniesPage(): JSX.Element {
     size: 25,
   };
 
-  const list = useQuery({
-    queryKey: companyKeys.list(params),
-    queryFn: ({ signal }) => companyService.listCompanies(params, signal),
-    placeholderData: keepPreviousData,
-  });
+  const list = useCompaniesList(params);
   const bulkRows = useMemo(
     () => (list.data?.items ?? []).map((c) => ({ id: c.id, label: c.name, isActive: c.is_active })),
     [list.data],

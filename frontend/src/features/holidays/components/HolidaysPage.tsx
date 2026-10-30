@@ -1,6 +1,6 @@
 import { getRouteApi } from "@tanstack/react-router";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { useMemo, useState, type JSX } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, NativeSelect } from "@/components/ui/input";
+import { useHolidaysList } from "@/features/holidays";
 import {
   Table,
   TableBody,
@@ -62,10 +63,7 @@ export function HolidaysPage(): JSX.Element {
     company_id: search.company_id,
     is_active: search.active === undefined ? undefined : search.active === "active",
   };
-  const list = useQuery({
-    queryKey: holidayKeys.list(params),
-    queryFn: () => holidayService.listHolidays(params),
-  });
+  const list = useHolidaysList(params);
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),

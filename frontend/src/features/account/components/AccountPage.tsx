@@ -1,66 +1,58 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { z } from "zod";
-import { errorMessage } from "@/services/apiErrors";
-import { useUser, authService } from "@/features/auth";
+import type { JSX } from "react";
+
 import { Field, FormError } from "@/components/forms/Field";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { applyFieldErrors } from "@/lib/forms";
-import type { JSX } from "react";
-
-const schema = z
-  .object({
-    current_password: z.string().min(1, "Enter your current password"),
-    new_password: z.string().min(8, "At least 8 characters").max(128, "At most 128 characters"),
-    confirm: z.string(),
-  })
-  .refine((v) => v.new_password === v.confirm, {
-    path: ["confirm"],
-    message: "The passwords don't match",
-  })
-  .refine((v) => v.new_password !== v.current_password, {
-    path: ["new_password"],
-    message: "Choose a password different from the current one",
-  });
-type Values = z.infer<typeof schema>;
+import { useUser } from "@/features/auth";
+import { passwordSchema, useChangePassword, type PasswordValues } from "@/features/account";
+import { errorMessage } from "@/services/apiErrors";
 
 export function AccountPage(): JSX.Element {
   const user = useUser();
-  const form = useForm<Values>({
-    resolver: zodResolver(schema),
-    defaultValues: { current_password: "", new_password: "", confirm: "" },
+
+  const form = useForm<PasswordValues>({
+    resolver: zodResolver(passwordSchema),
+    defaultValues: {
+      current_password: "",
+      new_password: "",
+      confirm: "",
+    },
   });
-  const m = useMutation({
-    mutationFn: (v: Values) => authService.changePassword(v.current_password, v.new_password),
-    meta: { silentError: true },
+
+  const m = useChangePassword({
+    setError: form.setError,
     onSuccess: () => {
       toast.success("Password changed.");
       form.reset();
     },
-    onError: (err) => applyFieldErrors(err, form.setError, ["current_password", "new_password"]),
   });
+
   const e = form.formState.errors;
 
   return (
     <>
       <PageHeader title="My account" />
+
       <div className="grid max-w-3xl gap-4">
         <Card>
           <CardHeader>
             <CardTitle>Profile</CardTitle>
           </CardHeader>
+
           <CardContent>
             <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
               <dt className="text-muted-foreground">Name</dt>
               <dd>{user.name}</dd>
+
               <dt className="text-muted-foreground">Email</dt>
               <dd>{user.email}</dd>
+
               <dt className="text-muted-foreground">Role</dt>
               <dd>
                 <Badge
@@ -73,6 +65,7 @@ export function AccountPage(): JSX.Element {
             </dl>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader>
             <div>
@@ -80,13 +73,15 @@ export function AccountPage(): JSX.Element {
               <CardDescription>At least 8 characters.</CardDescription>
             </div>
           </CardHeader>
+
           <CardContent>
             <form
-              onSubmit={form.handleSubmit((v) => m.mutate(v))}
+              onSubmit={form.handleSubmit((values) => m.mutate(values))}
               noValidate
               className="grid max-w-sm gap-4"
             >
               <FormError message={m.error ? errorMessage(m.error) : null} />
+
               <Field
                 label="Current password"
                 htmlFor="cp-current"
@@ -99,6 +94,7 @@ export function AccountPage(): JSX.Element {
                   {...form.register("current_password")}
                 />
               </Field>
+
               <Field label="New password" htmlFor="cp-new" error={e.new_password?.message}>
                 <Input
                   id="cp-new"
@@ -107,6 +103,7 @@ export function AccountPage(): JSX.Element {
                   {...form.register("new_password")}
                 />
               </Field>
+
               <Field label="Confirm new password" htmlFor="cp-confirm" error={e.confirm?.message}>
                 <Input
                   id="cp-confirm"
@@ -115,6 +112,7 @@ export function AccountPage(): JSX.Element {
                   {...form.register("confirm")}
                 />
               </Field>
+
               <Button type="submit" className="w-fit" disabled={m.isPending}>
                 {m.isPending ? "Saving…" : "Change password"}
               </Button>

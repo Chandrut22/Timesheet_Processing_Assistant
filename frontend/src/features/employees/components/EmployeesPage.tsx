@@ -1,5 +1,6 @@
 import { getRouteApi } from "@tanstack/react-router";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEmployeesList } from "@/features/employees";
 import { Pencil, Plus } from "lucide-react";
 import { useMemo, useState, type JSX } from "react";
 import { toast } from "sonner";
@@ -57,11 +58,7 @@ export function EmployeesPage(): JSX.Element {
     page: search.page ?? 1,
     size: 25,
   };
-  const list = useQuery({
-    queryKey: employeeKeys.list(params),
-    queryFn: ({ signal }) => employeeService.listEmployees(params, signal),
-    placeholderData: keepPreviousData,
-  });
+  const list = useEmployeesList(params);
   const bulkRows = useMemo(
     () =>
       (list.data?.items ?? []).map((e) => ({

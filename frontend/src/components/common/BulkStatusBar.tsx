@@ -1,13 +1,15 @@
 // Tick boxes and the bar for activating, deactivating or deleting many rows at once
 // (admins only). Each row is handled on its own by the backend: the ones that fail stay
 // ticked and their reasons are listed; the rest still go through.
-import { type QueryKey, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { QueryKey } from "@tanstack/react-query";
+import { useBulkStatusMutation } from "@/hooks/useBulkStatusMutation";
 import { CircleX, Power, PowerOff, Trash2 } from "lucide-react";
 import { type ReactNode, useState, type JSX } from "react";
 import { toast } from "sonner";
 import type { BulkDeleteResult, BulkStatusResult } from "@/types/api";
 import { Banner } from "@/components/common/States";
 import { Button } from "@/components/ui/button";
+
 import {
   Dialog,
   DialogContent,
@@ -109,33 +111,34 @@ export function BulkStatusBar({
   /** What the confirm dialog warns about, per action. */
   warnings?: Partial<Record<BulkAction, ReactNode>>;
 }): JSX.Element | null {
-  const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState<BulkAction | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const rows = selection.selectedRows;
 
-  const m = useMutation({
-    mutationFn: ({
-      action,
-      ids,
-    }: {
-      action: BulkAction;
-      ids: string[];
-    }): Promise<BulkStatusResult | BulkDeleteResult> =>
-      action === "delete" && remove ? remove(ids) : setStatus(ids, action === "activate"),
+  const m = useBulkStatusMutation({
+    setStatus,
+    remove,
+    invalidate,
+
     onSuccess: (result, { action, ids }) => {
-      for (const key of invalidate) void queryClient.invalidateQueries({ queryKey: key });
       const summary = resultSummary(result, action, noun);
+
       setConfirming(null);
+
       const failed = failedIds(result);
+
       if (failed.size === 0) {
         toast.success(summary);
         selection.clear();
         return;
       }
+
       toast.warning(summary);
+
       const labels = new Map(rows.map((r) => [r.id, r.label]));
+
       selection.set(ids.filter((id) => failed.has(id)));
+
       setOutcome({
         action,
         failures: result.results

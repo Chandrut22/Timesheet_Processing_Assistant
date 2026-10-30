@@ -7,3 +7,5 @@ export {
   OnErrorSchema,
   RowResultSchema,
 } from "./types/import";
+
+export { useRunImport } from "./hooks/useRunImport";

@@ -1,5 +1,5 @@
 import { getRouteApi, Link } from "@tanstack/react-router";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useReviewQueue } from "../hooks/useReviewQueue";
 import { SlidersHorizontal, RotateCcw } from "lucide-react";
 import { useCallback, useMemo, useState, type JSX } from "react";
 import { toast } from "sonner";
@@ -15,8 +15,6 @@ import {
   TimesheetStatusBadge,
   timesheetCompanyName,
   timesheetEmployeeName,
-  timesheetService,
-  timesheetKeys,
 } from "@/features/timesheets";
 import { CompanySelect, useCompanyMap } from "@/features/companies";
 import { Money } from "@/components/common/Money";
@@ -72,11 +70,7 @@ export function ReviewQueuePage(): JSX.Element {
       return { key: paramsKey, ids: typeof next === "function" ? next(prev) : next };
     });
 
-  const query = useQuery({
-    queryKey: timesheetKeys.list(params),
-    queryFn: ({ signal }) => timesheetService.listTimesheets(params, signal),
-    placeholderData: keepPreviousData,
-  });
+  const query = useReviewQueue(search);
   const items = useMemo(() => query.data?.items ?? [], [query.data]);
   const companies = useCompanyMap();
   const employees = useEmployeeMap(items.map((t) => t.company_id));
